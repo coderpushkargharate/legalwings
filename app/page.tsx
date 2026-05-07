@@ -31,29 +31,43 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({ totalLeads: 0, totalClients: 0, totalAgreements: 0, newLeadsToday: 0 });
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const [leadsRes, clientsRes] = await Promise.all([
-          apiFetch('/api/leads?pageSize=1'),
-          apiFetch('/api/clients?pageSize=1'),
-        ]);
-        const leadsData = await leadsRes.json();
-        const clientsData = await clientsRes.json();
-        setStats({
-          totalLeads: leadsData.leadPage?.totalElements || 0,
-          totalClients: clientsData.clientPage?.totalElements || 0,
-          totalAgreements: 0,
-          newLeadsToday: 0,
-        });
-      } catch {
-        // Use defaults
-      } finally {
-        setLoading(false);
+ useEffect(() => {
+  if (!user) return; // ✅ wait for auth
+
+  const fetchStats = async () => {
+    try {
+      setLoading(true);
+
+      const [leadsRes, clientsRes] = await Promise.all([
+        apiFetch('/api/leads?pageSize=1'),
+        apiFetch('/api/clients?pageSize=1'),
+      ]);
+
+      // ✅ handle unauthorized safely
+      if (!leadsRes.ok || !clientsRes.ok) {
+        console.error('API error', leadsRes.status, clientsRes.status);
+        return;
       }
-    };
-    fetchStats();
-  }, []);
+
+      const leadsData = await leadsRes.json();
+      const clientsData = await clientsRes.json();
+
+      setStats({
+        totalLeads: leadsData.leadPage?.totalElements || 0,
+        totalClients: clientsData.clientPage?.totalElements || 0,
+        totalAgreements: 0,
+        newLeadsToday: 0,
+      });
+
+    } catch (err) {
+      console.error('Dashboard error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchStats();
+}, [user]); // ✅ IMPORTANT
 
   const teams = [
     { name: 'Calling Team', path: '/calling-team', icon: Phone, desc: 'Manage incoming leads and calls', color: 'bg-blue-500' },

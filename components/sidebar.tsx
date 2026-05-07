@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
@@ -37,19 +37,22 @@ const dataManagement = {
   ],
 };
 
-export default function Sidebar() {
-  const [collapsed, setCollapsed] = useState(false);
-  const [dataOpen, setDataOpen] = useState(false);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const pathname = usePathname();
-  const { user, logout } = useAuth();
-
-  const isAdmin = user?.roles?.includes('admin');
-  const visibleNav = isAdmin ? navItems : navItems.filter(n => n.role === 'all' || user?.roles?.includes(n.role));
-  const showDataManagement = isAdmin;
-
-  const SidebarContent = () => (
+// ✅ 1. EXTRACTED & MEMOIZED SIDEBAR CONTENT
+// Defined outside main component to prevent recreation on every render
+const SidebarContent = React.memo(function SidebarContent({
+  collapsed,
+  pathname,
+  user,
+  logout,
+  visibleNav,
+  showDataManagement,
+  dataOpen,
+  setDataOpen,
+  setMobileOpen,
+}) {
+  return (
     <div className="flex flex-col h-full">
+      {/* Header */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-700/50">
         <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
           <Scale className="w-5 h-5 text-white" />
@@ -62,6 +65,7 @@ export default function Sidebar() {
         )}
       </div>
 
+      {/* Navigation */}
       <nav className="flex-1 py-4 overflow-y-auto">
         {visibleNav.map((item) => {
           const isActive = pathname === item.path;
@@ -88,7 +92,7 @@ export default function Sidebar() {
               {!collapsed && <p className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Management</p>}
             </div>
             <button
-              onClick={() => setDataOpen(!dataOpen)}
+              onClick={() => setDataOpen(prev => !prev)}
               className="flex items-center gap-3 px-4 py-2.5 mx-2 rounded-lg text-sm text-slate-300 hover:bg-slate-700/50 hover:text-white w-full transition-all"
             >
               <dataManagement.icon className="w-5 h-5 flex-shrink-0 text-slate-400" />
@@ -121,6 +125,7 @@ export default function Sidebar() {
         )}
       </nav>
 
+      {/* Footer */}
       <div className="border-t border-slate-700/50 p-3">
         {!collapsed && user && (
           <div className="flex items-center gap-3 px-2 py-2 mb-2">
@@ -142,6 +147,40 @@ export default function Sidebar() {
       </div>
     </div>
   );
+});
+
+// ✅ MAIN SIDEBAR COMPONENT
+function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
+  const [dataOpen, setDataOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const pathname = usePathname() ?? '';
+  const { user, logout } = useAuth();
+
+  // ✅ 2. MEMOIZE DERIVED STATE
+  const isAdmin = useMemo(() => user?.roles?.includes('admin'), [user?.roles]);
+
+  const visibleNav = useMemo(() => {
+    return isAdmin
+      ? navItems
+      : navItems.filter((n) => n.role === 'all' || user?.roles?.includes(n.role));
+  }, [isAdmin, user?.roles]);
+
+  const showDataManagement = isAdmin;
+
+  // ✅ 3. STABLE CALLBACKS
+  const handleLogout = useCallback(() => {
+    logout();
+  }, [logout]);
+
+  const toggleMobile = useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
+
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed(prev => !prev);
+  }, []);
 
   return (
     <>
@@ -153,31 +192,62 @@ export default function Sidebar() {
           </div>
           <span className="text-sm font-bold text-white">LegalWings CRM</span>
         </div>
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="text-slate-300 p-1">
+        <button
+          onClick={toggleMobile}
+          className="text-slate-300 p-1 hover:text-white transition-colors"
+        >
           {mobileOpen ? <X className="w-6 h-6" /> : <LayoutDashboard className="w-6 h-6" />}
         </button>
       </div>
 
       {/* Mobile overlay */}
       {mobileOpen && (
-        <div className="lg:hidden fixed inset-0 bg-black/60 z-40" onClick={() => setMobileOpen(false)} />
+        <div
+          className="lg:hidden fixed inset-0 bg-black/60 z-40 transition-opacity duration-300"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
 
       {/* Mobile sidebar */}
-      <div className={`lg:hidden fixed top-0 left-0 h-full w-64 bg-slate-900 z-50 transform transition-transform duration-300 ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <SidebarContent />
+      <div
+        className={`lg:hidden fixed top-0 left-0 h-full w-64 bg-slate-900 z-50 transform transition-transform duration-300 will-change-transform ${
+          mobileOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <SidebarContent
+          collapsed={false} // Mobile is always expanded
+          pathname={pathname}
+          user={user}
+          logout={handleLogout}
+          visibleNav={visibleNav}
+          showDataManagement={showDataManagement}
+          dataOpen={dataOpen}
+          setDataOpen={setDataOpen}
+          setMobileOpen={setMobileOpen}
+        />
       </div>
 
       {/* Desktop sidebar */}
       <div
-        className={`hidden lg:flex flex-col h-screen bg-slate-900 border-r border-slate-700/50 sticky top-0 transition-all duration-300 ${
+        className={`hidden lg:flex flex-col h-screen bg-slate-900 border-r border-slate-700/50 sticky top-0 transition-all duration-300 will-change-transform ${
           collapsed ? 'w-[68px]' : 'w-60'
         }`}
       >
-        <SidebarContent />
+        <SidebarContent
+          collapsed={collapsed}
+          pathname={pathname}
+          user={user}
+          logout={handleLogout}
+          visibleNav={visibleNav}
+          showDataManagement={showDataManagement}
+          dataOpen={dataOpen}
+          setDataOpen={setDataOpen}
+          setMobileOpen={setMobileOpen}
+        />
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={toggleCollapsed}
           className="absolute -right-3 top-20 w-6 h-6 bg-slate-700 border border-slate-600 rounded-full flex items-center justify-center text-slate-300 hover:bg-teal-600 hover:text-white transition-colors z-10"
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
         </button>
@@ -185,3 +255,6 @@ export default function Sidebar() {
     </>
   );
 }
+
+// ✅ 4. PREVENT FULL COMPONENT RE-RENDERS
+export default React.memo(Sidebar);

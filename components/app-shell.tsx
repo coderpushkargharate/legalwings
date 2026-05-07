@@ -1,20 +1,24 @@
+// src/components/app-shell.tsx
 'use client';
 
 import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import Sidebar from '@/components/sidebar';
 
 export default function AppShell({ children, title }: { children: React.ReactNode; title?: string }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/login');
+    // Only redirect if not loading AND no user AND not on login page
+    if (!loading && !user && !pathname?.includes('/login')) {
+      router.replace('/login');
     }
-  }, [user, loading, router]);
+  }, [user, loading, router, pathname]);
 
+  // Show loading spinner
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -26,12 +30,13 @@ export default function AppShell({ children, title }: { children: React.ReactNod
     );
   }
 
+  // If no user and not loading, don't render anything (redirect will happen)
   if (!user) return null;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar />
-      <main className="flex-1 min-w-0 lg:ml-0">
+      <main className="flex-1 min-w-0">
         <div className="pt-14 lg:pt-0">
           {children}
         </div>
