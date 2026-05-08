@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -9,13 +9,18 @@ import {
   Trash2,
   Plus,
   Search,
-  Filter,
-  X,
   ChevronLeft,
   ChevronRight,
+  Calendar,
+  Download,
+  Send,
+  X,
+  Filter,
 } from 'lucide-react';
 import Link from 'next/link';
+import * as XLSX from 'xlsx';
 
+// ==================== INTERFACES ====================
 interface Lead {
   id: string;
   client?: {
@@ -26,25 +31,38 @@ interface Lead {
     clientType?: string;
     address?: string;
     areaName?: string;
+    cityName?: string;
   };
   agreement?: {
     tokenNo?: string;
     status?: string;
     backOfficeStatus?: string;
-    owner?: { firstName?: string; lastName?: string };
-    tenant?: { firstName?: string; lastName?: string };
+    owner?: { firstName?: string; lastName?: string; phoneNo?: string; dateOfBirth?: string };
+    tenant?: { firstName?: string; lastName?: string; phoneNo?: string; dateOfBirth?: string };
+    executeDate?: string;
+    startDate?: string;
+    endDate?: string;
   };
   payment?: {
     grnNumber?: string;
     grnAmount?: number;
+    grnDate?: string;
     dhcNumber?: string;
     dhcAmount?: number;
+    dhcDate?: string;
     commissionDate?: string;
     commissionAmount?: number;
     commissionName?: string;
     totalReceivedAmount?: number;
     outstandingAmount?: number;
     totalAmount?: number;
+    paidAmount?: number;
+    pendingAmount?: number;
+    ourFees?: number;
+    commission?: number;
+    ownerPayments?: Array<{ date?: string; amount?: number; mode?: string; partyName?: string; transactionNo?: string }>;
+    tenantPayments?: Array<{ date?: string; amount?: number; mode?: string; partyName?: string; transactionNo?: string }>;
+    totalExpensesAmount?: number;
   };
   leadStatus?: string;
   status?: string;
@@ -58,6 +76,7 @@ interface Lead {
   tentativeAgreementDate?: string;
   cancellationReason?: string;
   transitLevel?: string;
+  leadSource?: string;
 }
 
 interface DropdownData {
@@ -67,6 +86,7 @@ interface DropdownData {
   agreementStatuses: { key: string; value: string }[];
   backOfficeStatuses: { key: string; value: string }[];
   executives: { id: string; name: string; userId: string }[];
+  clientTypes: { key: string; value: string }[];
 }
 
 interface Column {
@@ -76,366 +96,438 @@ interface Column {
   render?: (lead: Lead) => React.ReactNode;
 }
 
+// ==================== MODAL COMPONENTS ====================
+interface BaseModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children }) => {
+  if (!isOpen) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        {children}
+      </div>
+    </div>
+  );
+};
+
+interface ConfirmationModalProps {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  variant?: 'default' | 'danger' | 'success';
+}
+
+const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
+  isOpen, title, message, confirmText = 'Yes', cancelText = 'No', onConfirm, onCancel, variant = 'default'
+}) => {
+  const btnClass = variant === 'danger' 
+    ? 'bg-red-500 hover:bg-red-600' 
+    : variant === 'success' 
+    ? 'bg-emerald-500 hover:bg-emerald-600' 
+    : 'bg-amber-500 hover:bg-amber-600';
+
+  return (
+    <BaseModal isOpen={isOpen} onClose={onCancel}>
+      <div className="p-6 text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-600 mb-6">{message}</p>
+        <div className="flex gap-3 justify-center">
+          <button onClick={onCancel} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">
+            {cancelText}
+          </button>
+          <button onClick={onConfirm} className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${btnClass}`}>
+            {confirmText}
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+  );
+};
+
+interface TeamSelectionModalProps {
+  isOpen: boolean;
+  leadId: string;
+  onSend: (leadId: string, team: string) => void;
+  onClose: () => void;
+}
+
+const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose }) => {
+  const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND'>('CALLING');
+
+  const teams = [
+    { key: 'CALLING', label: 'Calling Team', icon: '📞', color: 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' },
+    { key: 'EXECUTIVE', label: 'Executive Team', icon: '👔', color: 'bg-purple-50 border-purple-200 hover:border-purple-400 text-purple-700' },
+    { key: 'BACKEND', label: 'Backend Team', icon: '⚙️', color: 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 text-emerald-700' },
+  ];
+
+  return (
+    <BaseModal isOpen={isOpen} onClose={onClose}>
+      <div className="p-6">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold text-slate-800">Forward Lead to Team</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+        </div>
+        <p className="text-sm text-slate-600 mb-4">Select the team you want to assign this lead to:</p>
+        <div className="grid gap-3 mb-6">
+          {teams.map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setSelectedTeam(t.key as any)}
+              className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                selectedTeam === t.key ? t.color + ' border-opacity-100 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600'
+              }`}
+            >
+              <span className="text-xl">{t.icon}</span>
+              <span className="font-medium">{t.label}</span>
+              {selectedTeam === t.key && <div className="ml-auto w-2 h-2 rounded-full bg-current" />}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-3 justify-end">
+          <button onClick={onClose} className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
+          <button
+            onClick={() => onSend(leadId, selectedTeam)}
+            className="px-5 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center gap-2"
+          >
+            <Send className="w-4 h-4" /> Forward Lead
+          </button>
+        </div>
+      </div>
+    </BaseModal>
+  );
+};
+
+// ==================== MAIN COMPONENT ====================
 interface LeadsTableProps {
   transitLevel: string;
   title: string;
   columns: Column[];
   showAddButton?: boolean;
-  extraFilters?: React.ReactNode;
-  onLeadAction?: (leadId: string, action: string) => void;
+  onSendToBackend?: (leadId: string) => void;
 }
+
+const STATUS_COLORS: Record<string, string> = {
+  ACTIVE: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  COMPLETED: 'bg-blue-100 text-blue-700 border-blue-200',
+  CANCELLED: 'bg-red-100 text-red-700 border-red-200',
+  PENDING: 'bg-amber-100 text-amber-700 border-amber-200',
+  FOLLOW_UP: 'bg-purple-100 text-purple-700 border-purple-200',
+};
 
 export default function LeadsTable({
   transitLevel,
   title,
   columns,
   showAddButton = true,
-  extraFilters,
-  onLeadAction,
 }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
 
-  // Data states
   const [leads, setLeads] = useState<Lead[]>([]);
   const [dropdowns, setDropdowns] = useState<DropdownData>({
-    cities: [],
-    areas: [],
-    leadStatuses: [],
-    agreementStatuses: [],
-    backOfficeStatuses: [],
-    executives: [],
+    cities: [], areas: [], leadStatuses: [], agreementStatuses: [],
+    backOfficeStatuses: [], executives: [], clientTypes: [],
   });
 
-  // Loading & pagination
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
 
-  // 🔹 API-triggered filters (cause backend fetch)
-  const [searchInput, setSearchInput] = useState('');
-  const [searchText, setSearchText] = useState(''); // triggers API
+  // Filters
+  const today = new Date().toISOString().split('T')[0];
+  const [fromDate, setFromDate] = useState(today);
+  const [toDate, setToDate] = useState(today);
+  const [filterOn, setFilterOn] = useState('Created Date');
+  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedArea, setSelectedArea] = useState('');
   const [clientType, setClientType] = useState('');
-  const [leadStatus, setLeadStatus] = useState('');
+  const [areaText, setAreaText] = useState('');
+  const [tokenNumber, setTokenNumber] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [searchText, setSearchText] = useState('');
 
-  // 🔹 Local-only filters (client-side filtering, NO API call)
-  const [tokenFilter, setTokenFilter] = useState('');
-  const [areaTextFilter, setAreaTextFilter] = useState('');
+  // Modals
+  const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
+  const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
+  const [cancelReason, setCancelReason] = useState('');
 
-  const pageSizeRef = useMemo(() => pageSize, []);
-
-  // ✅ Fetch dropdowns (once on mount)
+  // Fetch Dropdowns
   useEffect(() => {
     if (authLoading || !user) return;
-
     (async () => {
       try {
         const res = await apiFetch('/api/dropdowns', { method: 'POST' });
         const data = await res.json();
         setDropdowns({
-          cities: data?.cities || [],
-          areas: data?.areas || [],
-          leadStatuses: data?.leadStatuses || [],
-          agreementStatuses: data?.agreementStatuses || [],
-          backOfficeStatuses: data?.backOfficeStatuses || [],
-          executives: data?.executives || [],
+          cities: data?.cities || [], areas: data?.areas || [],
+          leadStatuses: data?.leadStatuses || [], agreementStatuses: data?.agreementStatuses || [],
+          backOfficeStatuses: data?.backOfficeStatuses || [], executives: data?.executives || [],
+          clientTypes: data?.clientTypes || [],
         });
       } catch {
-        setDropdowns({
-          cities: [],
-          areas: [],
-          leadStatuses: [],
-          agreementStatuses: [],
-          backOfficeStatuses: [],
-          executives: [],
-        });
+        console.error('Failed to fetch dropdowns');
       }
     })();
   }, [authLoading, user]);
 
-  // ✅ Fetch leads ONLY when API filters change (stable pattern)
-  useEffect(() => {
+  // Fetch Leads
+  const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
-
-    (async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({
-          page: page.toString(),
-          pageSize: pageSizeRef.toString(),
-          transitLevel,
-        });
-
-        if (searchText) params.set('searchText', searchText);
-        if (clientType) params.set('clientType', clientType);
-        if (leadStatus) params.set('leadStatus', leadStatus);
-
-        const res = await apiFetch(`/api/leads?${params.toString()}`);
-        const data = await res.json();
-
-        setLeads(data?.leadPage?.content || []);
-        setTotalPages(data?.leadPage?.totalPages || 1);
-      } catch {
-        setLeads([]);
-        setTotalPages(1);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [page, transitLevel, searchText, clientType, leadStatus, authLoading, user]);
-
-  // ✅ Local filtering (NO API call) - applied on fetched data
-  const filteredLeads = useMemo(() => {
-    return leads.filter((lead) => {
-      const token = (lead?.agreement?.tokenNo || '').toLowerCase();
-      const area = (lead?.client?.areaName || '').toLowerCase();
-
-      const tokenMatch = !tokenFilter || token.includes(tokenFilter.toLowerCase());
-      const areaMatch = !areaTextFilter || area.includes(areaTextFilter.toLowerCase());
-
-      return tokenMatch && areaMatch;
-    });
-  }, [leads, tokenFilter, areaTextFilter]);
-
-  // ✅ Handlers
-  const handleSearchSubmit = () => {
-    setSearchText(searchInput);
-    setPage(0);
-  };
-
-  const handleClearFilters = () => {
-    setSearchInput('');
-    setSearchText('');
-    setClientType('');
-    setLeadStatus('');
-    setTokenFilter('');
-    setAreaTextFilter('');
-    setPage(0);
-  };
-
-  const handleCancel = async (id: string) => {
-    const reason = prompt('Please enter the reason for cancellation:');
-    if (!reason) return;
-
+    setLoading(true);
     try {
-      await apiFetch('/api/leads', {
-        method: 'PUT',
-        body: JSON.stringify({
-          id,
-          leadStatus: 'CANCELLED',
-          cancellationReason: reason,
-        }),
-      });
-      // Re-fetch leads after cancel
       const params = new URLSearchParams({
-        page: page.toString(),
-        pageSize: pageSizeRef.toString(),
-        transitLevel,
+        page: page.toString(), pageSize: pageSize.toString(), transitLevel,
       });
-      if (searchText) params.set('searchText', searchText);
+      if (fromDate) params.set('fromDate', fromDate);
+      if (toDate) params.set('toDate', toDate);
+      if (filterOn) params.set('filterOn', filterOn);
+      if (selectedCity) params.set('cityId', selectedCity);
+      if (selectedArea) params.set('areaId', selectedArea);
       if (clientType) params.set('clientType', clientType);
-      if (leadStatus) params.set('leadStatus', leadStatus);
+      if (areaText) params.set('areaText', areaText);
+      if (tokenNumber) params.set('tokenNumber', tokenNumber);
+      if (selectedStatus) params.set('status', selectedStatus);
+      if (searchText) params.set('searchText', searchText);
 
       const res = await apiFetch(`/api/leads?${params.toString()}`);
       const data = await res.json();
       setLeads(data?.leadPage?.content || []);
+      setTotalPages(data?.leadPage?.totalPages || 1);
     } catch {
-      alert('Failed to cancel lead.');
+      setLeads([]); setTotalPages(1);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, transitLevel, fromDate, toDate, filterOn, selectedCity, selectedArea, clientType, areaText, tokenNumber, selectedStatus, searchText, authLoading, user]);
+
+  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Handlers
+  const handleApplyFilters = () => setPage(0);
+  const handleClearFilters = () => {
+    setFromDate(today); setToDate(today); setFilterOn('Created Date');
+    setSelectedCity(''); setSelectedArea(''); setClientType('');
+    setAreaText(''); setTokenNumber(''); setSelectedStatus('');
+    setSearchText(''); setPage(0);
+  };
+
+  const handleSendToTeam = async (leadId: string, team: string) => {
+    try {
+      await apiFetch(`/api/leads/${leadId}/assign-team`, { method: 'POST', body: JSON.stringify({ team }) });
+      alert(`Lead successfully forwarded to ${team} team.`);
+      fetchLeads();
+    } catch {
+      alert('Failed to forward lead. Please try again.');
+    } finally {
+      setSendModal({ isOpen: false, leadId: '' });
     }
   };
 
-  const getStatusClass = (status?: string) => {
-    const s = (status || '').toUpperCase();
-    if (['ASSIGNED', 'APPROVED', 'CLOSED', 'DRAFT_CONFIRM', 'COMPLETED'].includes(s))
-      return 'bg-emerald-50 text-emerald-700 border-emerald-200';
-    if (['PENDING', 'POSTPONED', 'NEW', 'NEW_LEAD', 'INTERESTED'].includes(s))
-      return 'bg-amber-50 text-amber-700 border-amber-200';
-    if (['CANCELLED', 'REJECTED', 'NOT_INTERESTED', 'LOST'].includes(s))
-      return 'bg-red-50 text-red-700 border-red-200';
-    return 'bg-slate-50 text-slate-700 border-slate-200';
+  const handleCancelLead = async () => {
+    if (!cancelReason.trim()) { alert('Please provide a cancellation reason.'); return; }
+    try {
+      await apiFetch('/api/leads', {
+        method: 'PUT',
+        body: JSON.stringify({ id: cancelModal.leadId, leadStatus: 'CANCELLED', cancellationReason: cancelReason }),
+      });
+      alert('Lead cancelled successfully.');
+      fetchLeads();
+    } catch {
+      alert('Failed to cancel lead.');
+    } finally {
+      setCancelModal({ isOpen: false, leadId: '' });
+      setCancelReason('');
+    }
+  };
+
+  const handleExportExcel = () => {
+    if (leads.length === 0) return alert('No data to export.');
+    const exportData = leads.map((lead) => ({
+      'Token Number': lead.agreement?.tokenNo || '-',
+      'Name': `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
+      'Phone Number': lead.client?.phoneNo || '-',
+      'Client Type': lead.client?.clientType || '-',
+      'Visit Address': lead.visitAddress || '-',
+      'Area': lead.client?.areaName || '-',
+      'City': lead.client?.cityName || '-',
+      'Lead Status': lead.leadStatus || '-',
+      'Agreement Status': lead.agreement?.status || '-',
+      'Created Date': lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
+      'Created By': lead.createdByUserName || '-',
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
+    XLSX.writeFile(wb, `Leads_${transitLevel}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const getStatusBadge = (status?: string) => {
+    if (!status) return <span className="text-slate-400">-</span>;
+    const color = STATUS_COLORS[status.toUpperCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
+    return <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${color}`}>{status}</span>;
   };
 
   return (
-    <div>
-      {/* 🔍 Filters Section */}
-      <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Search Input */}
-          <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-            <Search className="w-4 h-4 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by name..."
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit()}
-              className="bg-transparent text-sm text-slate-700 outline-none w-full"
-            />
+    <div className="space-y-6 font-sans text-slate-700">
+      {/* Filters Section */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+        <div className="flex items-center gap-2 mb-4 text-slate-800 font-semibold">
+          <Filter className="w-5 h-5 text-amber-500" />
+          <h2 className="text-lg">Filters</h2>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label>
+            <div className="relative">
+              <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)}
+                className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
           </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label>
+            <div className="relative">
+              <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)}
+                className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+              <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            </div>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Filter On</label>
+            <select value={filterOn} onChange={(e) => setFilterOn(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option>Created Date</option>
+              <option>Updated Date</option>
+              <option>Appointment Date</option>
+            </select>
+          </div>
+        </div>
 
-          {/* Client Type */}
-          <select
-            value={clientType}
-            onChange={(e) => {
-              setClientType(e.target.value);
-              setPage(0);
-            }}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-500"
-          >
-            <option value="">All Client Types</option>
-            <option value="OWNER">Owner</option>
-            <option value="TENANT">Tenant</option>
-            <option value="AGENT">Agent</option>
-          </select>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+          {[
+            { label: 'City', value: selectedCity, set: setSelectedCity, options: dropdowns.cities },
+            { label: 'Area', value: selectedArea, set: setSelectedArea, options: dropdowns.areas },
+          ].map((f) => (
+            <div key={f.label} className="space-y-1.5">
+              <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">{f.label}</label>
+              <select value={f.value} onChange={(e) => f.set(e.target.value)}
+                className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+                <option value="">Select {f.label}</option>
+                {f.options.map((opt) => <option key={opt.id} value={opt.id}>{opt.name}</option>)}
+              </select>
+            </div>
+          ))}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label>
+            <select value={clientType} onChange={(e) => setClientType(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option value="">All</option>
+              <option value="OWNER">Owner</option>
+              <option value="TENANT">Tenant</option>
+              <option value="AGENT">Agent</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label>
+            <input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token Number</label>
+            <input type="text" placeholder="14 digits" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 14))}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label>
+            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option value="">All Status</option>
+              {dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}
+            </select>
+          </div>
+        </div>
 
-          {/* Lead Status */}
-          <select
-            value={leadStatus}
-            onChange={(e) => {
-              setLeadStatus(e.target.value);
-              setPage(0);
-            }}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-500"
-          >
-            <option value="">All Lead Statuses</option>
-            {dropdowns.leadStatuses.map((s) => (
-              <option key={s.key} value={s.key}>
-                {s.value}
-              </option>
-            ))}
-          </select>
-
-          {/* Token Filter (Local) */}
-          <input
-            type="text"
-            placeholder="Token No."
-            value={tokenFilter}
-            onChange={(e) => {
-              setTokenFilter(e.target.value.replace(/[^0-9]/g, '').slice(0, 14));
-              setPage(0);
-            }}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none w-28 focus:ring-2 focus:ring-teal-500"
-          />
-
-          {/* Area Filter (Local) */}
-          <input
-            type="text"
-            placeholder="Area"
-            value={areaTextFilter}
-            onChange={(e) => {
-              setAreaTextFilter(e.target.value);
-              setPage(0);
-            }}
-            className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none w-28 focus:ring-2 focus:ring-teal-500"
-          />
-
-          {/* Search Button (triggers API) */}
-          <button
-            onClick={handleSearchSubmit}
-            className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
-          >
-            Search
-          </button>
-
-          {/* Clear Filters */}
-          {(searchInput || clientType || leadStatus || tokenFilter || areaTextFilter) && (
-            <button
-              onClick={handleClearFilters}
-              className="p-2 text-slate-400 hover:text-slate-600 transition-colors"
-              title="Clear all filters"
-            >
-              <X className="w-4 h-4" />
+        <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input type="text" placeholder="Search by name, phone, token..." value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && setPage(0)}
+              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="flex gap-2 w-full sm:w-auto">
+            <button onClick={handleApplyFilters}
+              className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">
+              Apply Filters
             </button>
-          )}
-
-          {extraFilters}
+            <button onClick={handleClearFilters}
+              className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">
+              Clear
+            </button>
+            <button onClick={handleExportExcel}
+              className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm">
+              <Download className="w-4 h-4" /> Export
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ➕ Add Button */}
+      {/* Header & Add Button */}
       {showAddButton && (
-        <div className="mb-4">
-          <Link
-            href={`/leads/new?transitLevel=${transitLevel}`}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Add New Lead
+        <div className="flex justify-end">
+          <Link href={`/leads/new?transitLevel=${transitLevel}`}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">
+            <Plus className="w-4 h-4" /> Add New Lead
           </Link>
         </div>
       )}
 
-      {/* 📊 Table */}
-      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {columns.map((col) => (
-                  <th
-                    key={col.key}
-                    className="text-left px-4 py-3 font-medium text-slate-600 whitespace-nowrap"
-                    style={col.width ? { width: col.width } : undefined}
-                  >
+                  <th key={col.key} className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width } : undefined}>
                     {col.label}
                   </th>
                 ))}
-                <th className="text-left px-4 py-3 font-medium text-slate-600 w-28">
-                  Actions
-                </th>
+                <th className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr>
-                  <td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <div className="w-6 h-6 border-2 border-teal-600 border-t-transparent rounded-full animate-spin"></div>
-                      <span>Loading...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : filteredLeads.length === 0 ? (
-                <tr>
-                  <td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">
-                    No records found
-                  </td>
-                </tr>
+                <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">
+                  <div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div>
+                </td></tr>
+              ) : leads.length === 0 ? (
+                <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
-                filteredLeads.map((lead) => (
-                  <tr
-                    key={lead.id}
-                    className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors"
-                  >
+                leads.map((lead) => (
+                  <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
                     {columns.map((col) => (
-                      <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap">
+                      <td key={col.key} className="px-5 py-3 text-slate-700 whitespace-nowrap align-middle">
                         {col.render ? col.render(lead) : '-'}
                       </td>
                     ))}
-                    <td className="px-4 py-3">
+                    <td className="px-5 py-3 align-middle">
                       <div className="flex items-center gap-1">
-                        <Link
-                          href={`/leads/${lead.id}?mode=view`}
-                          className="p-1.5 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
-                          title="View"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </Link>
-                        <Link
-                          href={`/leads/${lead.id}?mode=edit`}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                          title="Edit"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Link>
-                        <button
-                          onClick={() => handleCancel(lead.id)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          title="Cancel"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <Link href={`/leads/${lead.id}?mode=view`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View"><Eye className="w-4 h-4" /></Link>
+                        <Link href={`/leads/${lead.id}?mode=edit`} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Edit"><Edit className="w-4 h-4" /></Link>
+                        <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team"><Send className="w-4 h-4" /></button>
+                        <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
                   </tr>
@@ -445,31 +537,40 @@ export default function LeadsTable({
           </table>
         </div>
 
-        {/* 📄 Pagination */}
+        {/* Pagination */}
         {totalPages > 1 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
-            <p className="text-xs text-slate-500">
-              Page {page + 1} of {totalPages}
-            </p>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-slate-50/50">
+            <p className="text-xs text-slate-500 font-medium">Showing page {page + 1} of {totalPages}</p>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0}
-                className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors"
-              >
+              <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}
+                className="p-2 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200">
                 <ChevronLeft className="w-4 h-4" />
               </button>
-              <button
-                onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={page >= totalPages - 1}
-                className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30 transition-colors"
-              >
+              <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1}
+                className="p-2 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200">
                 <ChevronRight className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
       </div>
+
+      {/* Modals */}
+      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} />
+      
+      <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
+        <div className="p-6">
+          <h3 className="text-lg font-semibold text-slate-800 mb-2">Cancel Lead</h3>
+          <p className="text-sm text-slate-600 mb-4">Please provide a reason for cancelling this lead:</p>
+          <textarea value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} rows={3}
+            className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 mb-4 resize-none"
+            placeholder="Enter cancellation reason..." />
+          <div className="flex gap-3 justify-end">
+            <button onClick={() => setCancelModal({ isOpen: false, leadId: '' })} className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-all">Cancel</button>
+            <button onClick={handleCancelLead} className="px-5 py-2 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-all">Confirm Cancellation</button>
+          </div>
+        </div>
+      </BaseModal>
     </div>
   );
 }

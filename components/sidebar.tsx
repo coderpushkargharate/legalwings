@@ -17,6 +17,7 @@ import {
   ChevronDown,
   X,
   Scale,
+  Users,
 } from 'lucide-react';
 
 const navItems = [
@@ -26,6 +27,7 @@ const navItems = [
   { name: 'Backend Team', path: '/backend-team', icon: Server, role: 'backend' },
   { name: 'Account Team', path: '/account-team', icon: DollarSign, role: 'accounting' },
   { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, role: 'marketing' },
+   { name: 'Employees', path: '/employees', icon: Users, role: 'admin' }, // 👈 NEW
 ];
 
 const dataManagement = {

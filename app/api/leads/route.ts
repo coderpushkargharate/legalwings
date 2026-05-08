@@ -17,15 +17,26 @@ export async function GET(request: Request) {
     const { db } = await connectToDatabase();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
+    const viewAll = searchParams.get('viewAll') === 'true';
 
+    const filter: Record<string, unknown> = {};
+
+    // 🔹 RBAC: Employees only see their own leads. Admin & Accounting see ALL.
+    const isAdmin = user.roles?.includes('admin');
+    const isAccounting = user.roles?.includes('accounting');
+    
+    if (!isAdmin && !isAccounting && !viewAll) {
+      filter.createdByUserId = user.userId;
+    }
+
+    // Single lead view
     if (id) {
-      const lead = await db.collection('leads').findOne({ _id: new ObjectId(id) });
-      if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+      const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...filter });
+      if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
       return NextResponse.json({ ...lead, id: lead._id.toString(), _id: undefined });
     }
 
-    const page = parseInt(searchParams.get('page') || '0');
-    const pageSize = parseInt(searchParams.get('pageSize') || '20');
+    // Apply existing filters
     const transitLevel = searchParams.get('transitLevel');
     const clientType = searchParams.get('clientType');
     const leadStatus = searchParams.get('leadStatus');
@@ -33,8 +44,7 @@ export async function GET(request: Request) {
     const cityId = searchParams.get('cityId');
     const areaId = searchParams.get('areaId');
 
-    const filter: Record<string, unknown> = {};
-    if (transitLevel) filter.transitLevel = transitLevel;
+    if (transitLevel && transitLevel !== 'ALL') filter.transitLevel = transitLevel;
     if (clientType) filter['client.clientType'] = clientType;
     if (leadStatus) filter.leadStatus = leadStatus;
     if (cityId) filter['city.id'] = cityId;
@@ -43,8 +53,12 @@ export async function GET(request: Request) {
       filter.$or = [
         { 'client.firstName': { $regex: searchText, $options: 'i' } },
         { 'client.lastName': { $regex: searchText, $options: 'i' } },
+        { 'client.phoneNo': { $regex: searchText, $options: 'i' } },
       ];
     }
+
+    const page = parseInt(searchParams.get('page') || '0');
+    const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
     const total = await db.collection('leads').countDocuments(filter);
     const leads = await db.collection('leads')
@@ -76,12 +90,15 @@ export async function POST(request: Request) {
     const { db } = await connectToDatabase();
     const body = await request.json();
 
+    // 🔹 Automatically attach creator ID & Name
     const lead = {
       ...body,
+      createdByUserId: user.userId,
+      createdByUserName: `${user.firstName} ${user.lastName}`,
+      updatedByUserId: user.userId,
+      updatedByUserName: `${user.firstName} ${user.lastName}`,
       createdAt: new Date(),
       updatedAt: new Date(),
-      createdByUserName: `${user.firstName} ${user.lastName}`,
-      updatedByUserName: `${user.firstName} ${user.lastName}`,
     };
 
     const result = await db.collection('leads').insertOne(lead);
@@ -95,22 +112,20 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   try {
     const { db } = await connectToDatabase();
     const body = await request.json();
     const { id, ...updateData } = body;
-
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
 
     updateData.updatedAt = new Date();
+    updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
 
     await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
-
     return NextResponse.json({ message: 'Lead updated successfully' });
   } catch (error) {
     console.error('Lead PUT error:', error);
