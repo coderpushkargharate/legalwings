@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useTransition, useRef } from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
-import { Plus, CreditCard as Edit, Trash2, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, CreditCard as Edit, Trash2, Search, X, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 interface Client {
   id: string;
@@ -24,41 +24,108 @@ interface Client {
 export default function ClientsPage() {
   const { apiFetch } = useApi();
   const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchText, setSearchText] = useState('');
   const [clientType, setClientType] = useState('');
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [showModal, setShowModal] = useState(false);
   const [editClient, setEditClient] = useState<Client | null>(null);
-  const [form, setForm] = useState({ firstName: '', lastName: '', phoneNo: '', email: '', clientType: 'OWNER', cityName: '', areaName: '', aadharNumber: '', panNumber: '' });
+  const [form, setForm] = useState({ 
+    firstName: '', lastName: '', phoneNo: '', email: '', 
+    clientType: 'OWNER', cityName: '', areaName: '', 
+    aadharNumber: '', panNumber: '' 
+  });
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  
+  // React 18: useTransition for non-urgent UI updates
+  const [isPending, startTransition] = useTransition();
+  
+  // Debounce timer ref for search
+  const searchTimerRef = useRef<NodeJS.Timeout>();
 
-  const fetchClients = useCallback(async () => {
-    setLoading(true);
+  // Fetch clients with separate loading states
+  const fetchClients = useCallback(async (isInitial = false) => {
+    if (isInitial) {
+      setInitialLoading(true);
+    } else {
+      setIsRefreshing(true);
+    }
+    
     try {
-      const params = new URLSearchParams({ page: page.toString(), pageSize: '20' });
+      const params = new URLSearchParams({ 
+        page: page.toString(), 
+        pageSize: '20' 
+      });
       if (searchText) params.set('searchText', searchText);
       if (clientType) params.set('clientType', clientType);
 
       const res = await apiFetch(`/api/clients?${params.toString()}`);
       const data = await res.json();
-      setClients(data.clientPage?.content || []);
+      
+      // Only update if data actually changed (prevents unnecessary re-renders)
+      const newClients = data.clientPage?.content || [];
+      setClients(prev => {
+        if (JSON.stringify(prev) === JSON.stringify(newClients)) return prev;
+        return newClients;
+      });
       setTotalPages(data.clientPage?.totalPages || 1);
-    } catch {
-      setClients([]);
+    } catch (error) {
+      console.error('Fetch error:', error);
+      if (isInitial) setClients([]);
     } finally {
-      setLoading(false);
+      if (isInitial) {
+        setInitialLoading(false);
+      } else {
+        setIsRefreshing(false);
+      }
     }
   }, [apiFetch, page, searchText, clientType]);
 
-  useEffect(() => { fetchClients(); }, [fetchClients]);
+  // Initial load - runs only once on mount
+  useEffect(() => {
+    let mounted = true;
+    if (mounted) {
+      fetchClients(true);
+    }
+    return () => { mounted = false; };
+  }, []);
+
+  // Debounced search handler
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    
+    searchTimerRef.current = setTimeout(() => {
+      setPage(0); // Reset to first page on search
+      fetchClients(false); // Background refresh
+    }, 300);
+    
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchText]);
+
+  // Client type change handler
+  const handleClientTypeChange = (value: string) => {
+    setClientType(value);
+    setPage(0);
+    fetchClients(false);
+  };
+
+  // Page change handler
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    fetchClients(false);
+  };
 
   const handleSave = async () => {
     try {
+      const payload = { id: editClient?.id, ...form };
       if (editClient) {
         await apiFetch('/api/clients', {
           method: 'PUT',
-          body: JSON.stringify({ id: editClient.id, ...form }),
+          body: JSON.stringify(payload),
         });
       } else {
         await apiFetch('/api/clients', {
@@ -66,22 +133,54 @@ export default function ClientsPage() {
           body: JSON.stringify(form),
         });
       }
+      
+      // Optimistic update with transition
+      startTransition(() => {
+        if (editClient) {
+          // Update existing client
+          setClients(prev => prev.map(c => 
+            c.id === editClient.id ? { ...c, ...form } : c
+          ));
+        } else {
+          // Add new client to beginning of list
+          setClients(prev => [{ id: Date.now().toString(), ...form } as Client, ...prev]);
+        }
+      });
+      
       setShowModal(false);
       setEditClient(null);
-      setForm({ firstName: '', lastName: '', phoneNo: '', email: '', clientType: 'OWNER', cityName: '', areaName: '', aadharNumber: '', panNumber: '' });
-      fetchClients();
-    } catch {
+      setForm({ 
+        firstName: '', lastName: '', phoneNo: '', email: '', 
+        clientType: 'OWNER', cityName: '', areaName: '', 
+        aadharNumber: '', panNumber: '' 
+      });
+      
+      // Refresh data in background to get server-generated fields
+      fetchClients(false);
+    } catch (error) {
+      console.error('Save error:', error);
       alert('Failed to save client.');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this client?')) return;
+    
+    // Optimistic update: remove from UI immediately
+    setDeletingId(id);
+    startTransition(() => {
+      setClients(prev => prev.filter(c => c.id !== id));
+    });
+    
     try {
       await apiFetch(`/api/clients?id=${id}`, { method: 'DELETE' });
-      fetchClients();
-    } catch {
-      alert('Failed to delete client.');
+    } catch (error) {
+      console.error('Delete error:', error);
+      alert('Failed to delete client. Reverting...');
+      // Re-fetch only on error
+      fetchClients(false);
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -103,30 +202,58 @@ export default function ClientsPage() {
 
   const openAdd = () => {
     setEditClient(null);
-    setForm({ firstName: '', lastName: '', phoneNo: '', email: '', clientType: 'OWNER', cityName: '', areaName: '', aadharNumber: '', panNumber: '' });
+    setForm({ 
+      firstName: '', lastName: '', phoneNo: '', email: '', 
+      clientType: 'OWNER', cityName: '', areaName: '', 
+      aadharNumber: '', panNumber: '' 
+    });
     setShowModal(true);
+  };
+
+  const handleSearchChange = (value: string) => {
+    setSearchText(value);
+    // Debounce is handled by useEffect
+  };
+
+  const handleClearFilters = () => {
+    setSearchText('');
+    setClientType('');
+    setPage(0);
+    fetchClients(false);
   };
 
   return (
     <AppShell>
       <Header title="Client Management" />
       <div className="p-6">
-        {/* Filters */}
-        <div className="bg-white rounded-xl border border-slate-200 p-4 mb-4">
+        {/* Refresh Indicator */}
+        {isRefreshing && !initialLoading && (
+          <div className="flex justify-end mb-2">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600 border border-slate-200">
+              <Loader2 className="w-3 h-3 animate-spin" /> Updating...
+            </div>
+          </div>
+        )}
+
+        {/* Filters - with CSS fix for repaint */}
+        <div 
+          className="bg-white rounded-xl border border-slate-200 p-4 mb-4 will-change-transform"
+          style={{ transform: 'translateZ(0)' }}
+        >
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-2 flex-1 min-w-[200px]">
-              <Search className="w-4 h-4 text-slate-400" />
+              <Search className="w-4 h-4 text-slate-400 flex-shrink-0" />
               <input
                 type="text"
                 placeholder="Search clients..."
                 value={searchText}
-                onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
+                onChange={(e) => handleSearchChange(e.target.value)}
                 className="bg-transparent text-sm text-slate-700 outline-none w-full"
               />
             </div>
             <select
               value={clientType}
-              onChange={(e) => { setClientType(e.target.value); setPage(0); }}
+              onChange={(e) => handleClientTypeChange(e.target.value)}
               className="px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 outline-none focus:ring-2 focus:ring-teal-500"
             >
               <option value="">All Types</option>
@@ -134,57 +261,111 @@ export default function ClientsPage() {
               <option value="TENANT">Tenant</option>
               <option value="AGENT">Agent</option>
             </select>
-            <button onClick={fetchClients} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">Submit</button>
+            <button 
+              onClick={() => fetchClients(false)} 
+              className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex-shrink-0"
+              disabled={isPending || isRefreshing}
+            >
+              {isRefreshing ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit'}
+            </button>
             {(searchText || clientType) && (
-              <button onClick={() => { setSearchText(''); setClientType(''); setPage(0); }} className="p-2 text-slate-400 hover:text-slate-600"><X className="w-4 h-4" /></button>
+              <button 
+                onClick={handleClearFilters} 
+                className="p-2 text-slate-400 hover:text-slate-600 flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
             )}
           </div>
         </div>
 
         {/* Add button */}
         <div className="mb-4">
-          <button onClick={openAdd} className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">
+          <button 
+            onClick={openAdd} 
+            className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors"
+          >
             <Plus className="w-4 h-4" /> Add Client
           </button>
         </div>
 
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        {/* Table Container - CSS fix for blinking */}
+        <div 
+          className="bg-white rounded-xl border border-slate-200 overflow-hidden will-change-transform"
+          style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
+        >
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200">
                   <th className="text-left px-4 py-3 font-medium text-slate-600 w-12">#</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">First Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Last Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Phone</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Email</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Type</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">City</th>
-                  <th className="text-left px-4 py-3 font-medium text-slate-600">Area</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">First Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">Last Name</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">Phone</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">Email</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-20">Type</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">City</th>
+                  <th className="text-left px-4 py-3 font-medium text-slate-600 w-1/6">Area</th>
                   <th className="text-left px-4 py-3 font-medium text-slate-600 w-24">Actions</th>
                 </tr>
               </thead>
-              <tbody>
-                {loading ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-slate-400">Loading...</td></tr>
+              <tbody className="divide-y divide-slate-100">
+                {initialLoading ? (
+                  <tr>
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="w-5 h-5 animate-spin text-teal-500" /> 
+                        <span>Loading clients...</span>
+                      </div>
+                    </td>
+                  </tr>
                 ) : clients.length === 0 ? (
-                  <tr><td colSpan={9} className="text-center py-12 text-slate-400">No clients found</td></tr>
+                  <tr>
+                    <td colSpan={9} className="text-center py-12 text-slate-400">
+                      {searchText || clientType ? 'No clients match your filters' : 'No clients found'}
+                    </td>
+                  </tr>
                 ) : (
                   clients.map((c, i) => (
-                    <tr key={c.id} className="border-b border-slate-100 hover:bg-slate-50/50">
-                      <td className="px-4 py-3 text-slate-500">{i + 1 + page * 20}</td>
-                      <td className="px-4 py-3 text-slate-700">{c.firstName}</td>
-                      <td className="px-4 py-3 text-slate-700">{c.lastName}</td>
-                      <td className="px-4 py-3 text-slate-700">{c.phoneNo}</td>
-                      <td className="px-4 py-3 text-slate-700">{c.email}</td>
-                      <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{c.clientType}</span></td>
-                      <td className="px-4 py-3 text-slate-700">{c.cityName || '-'}</td>
-                      <td className="px-4 py-3 text-slate-700">{c.areaName || '-'}</td>
+                    <tr 
+                      key={`client-${c.id}`}
+                      className={`hover:bg-slate-50/50 transition-colors will-change-transform ${
+                        deletingId === c.id ? 'opacity-50' : ''
+                      }`}
+                      style={{ transform: 'translateZ(0)' }}
+                    >
+                      <td className="px-4 py-3 text-slate-500 truncate">{i + 1 + page * 20}</td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.firstName}</td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.lastName}</td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.phoneNo}</td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.email}</td>
+                      <td className="px-4 py-3 truncate">
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 inline-block">
+                          {c.clientType}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.cityName || '-'}</td>
+                      <td className="px-4 py-3 text-slate-700 truncate">{c.areaName || '-'}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1">
-                          <button onClick={() => openEdit(c)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"><Edit className="w-4 h-4" /></button>
-                          <button onClick={() => handleDelete(c.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"><Trash2 className="w-4 h-4" /></button>
+                          <button 
+                            onClick={() => openEdit(c)} 
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                            disabled={isPending}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(c.id)} 
+                            disabled={deletingId === c.id || isPending}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {deletingId === c.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -193,76 +374,175 @@ export default function ClientsPage() {
               </tbody>
             </table>
           </div>
+          
+          {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200">
-              <p className="text-xs text-slate-500">Page {page + 1} of {totalPages}</p>
+            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
+              <p className="text-xs text-slate-500 font-medium">
+                Page {page + 1} of {totalPages}
+              </p>
               <div className="flex items-center gap-1">
-                <button onClick={() => setPage(Math.max(0, page - 1))} disabled={page === 0} className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30"><ChevronLeft className="w-4 h-4" /></button>
-                <button onClick={() => setPage(Math.min(totalPages - 1, page + 1))} disabled={page >= totalPages - 1} className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30"><ChevronRight className="w-4 h-4" /></button>
+                <button 
+                  onClick={() => handlePageChange(Math.max(0, page - 1))} 
+                  disabled={page === 0 || isPending} 
+                  className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <button 
+                  onClick={() => handlePageChange(Math.min(totalPages - 1, page + 1))} 
+                  disabled={page >= totalPages - 1 || isPending} 
+                  className="p-1.5 text-slate-400 hover:text-slate-600 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}
         </div>
 
-        {/* Modal */}
+        {/* Modal - with proper z-index and animation */}
         {showModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={(e) => e.target === e.currentTarget && setShowModal(false)}
+          >
+            <div className="bg-white rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl animate-in zoom-in-95 duration-200">
               <div className="p-6">
-                <h3 className="text-lg font-semibold text-slate-800 mb-4">{editClient ? 'Edit Client' : 'Add Client'}</h3>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-slate-800">
+                    {editClient ? 'Edit Client' : 'Add Client'}
+                  </h3>
+                  <button 
+                    onClick={() => { setShowModal(false); setEditClient(null); }}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-                      <input value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">First Name *</label>
+                      <input 
+                        value={form.firstName} 
+                        onChange={(e) => setForm({ ...form, firstName: e.target.value })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                        required
+                      />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                      <input value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Last Name *</label>
+                      <input 
+                        value={form.lastName} 
+                        onChange={(e) => setForm({ ...form, lastName: e.target.value })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                        required
+                      />
                     </div>
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                      <input value={form.phoneNo} onChange={(e) => setForm({ ...form, phoneNo: e.target.value.replace(/[^0-9]/g, '').slice(0, 10) })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" maxLength={10} />
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Phone *</label>
+                      <input 
+                        value={form.phoneNo} 
+                        onChange={(e) => setForm({ ...form, phoneNo: e.target.value.replace(/[^0-9]/g, '').slice(0, 10) })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                        maxLength={10}
+                        placeholder="10 digits"
+                        required
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                      <input 
+                        type="email" 
+                        value={form.email} 
+                        onChange={(e) => setForm({ ...form, email: e.target.value })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                      />
                     </div>
                   </div>
+                  
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Client Type</label>
-                    <select value={form.clientType} onChange={(e) => setForm({ ...form, clientType: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Client Type *</label>
+                    <select 
+                      value={form.clientType} 
+                      onChange={(e) => setForm({ ...form, clientType: e.target.value })} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500"
+                    >
                       <option value="OWNER">Owner</option>
                       <option value="TENANT">Tenant</option>
                       <option value="AGENT">Agent</option>
                     </select>
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
-                      <input value={form.cityName} onChange={(e) => setForm({ ...form, cityName: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                      <input 
+                        value={form.cityName} 
+                        onChange={(e) => setForm({ ...form, cityName: e.target.value })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Area</label>
-                      <input value={form.areaName} onChange={(e) => setForm({ ...form, areaName: e.target.value })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" />
+                      <input 
+                        value={form.areaName} 
+                        onChange={(e) => setForm({ ...form, areaName: e.target.value })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                      />
                     </div>
                   </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Aadhar Number</label>
-                      <input value={form.aadharNumber} onChange={(e) => setForm({ ...form, aadharNumber: e.target.value.replace(/[^0-9]/g, '').slice(0, 12) })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" maxLength={12} />
+                      <input 
+                        value={form.aadharNumber} 
+                        onChange={(e) => setForm({ ...form, aadharNumber: e.target.value.replace(/[^0-9]/g, '').slice(0, 12) })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                        maxLength={12}
+                        placeholder="12 digits"
+                      />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">PAN Number</label>
-                      <input value={form.panNumber} onChange={(e) => setForm({ ...form, panNumber: e.target.value.toUpperCase() })} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" maxLength={10} />
+                      <input 
+                        value={form.panNumber} 
+                        onChange={(e) => setForm({ ...form, panNumber: e.target.value.toUpperCase() })} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500" 
+                        maxLength={10}
+                        placeholder="ABCDE1234F"
+                      />
                     </div>
                   </div>
                 </div>
-                <div className="flex justify-end gap-3 mt-6">
-                  <button onClick={() => { setShowModal(false); setEditClient(null); }} className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-                  <button onClick={handleSave} className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors">Save</button>
+                
+                <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={() => { setShowModal(false); setEditClient(null); }} 
+                    className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
+                    disabled={isPending}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSave} 
+                    disabled={isPending || !form.firstName || !form.lastName || !form.phoneNo}
+                    className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
+                  >
+                    {isPending ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Saving...
+                      </>
+                    ) : (
+                      'Save Client'
+                    )}
+                  </button>
                 </div>
               </div>
             </div>
