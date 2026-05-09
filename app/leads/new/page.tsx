@@ -163,6 +163,16 @@ const Select = memo(function Select({ label, value, onChange, options, disabled 
 });
 
 // ============================================================================
+// 🔹 HELPER: Calculate Outstanding Amount
+// ============================================================================
+const calculateOutstanding = (total: string, commission: string): string => {
+  const totalNum = parseFloat(total) || 0;
+  const commissionNum = parseFloat(commission) || 0;
+  const outstanding = totalNum - commissionNum;
+  return outstanding >= 0 ? outstanding.toFixed(2) : '0.00';
+};
+
+// ============================================================================
 // 🔹 MAIN COMPONENT CONTENT
 // ============================================================================
 function LeadFormContent() {
@@ -208,6 +218,11 @@ function LeadFormContent() {
 
   const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }]);
   const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }]);
+
+  // ✅ CALCULATED: Outstanding Amount
+  const outstandingAmount = useMemo(() => {
+    return calculateOutstanding(payment.totalAmount, payment.commissionAmount);
+  }, [payment.totalAmount, payment.commissionAmount]);
 
   const isView = mode === 'view';
   const isEditable = !isView;
@@ -738,16 +753,58 @@ function LeadFormContent() {
           </div>
         )}
 
-        {/* 💰 PAYMENT TAB (Unchanged Design) */}
+        {/* 💰 PAYMENT TAB - FIXED OUTSTANDING AMOUNT */}
         {activeTab === 'payment' && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Total Agreement Amount</label><input type="text" placeholder="e.g., 5000" value={payment.totalAmount} onChange={(e) => updatePayment('totalAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label><input type="text" placeholder="e.g., 500" value={payment.commissionAmount} onChange={(e) => updatePayment('commissionAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Amount</label><input type="text" value="0.00" readOnly disabled className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-medium" /></div>
+                {/* Total Agreement Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Total Agreement Amount</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g., 5000" 
+                    value={payment.totalAmount} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '');
+                      updatePayment('totalAmount', val);
+                    }} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
+                
+                {/* Commission Amount */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g., 500" 
+                    value={payment.commissionAmount} 
+                    onChange={(e) => {
+                      const val = e.target.value.replace(/[^0-9.]/g, '');
+                      updatePayment('commissionAmount', val);
+                    }} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
+                
+                {/* ✅ FIXED: Outstanding Amount - Auto Calculated */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Amount</label>
+                  <input 
+                    type="text" 
+                    value={`₹ ${outstandingAmount}`} 
+                    readOnly 
+                    disabled 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed" 
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Calculated: Total - Commission</p>
+                </div>
               </div>
             </div>
+
             {/* Owner Payments */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
@@ -756,13 +813,14 @@ function LeadFormContent() {
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label><div className="relative"><input type="date" value={p.paymentDate} onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" />
                     <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   </div></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Mode</label><select value={p.modeOfPayment} onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"><option value="">Select Mode</option><option value="CASH">Cash</option><option value="ONLINE">Online</option><option value="CHEQUE">Cheque</option></select></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
                 </div>
               ))}
               {isEditable && (<button onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" type="button"><Plus className="w-4 h-4" /> Add Owner Payment</button>)}
             </div>
+
             {/* Tenant Payments */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
@@ -771,31 +829,55 @@ function LeadFormContent() {
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label><div className="relative"><input type="date" value={p.paymentDate} onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" />
                     <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
                   </div></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Mode</label><select value={p.modeOfPayment} onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"><option value="">Select Mode</option><option value="CASH">Cash</option><option value="ONLINE">Online</option><option value="CHEQUE">Cheque</option></select></div>
                   <div><label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
                 </div>
               ))}
               {isEditable && (<button onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" type="button"><Plus className="w-4 h-4" /> Add Tenant Payment</button>)}
             </div>
-            <div className="bg-white rounded-xl border border-slate-200 p-6"><div><label className="block text-sm font-medium text-slate-700 mb-1">Total Amount Received</label><input type="text" value="0.00" readOnly disabled className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00A651] font-medium" /></div></div>
-            <div className="bg-white rounded-xl border border-slate-200 p-6"><div><label className="block text-sm font-medium text-slate-700 mb-1">Description</label><textarea value={payment.description} onChange={(e) => updatePayment('description', e.target.value)} disabled={!isEditable} placeholder="Add any payment related notes here..." rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" /></div></div>
+
+            {/* Total Amount Received - Sum of all payments */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Total Amount Received</label>
+                <input 
+                  type="text" 
+                  value={`₹ ${(() => {
+                    const ownerTotal = ownerPayments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount) || 0), 0);
+                    const tenantTotal = tenantPayments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount) || 0), 0);
+                    return (ownerTotal + tenantTotal).toFixed(2);
+                  })()}`}
+                  readOnly 
+                  disabled 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00A651] font-semibold" 
+                />
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <textarea value={payment.description} onChange={(e) => updatePayment('description', e.target.value)} disabled={!isEditable} placeholder="Add any payment related notes here..." rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" />
+              </div>
+            </div>
+
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Govt GRN Date</label><div className="relative"><input type="date" value={payment.govtGrnDate} onChange={(e) => updatePayment('govtGrnDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">GRN Number</label><input type="text" placeholder="GRN Number" value={payment.grnNumber} onChange={(e) => updatePayment('grnNumber', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">GRN Amount</label><input type="text" placeholder="GRN Amount" value={payment.grnAmount} onChange={(e) => updatePayment('grnAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">GRN Amount</label><input type="text" placeholder="GRN Amount" value={payment.grnAmount} onChange={(e) => updatePayment('grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Date</label><div className="relative"><input type="date" value={payment.dhcDate} onChange={(e) => updatePayment('dhcDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Number</label><input type="text" placeholder="DHC Number" value={payment.dhcNumber} onChange={(e) => updatePayment('dhcNumber', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Amount</label><input type="text" placeholder="DHC Amount" value={payment.dhcAmount} onChange={(e) => updatePayment('dhcAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Amount</label><input type="text" placeholder="DHC Amount" value={payment.dhcAmount} onChange={(e) => updatePayment('dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Date</label><div className="relative"><input type="date" value={payment.commissionDate} onChange={(e) => updatePayment('commissionDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
                 <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Name</label><input type="text" placeholder="Commission Name" value={payment.commissionName} onChange={(e) => updatePayment('commissionName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label><input type="text" placeholder="Commission Amount" value={payment.commissionAmount} onChange={(e) => updatePayment('commissionAmount', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label><input type="text" placeholder="Commission Amount" value={payment.commissionAmount} onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
               </div>
             </div>
             {isEditable && (<div className="flex justify-end"><button onClick={savePayment} disabled={saving} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button"><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}</button></div>)}
