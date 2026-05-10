@@ -5,7 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { ArrowLeft, Save, ChevronRight, Plus, X } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucide-react';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -190,11 +190,13 @@ function LeadFormContent() {
     cities: [], areas: [], leadStatuses: [], agreementStatuses: [], backOfficeStatuses: [],
   });
   const [existingClients, setExistingClients] = useState<ExistingClient[]>([]);
+  const [existingClientsLoaded, setExistingClientsLoaded] = useState(false); // ✅ NEW: Track loading state
   const [saving, setSaving] = useState(false);
   const [currentLeadId, setCurrentLeadId] = useState(leadId || '');
   const [formDataLoaded, setFormDataLoaded] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState('');
+  const [clientSelectLoading, setClientSelectLoading] = useState(false); // ✅ NEW: Loading for client selection
 
   // 🔹 Form States
   const [lead, setLead] = useState<LeadFormData>({
@@ -252,7 +254,7 @@ function LeadFormContent() {
   }, [authLoading, token, apiFetch]);
 
   // ============================================================================
-  // 🔹 FETCH EXISTING CLIENTS
+  // 🔹 FETCH EXISTING CLIENTS (with loading flag)
   // ============================================================================
   useEffect(() => {
     if (authLoading || !token) return;
@@ -264,8 +266,12 @@ function LeadFormContent() {
         if (res.ok) {
           const data = await res.json();
           setExistingClients(data.clientPage?.content || []);
+          setExistingClientsLoaded(true); // ✅ Mark as loaded
         }
-      } catch (err) { console.error('Clients fetch error:', err); }
+      } catch (err) { 
+        console.error('Clients fetch error:', err);
+        setExistingClientsLoaded(true); // ✅ Still mark loaded even on error to unblock UI
+      }
     };
     fetchClients();
     return () => { mounted = false; };
@@ -383,24 +389,73 @@ function LeadFormContent() {
     });
   }, []);
 
-  const handleClientSelect = useCallback((clientId: string) => {
+  // ✅ FIXED: Enhanced handleClientSelect with fallback API call
+  const handleClientSelect = useCallback(async (clientId: string) => {
     setSelectedClientId(clientId);
+    
+    // Clear form if no client selected
     if (!clientId) {
       setLead(prev => ({ ...prev, firstName: '', lastName: '', email: '', contactNumber: '', clientType: 'OWNER' }));
       return;
     }
-    const client = existingClients.find(c => c.id === clientId);
-    if (client) {
-      setLead(prev => ({
-        ...prev,
-        firstName: client.firstName || '',
-        lastName: client.lastName || '',
-        email: client.email || '',
-        contactNumber: client.phoneNo || '',
-        clientType: (client.clientType || 'OWNER') as any,
-      }));
+
+    setClientSelectLoading(true);
+    
+    try {
+      // First, try to find in cached list
+      const cachedClient = existingClients.find(c => c.id === clientId);
+      
+      if (cachedClient) {
+        // Use cached data immediately
+        setLead(prev => ({
+          ...prev,
+          firstName: cachedClient.firstName || '',
+          lastName: cachedClient.lastName || '',
+          email: cachedClient.email || '',
+          contactNumber: cachedClient.phoneNo || '',
+          clientType: (cachedClient.clientType || 'OWNER') as any,
+        }));
+      } else if (existingClientsLoaded) {
+        // ✅ FALLBACK: If not in cache but data is loaded, fetch specific client
+        const res = await apiFetch(`/api/clients/${clientId}`);
+        if (res.ok) {
+          const clientData = await res.json();
+          setLead(prev => ({
+            ...prev,
+            firstName: clientData.firstName || '',
+            lastName: clientData.lastName || '',
+            email: clientData.email || '',
+            contactNumber: clientData.phoneNo || '',
+            clientType: (clientData.clientType || 'OWNER') as any,
+          }));
+        }
+      }
+      // If data not loaded yet, the useEffect will populate existingClients
+      // and we can rely on the user re-selecting or we could add a watcher
+    } catch (err) {
+      console.error('Client fetch error:', err);
+      setFormError('Could not load client details. Please try again.');
+    } finally {
+      setClientSelectLoading(false);
     }
-  }, [existingClients]);
+  }, [existingClients, existingClientsLoaded, apiFetch]);
+
+  // ✅ Watch for existingClients to load and auto-populate if clientId was set earlier
+  useEffect(() => {
+    if (selectedClientId && existingClientsLoaded && !clientSelectLoading) {
+      const cachedClient = existingClients.find(c => c.id === selectedClientId);
+      if (cachedClient && !lead.firstName) { // Only populate if form is empty
+        setLead(prev => ({
+          ...prev,
+          firstName: cachedClient.firstName || '',
+          lastName: cachedClient.lastName || '',
+          email: cachedClient.email || '',
+          contactNumber: cachedClient.phoneNo || '',
+          clientType: (cachedClient.clientType || 'OWNER') as any,
+        }));
+      }
+    }
+  }, [existingClients, existingClientsLoaded, selectedClientId, clientSelectLoading, lead.firstName]);
 
   // ============================================================================
   // 🔹 SAVE FUNCTIONS
@@ -513,9 +568,12 @@ function LeadFormContent() {
         </button>
 
         {formError && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
-            {formError}
-            <button onClick={() => setFormError(null)} className="ml-2 font-medium hover:underline" type="button">Dismiss</button>
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex items-start gap-2">
+            <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+            <div className="flex-1">
+              {formError}
+              <button onClick={() => setFormError(null)} className="ml-2 font-medium hover:underline" type="button">Dismiss</button>
+            </div>
           </div>
         )}
 
@@ -531,26 +589,41 @@ function LeadFormContent() {
         {/* 📋 LEAD TAB */}
         {activeTab === 'lead' && (
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            {/* ✅ FIXED: Select Existing Client Dropdown */}
+            {/* ✅ FIXED: Select Existing Client with loading state */}
             <div className="mb-6">
-              <select
-                disabled={!isEditable}
-                value={selectedClientId}
-                onChange={(e) => handleClientSelect(e.target.value)}
-                className="w-full md:w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
-                id="lead-selectExisting"
-              >
-                <option value="">Select Existing Client</option>
-                {existingClients.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.firstName} {c.lastName} ({c.clientType})
+              <label className="block text-sm font-medium text-slate-700 mb-1">Select Existing Client</label>
+              <div className="relative">
+                <select
+                  disabled={!isEditable || !existingClientsLoaded || clientSelectLoading}
+                  value={selectedClientId}
+                  onChange={(e) => handleClientSelect(e.target.value)}
+                  className="w-full md:w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                  id="lead-selectExisting"
+                >
+                  <option value="">
+                    {!existingClientsLoaded ? 'Loading clients...' : 'Select Existing Client'}
                   </option>
-                ))}
-              </select>
+                  {existingClients.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.firstName} {c.lastName} ({c.clientType}) - {c.phoneNo || c.email}
+                    </option>
+                  ))}
+                </select>
+                {clientSelectLoading && (
+                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                    <Loader2 className="w-4 h-4 text-[#00A651] animate-spin" />
+                  </div>
+                )}
+              </div>
+              {!existingClientsLoaded && (
+                <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Loading client list...
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Lead Fields (unchanged design) */}
+              {/* Lead Fields */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
                 <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
@@ -664,7 +737,7 @@ function LeadFormContent() {
           </div>
         )}
 
-        {/* 👥 CLIENT & AGREEMENT TAB (Unchanged Design) */}
+        {/* 👥 CLIENT & AGREEMENT TAB */}
         {activeTab === 'client' && (
           <div className="space-y-6">
             {/* Owner Section */}
@@ -707,7 +780,6 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
                 
-                {/* ✅ FIXED: Agreement Start Date - extract e.target.value */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Start Date</label>
                   <div className="relative">
@@ -725,7 +797,6 @@ function LeadFormContent() {
                   </div>
                 </div>
                 
-                {/* ✅ FIXED: Agreement End Date - extract e.target.value */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement End Date</label>
                   <div className="relative">
@@ -778,7 +849,7 @@ function LeadFormContent() {
           </div>
         )}
 
-        {/* 💰 PAYMENT TAB - FIXED OUTSTANDING AMOUNT */}
+        {/* 💰 PAYMENT TAB */}
         {activeTab === 'payment' && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -815,7 +886,7 @@ function LeadFormContent() {
                   />
                 </div>
                 
-                {/* ✅ FIXED: Outstanding Amount - Auto Calculated */}
+                {/* Outstanding Amount - Auto Calculated */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Amount</label>
                   <input 
@@ -968,7 +1039,7 @@ function LeadFormContent() {
               )}
             </div>
 
-            {/* Total Amount Received - Sum of all payments */}
+            {/* Total Amount Received */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Total Amount Received</label>
