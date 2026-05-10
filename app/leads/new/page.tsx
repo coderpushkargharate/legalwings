@@ -94,6 +94,9 @@ interface AgreementFormData {
   pvAge?: string;
   pvMobile?: string;
   pvRelation?: string;
+  // ✅ NEW FIELDS
+  agreementMobileNo?: string;
+  agreementExecuteDate?: string;
 }
 
 interface PaymentFormData {
@@ -108,6 +111,8 @@ interface PaymentFormData {
   dhcAmount: string;
   dhcDate: string;
   description: string;
+  // ✅ NEW FIELD
+  birthDate?: string;
 }
 
 // ============================================================================
@@ -190,13 +195,13 @@ function LeadFormContent() {
     cities: [], areas: [], leadStatuses: [], agreementStatuses: [], backOfficeStatuses: [],
   });
   const [existingClients, setExistingClients] = useState<ExistingClient[]>([]);
-  const [existingClientsLoaded, setExistingClientsLoaded] = useState(false); // ✅ NEW: Track loading state
+  const [existingClientsLoaded, setExistingClientsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [currentLeadId, setCurrentLeadId] = useState(leadId || '');
   const [formDataLoaded, setFormDataLoaded] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [selectedClientId, setSelectedClientId] = useState('');
-  const [clientSelectLoading, setClientSelectLoading] = useState(false); // ✅ NEW: Loading for client selection
+  const [clientSelectLoading, setClientSelectLoading] = useState(false);
 
   // 🔹 Form States
   const [lead, setLead] = useState<LeadFormData>({
@@ -211,11 +216,16 @@ function LeadFormContent() {
     agreementStatus: '', backOfficeStatus: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
     ownerContact: '', ownerAadhar: '', ownerPan: '', tenantFirstName: '', tenantLastName: '',
     tenantEmail: '', tenantContact: '', tenantAadhar: '', tenantPan: '',
+    // ✅ NEW FIELDS INIT
+    agreementMobileNo: '',
+    agreementExecuteDate: '',
   });
 
   const [payment, setPayment] = useState<PaymentFormData>({
     totalAmount: '', commissionAmount: '', commissionName: '', commissionDate: '',
     grnNumber: '', grnAmount: '', govtGrnDate: '', dhcNumber: '', dhcAmount: '', dhcDate: '', description: '',
+    // ✅ NEW FIELD INIT
+    birthDate: '',
   });
 
   const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }]);
@@ -266,11 +276,11 @@ function LeadFormContent() {
         if (res.ok) {
           const data = await res.json();
           setExistingClients(data.clientPage?.content || []);
-          setExistingClientsLoaded(true); // ✅ Mark as loaded
+          setExistingClientsLoaded(true);
         }
       } catch (err) { 
         console.error('Clients fetch error:', err);
-        setExistingClientsLoaded(true); // ✅ Still mark loaded even on error to unblock UI
+        setExistingClientsLoaded(true);
       }
     };
     fetchClients();
@@ -319,6 +329,9 @@ function LeadFormContent() {
               tenantFirstName: data.agreement.tenant?.firstName || '', tenantLastName: data.agreement.tenant?.lastName || '',
               tenantEmail: data.agreement.tenant?.email || '', tenantContact: data.agreement.tenant?.phoneNo || '',
               tenantAadhar: data.agreement.tenant?.aadharNumber || '', tenantPan: data.agreement.tenant?.panNumber || '',
+              // ✅ MAP NEW FIELDS
+              agreementMobileNo: data.agreement.mobileNo || '',
+              agreementExecuteDate: data.agreement.executeDate || '',
             });
           }
 
@@ -330,6 +343,8 @@ function LeadFormContent() {
               govtGrnDate: data.payment.govtGrnDate || '', dhcNumber: data.payment.dhcNumber || '',
               dhcAmount: data.payment.dhcAmount?.toString() || '', dhcDate: data.payment.dhcDate || '',
               description: data.payment.description || '',
+              // ✅ MAP NEW FIELD
+              birthDate: data.payment.birthDate || '',
             });
           }
 
@@ -389,11 +404,9 @@ function LeadFormContent() {
     });
   }, []);
 
-  // ✅ FIXED: Enhanced handleClientSelect with fallback API call
   const handleClientSelect = useCallback(async (clientId: string) => {
     setSelectedClientId(clientId);
     
-    // Clear form if no client selected
     if (!clientId) {
       setLead(prev => ({ ...prev, firstName: '', lastName: '', email: '', contactNumber: '', clientType: 'OWNER' }));
       return;
@@ -402,11 +415,9 @@ function LeadFormContent() {
     setClientSelectLoading(true);
     
     try {
-      // First, try to find in cached list
       const cachedClient = existingClients.find(c => c.id === clientId);
       
       if (cachedClient) {
-        // Use cached data immediately
         setLead(prev => ({
           ...prev,
           firstName: cachedClient.firstName || '',
@@ -416,7 +427,6 @@ function LeadFormContent() {
           clientType: (cachedClient.clientType || 'OWNER') as any,
         }));
       } else if (existingClientsLoaded) {
-        // ✅ FALLBACK: If not in cache but data is loaded, fetch specific client
         const res = await apiFetch(`/api/clients/${clientId}`);
         if (res.ok) {
           const clientData = await res.json();
@@ -430,8 +440,6 @@ function LeadFormContent() {
           }));
         }
       }
-      // If data not loaded yet, the useEffect will populate existingClients
-      // and we can rely on the user re-selecting or we could add a watcher
     } catch (err) {
       console.error('Client fetch error:', err);
       setFormError('Could not load client details. Please try again.');
@@ -440,11 +448,10 @@ function LeadFormContent() {
     }
   }, [existingClients, existingClientsLoaded, apiFetch]);
 
-  // ✅ Watch for existingClients to load and auto-populate if clientId was set earlier
   useEffect(() => {
     if (selectedClientId && existingClientsLoaded && !clientSelectLoading) {
       const cachedClient = existingClients.find(c => c.id === selectedClientId);
-      if (cachedClient && !lead.firstName) { // Only populate if form is empty
+      if (cachedClient && !lead.firstName) {
         setLead(prev => ({
           ...prev,
           firstName: cachedClient.firstName || '',
@@ -506,6 +513,9 @@ function LeadFormContent() {
           leadId: currentLeadId, tokenNo: agreement.tokenNumber, agreementStartDate: agreement.agreementStartDate,
           agreementEndDate: agreement.agreementEndDate, status: agreement.agreementStatus, backOfficeStatus: agreement.backOfficeStatus,
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
+          // ✅ INCLUDE NEW FIELDS
+          mobileNo: agreement.agreementMobileNo,
+          executeDate: agreement.agreementExecuteDate,
           owner: { firstName: agreement.ownerFirstName, lastName: agreement.ownerLastName, email: agreement.ownerEmail, phoneNo: agreement.ownerContact, aadharNumber: agreement.ownerAadhar, panNumber: agreement.ownerPan, clientType: 'OWNER' as const },
           tenant: { firstName: agreement.tenantFirstName, lastName: agreement.tenantLastName, email: agreement.tenantEmail, phoneNo: agreement.tenantContact, aadharNumber: agreement.tenantAadhar, panNumber: agreement.tenantPan, clientType: 'TENANT' as const },
         }),
@@ -526,6 +536,8 @@ function LeadFormContent() {
           commissionName: payment.commissionName, commissionDate: payment.commissionDate, grnNumber: payment.grnNumber,
           grnAmount: parseFloat(payment.grnAmount) || 0, govtGrnDate: payment.govtGrnDate, dhcNumber: payment.dhcNumber,
           dhcAmount: parseFloat(payment.dhcAmount) || 0, dhcDate: payment.dhcDate, description: payment.description,
+          // ✅ INCLUDE NEW FIELD
+          birthDate: payment.birthDate,
           paymentDetails: [
             ...ownerPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ ...p, clientType: 'OWNER' as const })),
             ...tenantPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ ...p, clientType: 'TENANT' as const })),
@@ -589,7 +601,6 @@ function LeadFormContent() {
         {/* 📋 LEAD TAB */}
         {activeTab === 'lead' && (
           <div className="bg-white rounded-xl border border-slate-200 p-6">
-            {/* ✅ FIXED: Select Existing Client with loading state */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-slate-700 mb-1">Select Existing Client</label>
               <div className="relative">
@@ -623,7 +634,6 @@ function LeadFormContent() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Lead Fields */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
                 <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
@@ -814,6 +824,35 @@ function LeadFormContent() {
                   </div>
                 </div>
                 
+                {/* ✅ NEW: Mobile No Field */}
+                <Input 
+                  label="Mobile No" 
+                  value={agreement.agreementMobileNo || ''} 
+                  onChange={(v) => updateAgreement('agreementMobileNo', v.replace(/[^0-9]/g, '').slice(0, 10))} 
+                  maxLength={10} 
+                  disabled={!isEditable} 
+                  placeholder="Mobile No" 
+                  id="agreement-mobileNo" 
+                />
+                
+                {/* ✅ NEW: Execute Date Field */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Execute Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={agreement.agreementExecuteDate || ''} 
+                      onChange={(e) => updateAgreement('agreementExecuteDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="agreement-executeDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                
                 <Input label="Address Line 1" value={agreement.addressLine1} onChange={(v) => updateAgreement('addressLine1', v)} disabled={!isEditable} placeholder="Address Line 1" id="agreement-addressLine1" />
                 <Input label="Address Line 2" value={agreement.addressLine2} onChange={(v) => updateAgreement('addressLine2', v)} disabled={!isEditable} placeholder="Address Line 2" id="agreement-addressLine2" />
                 <div>
@@ -897,6 +936,26 @@ function LeadFormContent() {
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed" 
                   />
                   <p className="text-xs text-slate-500 mt-1">Calculated: Total - Commission</p>
+                </div>
+              </div>
+              
+              {/* ✅ NEW: Birth Date Field - Below the 3 amount fields */}
+              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Birth Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={payment.birthDate || ''} 
+                      onChange={(e) => updatePayment('birthDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="payment-birthDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
                 </div>
               </div>
             </div>

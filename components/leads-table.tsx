@@ -29,6 +29,8 @@ import {
   IndianRupee,
   BadgeCheck,
   AlertCircle,
+  CalendarClock,
+  FileDown,
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -192,16 +194,13 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
   const [isAnimating, setIsAnimating] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
-  // Sync internal visibility state with prop
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
-      // Trigger animation after mount
       requestAnimationFrame(() => setIsAnimating(true));
       document.body.style.overflow = 'hidden';
     } else {
       setIsAnimating(false);
-      // Wait for animation to complete before unmounting
       const timer = setTimeout(() => {
         setIsVisible(false);
         document.body.style.overflow = '';
@@ -210,7 +209,6 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
     }
   }, [isOpen]);
 
-  // Handle escape key
   useEffect(() => {
     if (!isOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -220,7 +218,6 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Prevent background scroll when modal is open
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -293,7 +290,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
   const [activeTab, setActiveTab] = useState<'lead' | 'agreement' | 'payment'>('lead');
   const prevLeadIdRef = useRef<string>('');
 
-  // Only fetch when leadId actually changes AND modal is open
   useEffect(() => {
     if (!isOpen || !leadId || prevLeadIdRef.current === leadId) return;
     
@@ -318,7 +314,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
     fetchLead();
   }, [isOpen, leadId, apiFetch]);
 
-  // Reset state ONLY when modal fully closes (not during animation)
   useEffect(() => {
     if (!isOpen) {
       const timer = setTimeout(() => {
@@ -327,7 +322,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
         setError(null);
         setActiveTab('lead');
         prevLeadIdRef.current = '';
-      }, 200); // Match animation duration
+      }, 200);
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
@@ -357,7 +352,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
         <div className="text-center py-12 text-slate-500">No lead data available</div>
       ) : (
         <>
-          {/* Tabs Navigation */}
           <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6 sticky top-0 bg-white z-10">
             {[
               { key: 'lead', label: 'Lead Details', icon: FileText },
@@ -379,10 +373,8 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
             ))}
           </div>
 
-          {/* Lead Details Tab */}
           {activeTab === 'lead' && (
             <div className="space-y-6">
-              {/* Client Info Card */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#00A651]" />
@@ -398,7 +390,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 </div>
               </div>
 
-              {/* Lead Details Card */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#00A651]" />
@@ -424,10 +415,8 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
             </div>
           )}
 
-          {/* Agreement Tab */}
           {activeTab === 'agreement' && (
             <div className="space-y-6">
-              {/* Owner Details */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <User className="w-5 h-5 text-[#00A651]" />
@@ -439,10 +428,10 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="Email" value={lead.agreement?.owner?.email || '-'} icon={Mail} />
                   <InfoItem label="Aadhar" value={lead.agreement?.owner?.aadharNumber || '-'} />
                   <InfoItem label="PAN" value={lead.agreement?.owner?.panNumber || '-'} />
+                  <InfoItem label="DOB" value={formatDate(lead.agreement?.owner?.dateOfBirth)} icon={Calendar} />
                 </div>
               </div>
 
-              {/* Tenant Details */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#00A651]" />
@@ -454,10 +443,10 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="Email" value={lead.agreement?.tenant?.email || '-'} icon={Mail} />
                   <InfoItem label="Aadhar" value={lead.agreement?.tenant?.aadharNumber || '-'} />
                   <InfoItem label="PAN" value={lead.agreement?.tenant?.panNumber || '-'} />
+                  <InfoItem label="DOB" value={formatDate(lead.agreement?.tenant?.dateOfBirth)} icon={Calendar} />
                 </div>
               </div>
 
-              {/* Agreement Details */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <BadgeCheck className="w-5 h-5 text-[#00A651]" />
@@ -467,6 +456,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="Token Number" value={lead.agreement?.tokenNo || '-'} />
                   <InfoItem label="Agreement Status" value={lead.agreement?.status || '-'} badge />
                   <InfoItem label="Back Office Status" value={lead.agreement?.backOfficeStatus || '-'} badge />
+                  <InfoItem label="Execute Date" value={formatDate(lead.agreement?.executeDate)} icon={CalendarDays} />
                   <InfoItem label="Start Date" value={formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate)} icon={CalendarDays} />
                   <InfoItem label="End Date" value={formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate)} icon={CalendarDays} />
                   <InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline />
@@ -476,10 +466,8 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
             </div>
           )}
 
-          {/* Payment Tab */}
           {activeTab === 'payment' && (
             <div className="space-y-6">
-              {/* Payment Summary */}
               <div className="bg-gradient-to-r from-[#00A651] to-[#008f44] rounded-xl p-5 text-white">
                 <h4 className="text-base font-semibold mb-4 flex items-center gap-2">
                   <CreditCard className="w-5 h-5" />
@@ -492,7 +480,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 </div>
               </div>
 
-              {/* Owner Payments */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h4>
                 {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
@@ -523,7 +510,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 )}
               </div>
 
-              {/* Tenant Payments */}
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h4>
                 {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
@@ -554,7 +540,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 )}
               </div>
 
-              {/* Back Work Account */}
               {(lead.payment?.grnNumber || lead.payment?.dhcNumber || lead.payment?.commissionName) && (
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h4>
@@ -572,7 +557,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 </div>
               )}
 
-              {/* Description */}
               {lead.payment?.description && (
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-2">Notes</h4>
@@ -689,8 +673,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
 
   useEffect(() => {
     if (!isOpen) return;
-    
-    // Only fetch if team actually changed
     if (prevTeamRef.current === selectedTeam) return;
     prevTeamRef.current = selectedTeam;
     
@@ -712,7 +694,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     fetchEmployees();
   }, [selectedTeam, isOpen, apiFetch]);
 
-  // Reset team ref when modal closes
   useEffect(() => {
     if (!isOpen) {
       prevTeamRef.current = '';
@@ -808,7 +789,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
 interface LeadsTableProps {
   transitLevel: string;
   title: string;
-  columns: Column[];
+  columns?: Column[];
   showAddButton?: boolean;
   onSendToBackend?: (leadId: string) => void;
 }
@@ -816,7 +797,7 @@ interface LeadsTableProps {
 export default function LeadsTable({
   transitLevel,
   title,
-  columns,
+  columns: customColumns,
   showAddButton = true,
 }: LeadsTableProps) {
   const { apiFetch } = useApi();
@@ -846,7 +827,6 @@ export default function LeadsTable({
   const [searchText, setSearchText] = useState('');
   const [assignedEmployeeFilter, setAssignedEmployeeFilter] = useState('');
 
-  // ✅ MODAL STATES
   const [viewModal, setViewModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
@@ -883,6 +863,114 @@ export default function LeadsTable({
       }
     })();
   }, [authLoading, user]);
+
+  // ==================== DASHBOARD-SPECIFIC COLUMNS ====================
+  const getColumnsForDashboard = (): Column[] => {
+    if (customColumns) return customColumns;
+
+    // CALLING DASHBOARD
+    if (transitLevel === 'CALLING') {
+      return [
+        { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.createdDate) },
+        { key: 'name', label: 'Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
+        { key: 'clientType', label: 'Client Type', width: '100px', render: (lead) => lead.client?.clientType || '-' },
+        { key: 'contactNo', label: 'Contact No', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
+        { key: 'leadStatus', label: 'Lead Status', width: '120px', render: (lead) => getStatusBadge(lead.leadStatus) },
+        { key: 'leadSource', label: 'Lead Source', width: '120px', render: (lead) => lead.leadSource || '-' },
+        { key: 'area', label: 'Area', width: '140px', render: (lead) => lead.client?.areaName || lead.area?.name || '-' },
+        { key: 'lastFollowUp', label: 'Last Follow Up', width: '120px', render: (lead) => formatDate(lead.lastFollowUpDate) },
+        { key: 'nextFollowUp', label: 'Next Follow Up', width: '120px', render: (lead) => formatDate(lead.nextFollowUpDate) },
+      ];
+    }
+
+    // BACK OFFICE DASHBOARD
+    if (transitLevel === 'BACKEND') {
+      return [
+        { key: 'name', label: 'Name', width: '160px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
+        { key: 'ownerName', label: 'Owner Name', width: '160px', render: (lead) => `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-' },
+        { key: 'tenantName', label: 'Tenant Name', width: '160px', render: (lead) => `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-' },
+        { key: 'tokenNumber', label: 'Token Number', width: '130px', render: (lead) => lead.agreement?.tokenNo || '-' },
+        { key: 'agreementStatus', label: 'Agreement Status', width: '130px', render: (lead) => getStatusBadge(lead.agreement?.status) },
+        { key: 'backOfficeStatus', label: 'Back Office Status', width: '140px', render: (lead) => getStatusBadge(lead.agreement?.backOfficeStatus) },
+        { key: 'grnNo', label: 'GRN No', width: '120px', render: (lead) => lead.payment?.grnNumber || '-' },
+        { key: 'dhcNo', label: 'DHC No', width: '120px', render: (lead) => lead.payment?.dhcNumber || '-' },
+        { key: 'commissionDate', label: 'Commission Date', width: '120px', render: (lead) => formatDate(lead.payment?.commissionDate) },
+        { key: 'commissionAmount', label: 'Commission Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
+      ];
+    }
+
+    // ACCOUNT DASHBOARD
+    if (transitLevel === 'ACCOUNTING') {
+      return [
+        { key: 'tokenNumber', label: 'Token Number', width: '130px', render: (lead) => lead.agreement?.tokenNo || '-' },
+        { key: 'totalAmount', label: 'Total Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.totalAmount) },
+        { key: 'paidAmount', label: 'Paid Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.paidAmount) },
+        { key: 'paymentDate', label: 'Date', width: '120px', render: (lead) => {
+          const date = lead.payment?.ownerPayments?.[0]?.paymentDate || lead.payment?.tenantPayments?.[0]?.paymentDate;
+          return formatDate(date);
+        }},
+        { key: 'pendingAmount', label: 'Pending Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) },
+        { key: 'commissionDate', label: 'Commission Date', width: '120px', render: (lead) => formatDate(lead.payment?.commissionDate) },
+        { key: 'commissionName', label: 'Commission Name', width: '140px', render: (lead) => lead.payment?.commissionName || '-' },
+        { key: 'commissionAmount', label: 'Commission Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
+        { key: 'grnNo', label: 'GRN No.', width: '110px', render: (lead) => lead.payment?.grnNumber || '-' },
+        { key: 'dhcNo', label: 'DHC No.', width: '110px', render: (lead) => lead.payment?.dhcNumber || '-' },
+      ];
+    }
+
+    // MARKETING DASHBOARD
+    if (transitLevel === 'MARKETING') {
+      return [
+        { key: 'tokenNumber', label: 'Token Number', width: '130px', render: (lead) => lead.agreement?.tokenNo || '-' },
+        { key: 'executeDate', label: 'Execute Date', width: '120px', render: (lead) => formatDate(lead.agreement?.executeDate) },
+        { key: 'ownerName', label: 'Owner Name', width: '150px', render: (lead) => `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-' },
+        { key: 'ownerMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.owner?.phoneNo || '-' },
+        { key: 'startDate', label: 'Starting Date', width: '120px', render: (lead) => formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate) },
+        { key: 'endDate', label: 'Ending Date', width: '120px', render: (lead) => formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate) },
+        { key: 'ownerDob', label: 'Birth Date Owner', width: '120px', render: (lead) => formatDate(lead.agreement?.owner?.dateOfBirth) },
+        { key: 'tenantName', label: 'Tenant Name', width: '150px', render: (lead) => `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-' },
+        { key: 'tenantMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.tenant?.phoneNo || '-' },
+        { key: 'tenantDob', label: 'Birth Date Tenant', width: '130px', render: (lead) => formatDate(lead.agreement?.tenant?.dateOfBirth) },
+        { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (
+          <button 
+            onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00A651] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
+          >
+            <Eye className="w-3.5 h-3.5" /> View Details
+          </button>
+        )},
+        { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => {
+          // ✅ FIXED: Check roles array instead of singular role property
+          const isAdmin = Array.isArray(user?.roles) && user.roles.includes('ADMIN');
+          
+          return isAdmin ? (
+            <button 
+              onClick={(e) => { e.stopPropagation(); handleExportSingleLead(lead); }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"
+            >
+              <FileDown className="w-3.5 h-3.5" /> Download
+            </button>
+          ) : (
+            <span className="text-xs text-slate-400 italic">Admin Only</span>
+          );
+        }},
+      ];
+    }
+
+    // DEFAULT COLUMNS
+    return [
+      { key: 'tokenNumber', label: 'Token No', width: '120px', render: (lead) => lead.agreement?.tokenNo || '-' },
+      { key: 'name', label: 'Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
+      { key: 'clientType', label: 'Type', width: '90px', render: (lead) => lead.client?.clientType || '-' },
+      { key: 'phone', label: 'Phone', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
+      { key: 'status', label: 'Status', width: '120px', render: (lead) => getStatusBadge(lead.leadStatus) },
+      { key: 'area', label: 'Area', width: '140px', render: (lead) => lead.client?.areaName || '-' },
+      { key: 'createdDate', label: 'Created', width: '110px', render: (lead) => formatDate(lead.createdDate) },
+      { key: 'assignedTo', label: 'Assigned To', width: '140px', render: (lead) => lead.assignedToUserName || 'Team Only' },
+    ];
+  };
+
+  const columns = getColumnsForDashboard();
 
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
@@ -982,6 +1070,46 @@ export default function LeadsTable({
     XLSX.writeFile(wb, `Leads_${transitLevel}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
+  const handleExportSingleLead = (lead: Lead) => {
+    const exportData = {
+      'Token Number': lead.agreement?.tokenNo || '-',
+      'Owner Name': `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-',
+      'Owner Phone': lead.agreement?.owner?.phoneNo || '-',
+      'Owner DOB': formatDate(lead.agreement?.owner?.dateOfBirth),
+      'Owner Email': lead.agreement?.owner?.email || '-',
+      'Owner Aadhar': lead.agreement?.owner?.aadharNumber || '-',
+      'Owner PAN': lead.agreement?.owner?.panNumber || '-',
+      'Tenant Name': `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-',
+      'Tenant Phone': lead.agreement?.tenant?.phoneNo || '-',
+      'Tenant DOB': formatDate(lead.agreement?.tenant?.dateOfBirth),
+      'Tenant Email': lead.agreement?.tenant?.email || '-',
+      'Execute Date': formatDate(lead.agreement?.executeDate),
+      'Agreement Start': formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate),
+      'Agreement End': formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate),
+      'Address Line 1': lead.agreement?.addressLine1 || '-',
+      'Address Line 2': lead.agreement?.addressLine2 || '-',
+      'Agreement Status': lead.agreement?.status || '-',
+      'Back Office Status': lead.agreement?.backOfficeStatus || '-',
+      'GRN Number': lead.payment?.grnNumber || '-',
+      'GRN Amount': formatCurrency(lead.payment?.grnAmount),
+      'DHC Number': lead.payment?.dhcNumber || '-',
+      'DHC Amount': formatCurrency(lead.payment?.dhcAmount),
+      'Commission Name': lead.payment?.commissionName || '-',
+      'Commission Amount': formatCurrency(lead.payment?.commissionAmount),
+      'Commission Date': formatDate(lead.payment?.commissionDate),
+      'Total Amount': formatCurrency(lead.payment?.totalAmount),
+      'Paid Amount': formatCurrency(lead.payment?.paidAmount),
+      'Pending Amount': formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount),
+    };
+
+    const ws = XLSX.utils.json_to_sheet([exportData]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Lead Details');
+    XLSX.writeFile(wb, `Lead_${lead.agreement?.tokenNo || lead.id}_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
+  const isMarketingDashboard = transitLevel === 'MARKETING';
+
   return (
     <div className="space-y-6 font-sans text-slate-700">
       {/* Filters Section */}
@@ -1015,6 +1143,7 @@ export default function LeadsTable({
               <option>Created Date</option>
               <option>Updated Date</option>
               <option>Appointment Date</option>
+              <option>Agreement Date</option>
             </select>
           </div>
           <div className="space-y-1.5">
@@ -1099,7 +1228,7 @@ export default function LeadsTable({
       </div>
 
       {/* Header & Add Button */}
-      {showAddButton && (
+      {showAddButton && transitLevel !== 'MARKETING' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">
@@ -1115,60 +1244,70 @@ export default function LeadsTable({
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 {columns.map((col) => (
-                  <th key={col.key} className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width } : undefined}>
+                  <th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>
                     {col.label}
                   </th>
                 ))}
-                <th className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-32">Assigned To</th>
-                <th className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28">Actions</th>
+                {/* Assigned To column - only show for non-marketing dashboards */}
+                {!isMarketingDashboard && (
+                  <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>
+                )}
+                {/* Actions column - only show for non-marketing dashboards */}
+                {!isMarketingDashboard && (
+                  <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28">Actions</th>
+                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={columns.length + 2} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400">
                   <div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div>
                 </td></tr>
               ) : leads.length === 0 ? (
-                <tr><td colSpan={columns.length + 2} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
+                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
                 leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
                     {columns.map((col) => (
-                      <td key={col.key} className="px-5 py-3 text-slate-700 whitespace-nowrap align-middle">
+                      <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
                         {col.render ? col.render(lead) : '-'}
                       </td>
                     ))}
-                    <td className="px-5 py-3 text-slate-600 whitespace-nowrap align-middle">
-                      {lead.assignedToUserName ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
-                          <User className="w-3 h-3" /> {lead.assignedToUserName}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 text-xs">Team Only</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 align-middle">
-                      <div className="flex items-center gap-1">
-                        {/* ✅ VIEW BUTTON - Opens Modal with ALL data */}
-                        <button 
-                          onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} 
-                          className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
-                          title="View Complete Lead Details">
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        {/* ✅ EDIT BUTTON REMOVED */}
-                        <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} 
-                          className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" 
-                          title="Forward to Team/Employee">
-                          <Send className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} 
-                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
-                          title="Cancel">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {/* Assigned To - only for non-marketing */}
+                    {!isMarketingDashboard && (
+                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap align-middle">
+                        {lead.assignedToUserName ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                            <User className="w-3 h-3" /> {lead.assignedToUserName}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 text-xs">Team Only</span>
+                        )}
+                      </td>
+                    )}
+                    {/* Actions - only for non-marketing */}
+                    {!isMarketingDashboard && (
+                      <td className="px-4 py-3 align-middle">
+                        <div className="flex items-center gap-1">
+                          <button 
+                            onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} 
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+                            title="View Complete Lead Details">
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} 
+                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" 
+                            title="Forward to Team/Employee">
+                            <Send className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} 
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
+                            title="Cancel">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -1194,16 +1333,13 @@ export default function LeadsTable({
         )}
       </div>
 
-      {/* ✅ MODALS - All using fixed BaseModal */}
-      
-      {/* View Lead Modal - Shows ALL data */}
+      {/* MODALS */}
       <ViewLeadModal 
         isOpen={viewModal.isOpen} 
         leadId={viewModal.leadId} 
         onClose={() => setViewModal({ isOpen: false, leadId: '' })} 
       />
       
-      {/* Team Selection Modal */}
       <TeamSelectionModal 
         isOpen={sendModal.isOpen} 
         leadId={sendModal.leadId} 
@@ -1211,7 +1347,6 @@ export default function LeadsTable({
         onClose={() => setSendModal({ isOpen: false, leadId: '' })} 
       />
       
-      {/* Cancel Confirmation Modal */}
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-slate-800 mb-2">Cancel Lead</h3>
