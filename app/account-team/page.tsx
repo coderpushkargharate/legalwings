@@ -4,25 +4,11 @@
 import React from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
-import LeadsTable from '@/components/leads-table';
-import type { Column } from '@/components/leads-table';
+// ✅ Import both Column AND Lead types from the source component
+import LeadsTable, { type Column, type Lead } from '@/components/leads-table';
 
-// ✅ Define Lead type locally for type safety in render functions
-export type Lead = {
-  id: string;
-  client?: {
-    firstName?: string;
-    lastName?: string;
-    phoneNo?: string;
-  };
-  leadStatus?: string;
-  createdDate?: string;
-  createdByUserName?: string;
-  amount?: number | null; // ✅ Added missing property
-  [key: string]: any; // ✅ Allows other dynamic properties safely
-};
+// ✅ Remove local Lead type definition - use imported one for consistency
 
-// ✅ Use Column[] (non-generic) since Column type doesn't support generics
 const columns: Column[] = [
   { 
     key: 'createdBy', 
@@ -60,7 +46,14 @@ const columns: Column[] = [
     key: 'amount', 
     label: 'Amount', 
     width: '100px', 
-    render: (lead: Lead) => lead.amount ? `₹${lead.amount}` : '-' 
+    // ✅ Handle amount which may be string | undefined | null
+    render: (lead: Lead) => {
+      const amount = lead.amount;
+      if (amount == null || amount === '') return '-';
+      // Convert string to number if needed, then format
+      const numericValue = typeof amount === 'string' ? parseFloat(amount) : amount;
+      return isNaN(numericValue) ? '-' : `₹${numericValue}`;
+    }
   },
   { 
     key: 'leadStatus', 
@@ -87,7 +80,6 @@ export default function AccountTeamPage() {
         </div>
         <LeadsTable
           transitLevel="ALL"
-          
           title="All Leads Overview"
           columns={columns}
         />
