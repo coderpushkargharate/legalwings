@@ -941,7 +941,7 @@ export default function LeadsTable({
         )},
         { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => {
           // ✅ FIXED: Check roles array instead of singular role property
-          const isAdmin = Array.isArray(user?.roles) && user.roles.includes('ADMIN');
+          const isAdmin = Array.isArray(user?.roles) && user?.roles?.includes('ADMIN');
           
           return isAdmin ? (
             <button 
