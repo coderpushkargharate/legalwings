@@ -21,7 +21,12 @@ interface Client {
   createdAt?: string;
 }
 
-export default function ClientsPage() {
+interface ClientsPageProps {
+  onClientCreated?: (client: Client) => void;
+  onClientUpdated?: (client: Client) => void;
+}
+
+export default function ClientsPage({ onClientCreated, onClientUpdated }: ClientsPageProps) {
   const { apiFetch } = useApi();
   const [clients, setClients] = useState<Client[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -38,14 +43,12 @@ export default function ClientsPage() {
     aadharNumber: '', panNumber: '' 
   });
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
   
-  // React 18: useTransition for non-urgent UI updates
   const [isPending, startTransition] = useTransition();
-  
-  // Debounce timer ref for search
   const searchTimerRef = useRef<NodeJS.Timeout>();
 
-  // Fetch clients with separate loading states
+  // Fetch clients with proper error handling
   const fetchClients = useCallback(async (isInitial = false) => {
     if (isInitial) {
       setInitialLoading(true);
@@ -62,17 +65,22 @@ export default function ClientsPage() {
       if (clientType) params.set('clientType', clientType);
 
       const res = await apiFetch(`/api/clients?${params.toString()}`);
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch clients');
+      }
+      
       const data = await res.json();
       
-      // Only update if data actually changed (prevents unnecessary re-renders)
-      const newClients = data.clientPage?.content || [];
-      setClients(prev => {
-        if (JSON.stringify(prev) === JSON.stringify(newClients)) return prev;
-        return newClients;
+      startTransition(() => {
+        const newClients = data.clientPage?.content || [];
+        setClients(newClients);
+        setTotalPages(data.clientPage?.totalPages || 1);
       });
-      setTotalPages(data.clientPage?.totalPages || 1);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Fetch error:', error);
+      setFormError(error.message || 'Failed to load clients');
       if (isInitial) setClients([]);
     } finally {
       if (isInitial) {
@@ -83,7 +91,7 @@ export default function ClientsPage() {
     }
   }, [apiFetch, page, searchText, clientType]);
 
-  // Initial load - runs only once on mount
+  // Initial load
   useEffect(() => {
     let mounted = true;
     if (mounted) {
@@ -92,13 +100,13 @@ export default function ClientsPage() {
     return () => { mounted = false; };
   }, []);
 
-  // Debounced search handler
+  // Debounced search
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     
     searchTimerRef.current = setTimeout(() => {
-      setPage(0); // Reset to first page on search
-      fetchClients(false); // Background refresh
+      setPage(0);
+      fetchClients(false);
     }, 300);
     
     return () => {
@@ -106,46 +114,75 @@ export default function ClientsPage() {
     };
   }, [searchText]);
 
-  // Client type change handler
   const handleClientTypeChange = (value: string) => {
     setClientType(value);
     setPage(0);
     fetchClients(false);
   };
 
-  // Page change handler
   const handlePageChange = (newPage: number) => {
     setPage(newPage);
     fetchClients(false);
   };
 
   const handleSave = async () => {
+    setFormError(null);
+    
+    // Validate form
+    if (!form.firstName.trim() || !form.lastName.trim() || !form.phoneNo) {
+      setFormError('First name, last name, and phone number are required');
+      return;
+    }
+
     try {
-      const payload = { id: editClient?.id, ...form };
+      const payload = { 
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        phoneNo: form.phoneNo,
+        email: form.email?.trim() || '',
+        clientType: form.clientType,
+        cityName: form.cityName?.trim() || '',
+        areaName: form.areaName?.trim() || '',
+        aadharNumber: form.aadharNumber?.trim() || '',
+        panNumber: form.panNumber?.trim() || '',
+      };
+
+      let response;
       if (editClient) {
-        await apiFetch('/api/clients', {
+        response = await apiFetch('/api/clients', {
           method: 'PUT',
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ id: editClient.id, ...payload }),
         });
       } else {
-        await apiFetch('/api/clients', {
+        response = await apiFetch('/api/clients', {
           method: 'POST',
-          body: JSON.stringify(form),
+          body: JSON.stringify(payload),
         });
       }
       
-      // Optimistic update with transition
-      startTransition(() => {
-        if (editClient) {
-          // Update existing client
-          setClients(prev => prev.map(c => 
-            c.id === editClient.id ? { ...c, ...form } : c
-          ));
-        } else {
-          // Add new client to beginning of list
-          setClients(prev => [{ id: Date.now().toString(), ...form } as Client, ...prev]);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Handle duplicate phone number
+        if (response.status === 409 && errorData.existingClient) {
+          setFormError(`Client with phone ${form.phoneNo} already exists`);
+          return;
         }
-      });
+        
+        throw new Error(errorData.error || 'Failed to save client');
+      }
+      
+      const savedClient = await response.json();
+      
+      // Notify parent components about client changes
+      if (editClient && onClientUpdated) {
+        onClientUpdated(savedClient.client || savedClient);
+      } else if (!editClient && onClientCreated) {
+        onClientCreated(savedClient);
+      }
+      
+      // Refresh the list to ensure consistency
+      await fetchClients(false);
       
       setShowModal(false);
       setEditClient(null);
@@ -155,30 +192,35 @@ export default function ClientsPage() {
         aadharNumber: '', panNumber: '' 
       });
       
-      // Refresh data in background to get server-generated fields
-      fetchClients(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Save error:', error);
-      alert('Failed to save client.');
+      setFormError(error.message || 'Failed to save client.');
     }
   };
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this client?')) return;
     
-    // Optimistic update: remove from UI immediately
     setDeletingId(id);
+    
+    // Optimistic update
     startTransition(() => {
       setClients(prev => prev.filter(c => c.id !== id));
     });
     
     try {
-      await apiFetch(`/api/clients?id=${id}`, { method: 'DELETE' });
-    } catch (error) {
+      const response = await apiFetch(`/api/clients?id=${id}`, { method: 'DELETE' });
+      
+      if (!response.ok) {
+        throw new Error('Failed to delete');
+      }
+      
+      // Refresh to ensure consistency
+      await fetchClients(false);
+    } catch (error: any) {
       console.error('Delete error:', error);
-      alert('Failed to delete client. Reverting...');
-      // Re-fetch only on error
-      fetchClients(false);
+      setFormError(error.message || 'Failed to delete client. Reverting...');
+      await fetchClients(false); // Re-fetch on error
     } finally {
       setDeletingId(null);
     }
@@ -197,6 +239,7 @@ export default function ClientsPage() {
       aadharNumber: client.aadharNumber || '',
       panNumber: client.panNumber || '',
     });
+    setFormError(null);
     setShowModal(true);
   };
 
@@ -207,12 +250,12 @@ export default function ClientsPage() {
       clientType: 'OWNER', cityName: '', areaName: '', 
       aadharNumber: '', panNumber: '' 
     });
+    setFormError(null);
     setShowModal(true);
   };
 
   const handleSearchChange = (value: string) => {
     setSearchText(value);
-    // Debounce is handled by useEffect
   };
 
   const handleClearFilters = () => {
@@ -222,11 +265,15 @@ export default function ClientsPage() {
     fetchClients(false);
   };
 
+  // Expose refresh method for external triggers
+  const refreshClients = useCallback(() => {
+    fetchClients(false);
+  }, [fetchClients]);
+
   return (
     <AppShell>
       <Header title="Client Management" />
       <div className="p-6">
-        {/* Refresh Indicator */}
         {isRefreshing && !initialLoading && (
           <div className="flex justify-end mb-2">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-full text-xs text-slate-600 border border-slate-200">
@@ -235,7 +282,13 @@ export default function ClientsPage() {
           </div>
         )}
 
-        {/* Filters - with CSS fix for repaint */}
+        {formError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700 flex justify-between items-center">
+            <span>{formError}</span>
+            <button onClick={() => setFormError(null)} className="font-medium hover:underline">✕</button>
+          </div>
+        )}
+
         <div 
           className="bg-white rounded-xl border border-slate-200 p-4 mb-4 will-change-transform"
           style={{ transform: 'translateZ(0)' }}
@@ -279,7 +332,6 @@ export default function ClientsPage() {
           </div>
         </div>
 
-        {/* Add button */}
         <div className="mb-4">
           <button 
             onClick={openAdd} 
@@ -289,7 +341,6 @@ export default function ClientsPage() {
           </button>
         </div>
 
-        {/* Table Container - CSS fix for blinking */}
         <div 
           className="bg-white rounded-xl border border-slate-200 overflow-hidden will-change-transform"
           style={{ transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}
@@ -375,7 +426,6 @@ export default function ClientsPage() {
             </table>
           </div>
           
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 bg-slate-50/50">
               <p className="text-xs text-slate-500 font-medium">
@@ -401,7 +451,6 @@ export default function ClientsPage() {
           )}
         </div>
 
-        {/* Modal - with proper z-index and animation */}
         {showModal && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4 backdrop-blur-sm animate-in fade-in duration-200"
@@ -414,12 +463,18 @@ export default function ClientsPage() {
                     {editClient ? 'Edit Client' : 'Add Client'}
                   </h3>
                   <button 
-                    onClick={() => { setShowModal(false); setEditClient(null); }}
+                    onClick={() => { setShowModal(false); setEditClient(null); setFormError(null); }}
                     className="p-1.5 text-slate-400 hover:text-slate-600 rounded-lg transition-colors"
                   >
                     <X className="w-5 h-5" />
                   </button>
                 </div>
+                
+                {formError && (
+                  <div className="mb-4 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
+                    {formError}
+                  </div>
+                )}
                 
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -524,7 +579,7 @@ export default function ClientsPage() {
                 
                 <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
                   <button 
-                    onClick={() => { setShowModal(false); setEditClient(null); }} 
+                    onClick={() => { setShowModal(false); setEditClient(null); setFormError(null); }} 
                     className="px-4 py-2 text-sm text-slate-600 hover:text-slate-800 transition-colors"
                     disabled={isPending}
                   >
@@ -532,7 +587,7 @@ export default function ClientsPage() {
                   </button>
                   <button 
                     onClick={handleSave} 
-                    disabled={isPending || !form.firstName || !form.lastName || !form.phoneNo}
+                    disabled={isPending || !form.firstName.trim() || !form.lastName.trim() || !form.phoneNo}
                     className="px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2"
                   >
                     {isPending ? (

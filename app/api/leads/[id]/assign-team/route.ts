@@ -1,43 +1,55 @@
 // app/api/leads/[id]/assign-team/route.ts
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
-import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
+import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+
+function getAuth(request: Request): JWTPayload | null {
+  const token = getTokenFromHeaders(request);
+  if (!token) return null;
+  return verifyToken(token);
+}
+
+// Map frontend team names to database transitLevel values
+const TEAM_TO_TRANSIT_LEVEL: Record<string, string> = {
+  CALLING: 'CALLING_TEAM',
+  EXECUTIVE: 'EXECUTIVE_TEAM',
+  BACKEND: 'BACKEND_TEAM',
+};
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const token = getTokenFromHeaders(request);
-  if (!token || !verifyToken(token)) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const user = getAuth(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { id } = await params; // Next.js 15+ compatible
-    const { team } = await request.json();
-
-    if (!id || !team) {
-      return NextResponse.json({ error: 'Lead ID and team are required' }, { status: 400 });
-    }
-
-    // Valid team values
-    const validTeams = ['CALLING_TEAM', 'EXECUTIVE_TEAM', 'BACKEND_TEAM', 'MARKETING_TEAM', 'ACCOUNTING_TEAM'];
-    if (!validTeams.includes(team)) {
-      return NextResponse.json({ error: 'Invalid team value' }, { status: 400 });
-    }
-
     const { db } = await connectToDatabase();
+    const { id } = await params;
+    const body = await request.json();
+    const { team } = body;
 
-    // Update lead's transitLevel
+    if (!team || !TEAM_TO_TRANSIT_LEVEL[team]) {
+      return NextResponse.json({ error: 'Invalid team specified' }, { status: 400 });
+    }
+
+    const transitLevel = TEAM_TO_TRANSIT_LEVEL[team];
+
+    // Update the lead's transitLevel and audit fields
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
-      { 
-        $set: { 
-          transitLevel: team,
+      {
+        $set: {
+          transitLevel,
           updatedAt: new Date(),
-          updatedByUserName: (verifyToken(token) as any)?.firstName + ' ' + (verifyToken(token) as any)?.lastName
-        } 
+          updatedByUserId: user.userId,
+          updatedByUserName: `${user.firstName} ${user.lastName}`,
+          // Optional: Track forwarding history
+          forwardedTo: team,
+          forwardedAt: new Date(),
+          forwardedBy: user.userId,
+        },
       }
     );
 
@@ -45,14 +57,13 @@ export async function POST(
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
-      message: `Lead successfully forwarded to ${team}`,
+    return NextResponse.json({
+      message: `Lead successfully forwarded to ${team} team`,
       leadId: id,
-      newTransitLevel: team
+      newTransitLevel: transitLevel,
     });
-
   } catch (error) {
     console.error('Assign team error:', error);
-    return NextResponse.json({ error: 'Failed to assign team' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to forward lead' }, { status: 500 });
   }
 }
