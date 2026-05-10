@@ -16,6 +16,9 @@ import {
   Send,
   X,
   Filter,
+  User,
+  Users,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -77,6 +80,18 @@ interface Lead {
   cancellationReason?: string;
   transitLevel?: string;
   leadSource?: string;
+  // 🔹 New assignment fields
+  assignedToUserId?: string | null;
+  assignedToUserName?: string | null;
+  assignedAt?: string;
+}
+
+interface Employee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  team: string;
 }
 
 interface DropdownData {
@@ -152,35 +167,72 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   );
 };
 
+// 🔹 Enhanced TeamSelectionModal with Employee Assignment
 interface TeamSelectionModalProps {
   isOpen: boolean;
   leadId: string;
-  onSend: (leadId: string, team: string) => void;
+  onSend: (leadId: string, team: string, assignedToUserId?: string | null) => void;
   onClose: () => void;
 }
 
 const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose }) => {
-  const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND'>('CALLING');
+  const { apiFetch } = useApi();
+  const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING'>('CALLING');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
+  const [assignToEmployee, setAssignToEmployee] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
 
   const teams = [
     { key: 'CALLING', label: 'Calling Team', icon: '📞', color: 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' },
     { key: 'EXECUTIVE', label: 'Executive Team', icon: '👔', color: 'bg-purple-50 border-purple-200 hover:border-purple-400 text-purple-700' },
     { key: 'BACKEND', label: 'Backend Team', icon: '⚙️', color: 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 text-emerald-700' },
+    { key: 'ACCOUNTING', label: 'Accounts Team', icon: '💰', color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700' },
+    { key: 'MARKETING', label: 'Marketing Team', icon: '📢', color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700' },
   ];
+
+  // 🔹 Fetch employees for selected team
+  useEffect(() => {
+    if (!isOpen) return;
+    
+    const fetchEmployees = async () => {
+      setLoadingEmployees(true);
+      try {
+        const res = await apiFetch(`/api/employees?team=${selectedTeam}`);
+        const data = await res.json();
+        setEmployees(data.employees || []);
+        setSelectedEmployee(null); // Reset selection when team changes
+      } catch (error) {
+        console.error('Failed to fetch employees:', error);
+        setEmployees([]);
+      } finally {
+        setLoadingEmployees(false);
+      }
+    };
+    
+    fetchEmployees();
+  }, [selectedTeam, isOpen, apiFetch]);
+
+  const handleSend = () => {
+    const employeeId = assignToEmployee ? selectedEmployee : null;
+    onSend(leadId, selectedTeam, employeeId);
+  };
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold text-slate-800">Forward Lead to Team</h3>
+          <h3 className="text-lg font-semibold text-slate-800">Forward Lead</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
-        <p className="text-sm text-slate-600 mb-4">Select the team you want to assign this lead to:</p>
-        <div className="grid gap-3 mb-6">
+        
+        {/* 🔹 Team Selection */}
+        <p className="text-sm font-medium text-slate-700 mb-3">Select Team:</p>
+        <div className="grid gap-2 mb-4">
           {teams.map((t) => (
             <button
               key={t.key}
-              onClick={() => setSelectedTeam(t.key as any)}
+              onClick={() => { setSelectedTeam(t.key as any); setAssignToEmployee(false); setSelectedEmployee(null); }}
               className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
                 selectedTeam === t.key ? t.color + ' border-opacity-100 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
@@ -191,13 +243,58 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             </button>
           ))}
         </div>
-        <div className="flex gap-3 justify-end">
+
+        {/* 🔹 Employee Assignment Toggle */}
+        <div className="flex items-center gap-2 mb-3 p-3 bg-slate-50 rounded-lg">
+          <input 
+            type="checkbox" 
+            id="assignEmployee" 
+            checked={assignToEmployee} 
+            onChange={(e) => { setAssignToEmployee(e.target.checked); setSelectedEmployee(null); }}
+            className="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-500"
+          />
+          <label htmlFor="assignEmployee" className="text-sm font-medium text-slate-700 flex items-center gap-2">
+            <User className="w-4 h-4" /> Assign to specific employee
+          </label>
+        </div>
+
+        {/* 🔹 Employee Dropdown */}
+        {assignToEmployee && (
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-slate-600 mb-2">Select Employee:</label>
+            {loadingEmployees ? (
+              <div className="flex items-center gap-2 text-slate-500 text-sm">
+                <Loader2 className="w-4 h-4 animate-spin" /> Loading employees...
+              </div>
+            ) : employees.length === 0 ? (
+              <p className="text-sm text-slate-400 italic">No employees found in {selectedTeam} team</p>
+            ) : (
+              <select 
+                value={selectedEmployee || ''} 
+                onChange={(e) => setSelectedEmployee(e.target.value || null)}
+                className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+              >
+                <option value="">-- Select Employee --</option>
+                {employees.map((emp) => (
+                  <option key={emp.id} value={emp.id}>
+                    {emp.firstName} {emp.lastName} ({emp.email})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+
+        {/* 🔹 Action Buttons */}
+        <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button onClick={onClose} className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
           <button
-            onClick={() => onSend(leadId, selectedTeam)}
-            className="px-5 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors flex items-center gap-2"
+            onClick={handleSend}
+            disabled={assignToEmployee && !selectedEmployee}
+            className="px-5 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            <Send className="w-4 h-4" /> Forward Lead
+            <Send className="w-4 h-4" /> 
+            {assignToEmployee && selectedEmployee ? 'Assign to Employee' : assignToEmployee ? 'Select Employee' : `Forward to ${selectedTeam} Team`}
           </button>
         </div>
       </div>
@@ -254,11 +351,27 @@ export default function LeadsTable({
   const [tokenNumber, setTokenNumber] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [searchText, setSearchText] = useState('');
+  const [assignedEmployeeFilter, setAssignedEmployeeFilter] = useState(''); // 🔹 New filter
 
   // Modals
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelReason, setCancelReason] = useState('');
+
+  // 🔹 Fetch employees for filter dropdown
+  const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const res = await apiFetch('/api/employees');
+        const data = await res.json();
+        setAvailableEmployees(data.employees || []);
+      } catch (error) {
+        console.error('Failed to fetch employees for filter:', error);
+      }
+    })();
+  }, [user, apiFetch]);
 
   // Fetch Dropdowns
   useEffect(() => {
@@ -297,6 +410,7 @@ export default function LeadsTable({
       if (tokenNumber) params.set('tokenNumber', tokenNumber);
       if (selectedStatus) params.set('status', selectedStatus);
       if (searchText) params.set('searchText', searchText);
+      if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter); // 🔹 New param
 
       const res = await apiFetch(`/api/leads?${params.toString()}`);
       const data = await res.json();
@@ -307,7 +421,7 @@ export default function LeadsTable({
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, selectedCity, selectedArea, clientType, areaText, tokenNumber, selectedStatus, searchText, authLoading, user]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, selectedCity, selectedArea, clientType, areaText, tokenNumber, selectedStatus, searchText, assignedEmployeeFilter, authLoading, user]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -317,13 +431,20 @@ export default function LeadsTable({
     setFromDate(today); setToDate(today); setFilterOn('Created Date');
     setSelectedCity(''); setSelectedArea(''); setClientType('');
     setAreaText(''); setTokenNumber(''); setSelectedStatus('');
-    setSearchText(''); setPage(0);
+    setSearchText(''); setAssignedEmployeeFilter(''); // 🔹 Clear new filter
+    setPage(0);
   };
 
-  const handleSendToTeam = async (leadId: string, team: string) => {
+  // 🔹 Updated handler to support employee assignment
+  const handleSendToTeam = async (leadId: string, team: string, assignedToUserId?: string | null) => {
     try {
-      await apiFetch(`/api/leads/${leadId}/assign-team`, { method: 'POST', body: JSON.stringify({ team }) });
-      alert(`Lead successfully forwarded to ${team} team.`);
+      await apiFetch(`/api/leads/${leadId}/assign-team`, { 
+        method: 'POST', 
+        body: JSON.stringify({ team, assignedToUserId }) 
+      });
+      alert(assignedToUserId 
+        ? 'Lead successfully assigned to employee.' 
+        : `Lead successfully forwarded to ${team} team.`);
       fetchLeads();
     } catch {
       alert('Failed to forward lead. Please try again.');
@@ -361,6 +482,7 @@ export default function LeadsTable({
       'City': lead.client?.cityName || '-',
       'Lead Status': lead.leadStatus || '-',
       'Agreement Status': lead.agreement?.status || '-',
+      'Assigned To': lead.assignedToUserName || '-', // 🔹 New column
       'Created Date': lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
       'Created By': lead.createdByUserName || '-',
     }));
@@ -410,6 +532,17 @@ export default function LeadsTable({
               <option>Created Date</option>
               <option>Updated Date</option>
               <option>Appointment Date</option>
+            </select>
+          </div>
+          {/* 🔹 New Employee Filter */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label>
+            <select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option value="">All Employees</option>
+              {availableEmployees.map((emp) => (
+                <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
+              ))}
             </select>
           </div>
         </div>
@@ -504,16 +637,18 @@ export default function LeadsTable({
                     {col.label}
                   </th>
                 ))}
+                {/* 🔹 Show Assigned To column */}
+                <th className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-32">Assigned To</th>
                 <th className="text-left px-5 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">
+                <tr><td colSpan={columns.length + 2} className="text-center py-12 text-slate-400">
                   <div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div>
                 </td></tr>
               ) : leads.length === 0 ? (
-                <tr><td colSpan={columns.length + 1} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
+                <tr><td colSpan={columns.length + 2} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
                 leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
@@ -522,11 +657,21 @@ export default function LeadsTable({
                         {col.render ? col.render(lead) : '-'}
                       </td>
                     ))}
+                    {/* 🔹 Assigned To Cell */}
+                    <td className="px-5 py-3 text-slate-600 whitespace-nowrap align-middle">
+                      {lead.assignedToUserName ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                          <User className="w-3 h-3" /> {lead.assignedToUserName}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">Team Only</span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 align-middle">
                       <div className="flex items-center gap-1">
                         <Link href={`/leads/${lead.id}?mode=view`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View"><Eye className="w-4 h-4" /></Link>
                         <Link href={`/leads/${lead.id}?mode=edit`} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all" title="Edit"><Edit className="w-4 h-4" /></Link>
-                        <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team"><Send className="w-4 h-4" /></button>
+                        <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee"><Send className="w-4 h-4" /></button>
                         <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </td>
@@ -556,7 +701,12 @@ export default function LeadsTable({
       </div>
 
       {/* Modals */}
-      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} />
+      <TeamSelectionModal 
+        isOpen={sendModal.isOpen} 
+        leadId={sendModal.leadId} 
+        onSend={handleSendToTeam} 
+        onClose={() => setSendModal({ isOpen: false, leadId: '' })} 
+      />
       
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
@@ -575,4 +725,4 @@ export default function LeadsTable({
   );
 }
 
-export type { Lead, DropdownData, Column };
+export type { Lead, DropdownData, Column, Employee };

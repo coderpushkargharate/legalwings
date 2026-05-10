@@ -31,51 +31,73 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats>({ totalLeads: 0, totalClients: 0, totalAgreements: 0, newLeadsToday: 0 });
   const [loading, setLoading] = useState(true);
 
- useEffect(() => {
-  if (!user) return; // ✅ wait for auth
+  useEffect(() => {
+    if (!user) return;
 
-  const fetchStats = async () => {
-    try {
-      setLoading(true);
+    const fetchStats = async () => {
+      try {
+        setLoading(true);
 
-      const [leadsRes, clientsRes] = await Promise.all([
-        apiFetch('/api/leads?pageSize=1'),
-        apiFetch('/api/clients?pageSize=1'),
-      ]);
+        const [leadsRes, clientsRes] = await Promise.all([
+          apiFetch('/api/leads?pageSize=1'),
+          apiFetch('/api/clients?pageSize=1'),
+        ]);
 
-      // ✅ handle unauthorized safely
-      if (!leadsRes.ok || !clientsRes.ok) {
-        console.error('API error', leadsRes.status, clientsRes.status);
-        return;
+        if (!leadsRes.ok || !clientsRes.ok) {
+          console.error('API error', leadsRes.status, clientsRes.status);
+          return;
+        }
+
+        const leadsData = await leadsRes.json();
+        const clientsData = await clientsRes.json();
+
+        setStats({
+          totalLeads: leadsData.leadPage?.totalElements || 0,
+          totalClients: clientsData.clientPage?.totalElements || 0,
+          totalAgreements: 0,
+          newLeadsToday: 0,
+        });
+
+      } catch (err) {
+        console.error('Dashboard error:', err);
+      } finally {
+        setLoading(false);
       }
+    };
 
-      const leadsData = await leadsRes.json();
-      const clientsData = await clientsRes.json();
+    fetchStats();
+  }, [user]);
 
-      setStats({
-        totalLeads: leadsData.leadPage?.totalElements || 0,
-        totalClients: clientsData.clientPage?.totalElements || 0,
-        totalAgreements: 0,
-        newLeadsToday: 0,
-      });
-
-    } catch (err) {
-      console.error('Dashboard error:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchStats();
-}, [user]); // ✅ IMPORTANT
-
-  const teams = [
-    { name: 'Calling Team', path: '/calling-team', icon: Phone, desc: 'Manage incoming leads and calls', color: 'bg-blue-500' },
-    { name: 'Executive Team', path: '/executive-team', icon: UserCheck, desc: 'Handle executive appointments', color: 'bg-emerald-500' },
-    { name: 'Backend Team', path: '/backend-team', icon: Server, desc: 'Process agreements and documents', color: 'bg-amber-500' },
-    { name: 'Account Team', path: '/account-team', icon: DollarSign, desc: 'Track payments and commissions', color: 'bg-rose-500' },
-    { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, desc: 'Marketing campaigns and analytics', color: 'bg-cyan-500' },
+  // 🔹 Team definitions with role mapping
+  const allTeams = [
+    { name: 'Calling Team', path: '/calling-team', icon: Phone, desc: 'Manage incoming leads and calls', color: 'bg-blue-500', role: 'calling' },
+    { name: 'Executive Team', path: '/executive-team', icon: UserCheck, desc: 'Handle executive appointments', color: 'bg-emerald-500', role: 'executive' },
+    { name: 'Backend Team', path: '/backend-team', icon: Server, desc: 'Process agreements and documents', color: 'bg-amber-500', role: 'backend' },
+    { name: 'Account Team', path: '/account-team', icon: DollarSign, desc: 'Track payments and commissions', color: 'bg-rose-500', role: 'accounting' },
+    { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, desc: 'Marketing campaigns and analytics', color: 'bg-cyan-500', role: 'marketing' },
   ];
+
+  // 🔹 Filter teams based on user role
+  const visibleTeams = React.useMemo(() => {
+    if (!user) return [];
+    
+    const isAdmin = user.roles?.includes('admin');
+    const isAccounting = user.roles?.includes('accounting');
+    
+    // 🔹 Admin & Accounting see ALL teams
+    if (isAdmin || isAccounting) {
+      return allTeams;
+    }
+    
+    // 🔹 Employees see ONLY their assigned team
+    const userTeam = user.team?.toLowerCase();
+    if (userTeam) {
+      return allTeams.filter(team => team.role === userTeam);
+    }
+    
+    // 🔹 Fallback: show teams matching user roles
+    return allTeams.filter(team => user.roles?.includes(team.role));
+  }, [user]);
 
   const statCards = [
     { label: 'Total Leads', value: stats.totalLeads, icon: TrendingUp, color: 'text-teal-600', bg: 'bg-teal-50' },
@@ -84,6 +106,17 @@ export default function DashboardPage() {
     { label: 'New Today', value: stats.newLeadsToday, icon: ArrowUpRight, color: 'text-emerald-600', bg: 'bg-emerald-50' },
   ];
 
+  if (!user) {
+    return (
+      <AppShell>
+        <Header title="Dashboard" />
+        <div className="p-6 flex items-center justify-center min-h-[400px]">
+          <div className="text-slate-500">Loading...</div>
+        </div>
+      </AppShell>
+    );
+  }
+
   return (
     <AppShell>
       <Header title="Dashboard" />
@@ -91,6 +124,12 @@ export default function DashboardPage() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-slate-800">Welcome back, {user?.firstName}</h2>
           <p className="text-sm text-slate-500 mt-1">Here is what is happening with your CRM today.</p>
+          {/* 🔹 Show user's team/role for clarity */}
+          {user.team && (
+            <p className="text-xs text-slate-400 mt-1">
+              Team: <span className="font-medium text-slate-600">{user.team}</span>
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -107,25 +146,34 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Teams</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teams.map((team) => (
-            <Link
-              key={team.path}
-              href={team.path}
-              className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-teal-200 transition-all duration-200"
-            >
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 ${team.color} rounded-xl flex items-center justify-center shadow-sm`}>
-                  <team.icon className="w-6 h-6 text-white" />
+        <h3 className="text-lg font-semibold text-slate-800 mb-4">Your Teams</h3>
+        
+        {/* 🔹 Show message if no teams visible */}
+        {visibleTeams.length === 0 ? (
+          <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center">
+            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500">No team access configured. Please contact your administrator.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {visibleTeams.map((team) => (
+              <Link
+                key={team.path}
+                href={team.path}
+                className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-teal-200 transition-all duration-200"
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`w-12 h-12 ${team.color} rounded-xl flex items-center justify-center shadow-sm`}>
+                    <team.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <ArrowUpRight className="w-5 h-5 text-slate-300 group-hover:text-teal-500 transition-colors" />
                 </div>
-                <ArrowUpRight className="w-5 h-5 text-slate-300 group-hover:text-teal-500 transition-colors" />
-              </div>
-              <h4 className="text-base font-semibold text-slate-800 group-hover:text-teal-700 transition-colors">{team.name}</h4>
-              <p className="text-sm text-slate-500 mt-1">{team.desc}</p>
-            </Link>
-          ))}
-        </div>
+                <h4 className="text-base font-semibold text-slate-800 group-hover:text-teal-700 transition-colors">{team.name}</h4>
+                <p className="text-sm text-slate-500 mt-1">{team.desc}</p>
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </AppShell>
   );

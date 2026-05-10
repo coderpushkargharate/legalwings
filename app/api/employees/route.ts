@@ -10,7 +10,23 @@ export async function GET(request: Request) {
 
   try {
     const { db } = await connectToDatabase();
-    const users = await db.collection('users').find({ roles: { $ne: 'admin' } }).toArray();
+    const { searchParams } = new URL(request.url);
+    const teamFilter = searchParams.get('team'); // Optional: filter by team
+
+    const filter: Record<string, any> = { roles: { $ne: 'admin' } };
+    
+    // 🔹 Filter by team if specified
+    if (teamFilter) {
+      const roleMap: Record<string, string> = {
+        'Calling': 'calling', 'Executive': 'executive', 'Backend': 'backend',
+        'Accounts': 'accounting', 'Marketing': 'marketing'
+      };
+      const teamRole = roleMap[teamFilter] || teamFilter.toLowerCase();
+      filter.roles = { $in: ['employee', teamRole] };
+      filter.team = teamFilter;
+    }
+
+    const users = await db.collection('users').find(filter).toArray();
     
     return NextResponse.json({
       employees: users.map(u => ({
@@ -19,6 +35,7 @@ export async function GET(request: Request) {
         lastName: u.lastName,
         email: u.email,
         team: u.team || 'Unknown',
+        roles: u.roles,
         createdAt: u.createdAt
       }))
     });
@@ -62,7 +79,14 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ 
       message: 'Employee created successfully', 
-      id: result.insertedId.toString() 
+      id: result.insertedId.toString(),
+      employee: {
+        id: result.insertedId.toString(),
+        firstName,
+        lastName: lastName || '',
+        email,
+        team,
+      }
     }, { status: 201 });
   } catch (error) {
     console.error('Employee POST error:', error);

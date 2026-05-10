@@ -1,4 +1,3 @@
-// app/api/leads/[id]/assign-team/route.ts
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
@@ -15,6 +14,8 @@ const TEAM_TO_TRANSIT_LEVEL: Record<string, string> = {
   CALLING: 'CALLING_TEAM',
   EXECUTIVE: 'EXECUTIVE_TEAM',
   BACKEND: 'BACKEND_TEAM',
+  ACCOUNTING: 'ACCOUNTING_TEAM',
+  MARKETING: 'MARKETING_TEAM',
 };
 
 export async function POST(
@@ -28,7 +29,7 @@ export async function POST(
     const { db } = await connectToDatabase();
     const { id } = await params;
     const body = await request.json();
-    const { team } = body;
+    const { team, assignedToUserId } = body;
 
     if (!team || !TEAM_TO_TRANSIT_LEVEL[team]) {
       return NextResponse.json({ error: 'Invalid team specified' }, { status: 400 });
@@ -36,21 +37,45 @@ export async function POST(
 
     const transitLevel = TEAM_TO_TRANSIT_LEVEL[team];
 
-    // Update the lead's transitLevel and audit fields
+    // 🔹 If assigning to specific employee, verify they belong to the team
+    let assignedEmployeeName = null;
+    if (assignedToUserId) {
+      const employee = await db.collection('users').findOne({ 
+        _id: new ObjectId(assignedToUserId),
+        roles: { $in: [team.toLowerCase(), 'employee'] } 
+      });
+      
+      if (!employee) {
+        return NextResponse.json({ error: 'Employee not found or not part of selected team' }, { status: 400 });
+      }
+      assignedEmployeeName = `${employee.firstName} ${employee.lastName}`;
+    }
+
+    // Update the lead's transitLevel, assignment, and audit fields
+    const updateData: Record<string, any> = {
+      transitLevel,
+      updatedAt: new Date(),
+      updatedByUserId: user.userId,
+      updatedByUserName: `${user.firstName} ${user.lastName}`,
+      forwardedTo: team,
+      forwardedAt: new Date(),
+      forwardedBy: user.userId,
+    };
+
+    // 🔹 Add employee-specific assignment if provided
+    if (assignedToUserId) {
+      updateData.assignedToUserId = new ObjectId(assignedToUserId);
+      updateData.assignedToUserName = assignedEmployeeName;
+      updateData.assignedAt = new Date();
+    } else {
+      // If assigning to team only, clear any previous employee assignment
+      updateData.assignedToUserId = null;
+      updateData.assignedToUserName = null;
+    }
+
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
-      {
-        $set: {
-          transitLevel,
-          updatedAt: new Date(),
-          updatedByUserId: user.userId,
-          updatedByUserName: `${user.firstName} ${user.lastName}`,
-          // Optional: Track forwarding history
-          forwardedTo: team,
-          forwardedAt: new Date(),
-          forwardedBy: user.userId,
-        },
-      }
+      { $set: updateData }
     );
 
     if (result.matchedCount === 0) {
@@ -58,12 +83,15 @@ export async function POST(
     }
 
     return NextResponse.json({
-      message: `Lead successfully forwarded to ${team} team`,
+      message: assignedToUserId 
+        ? `Lead successfully assigned to ${assignedEmployeeName} in ${team} team`
+        : `Lead successfully forwarded to ${team} team`,
       leadId: id,
       newTransitLevel: transitLevel,
+      assignedToUserId: assignedToUserId || null,
     });
   } catch (error) {
-    console.error('Assign team error:', error);
-    return NextResponse.json({ error: 'Failed to forward lead' }, { status: 500 });
+    console.error('Assign team/employee error:', error);
+    return NextResponse.json({ error: 'Failed to assign lead' }, { status: 500 });
   }
 }
