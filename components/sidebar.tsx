@@ -20,6 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 
+// 🔹 Nav items configuration
 const navItems = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard, role: 'all' },
   { name: 'Calling Team', path: '/calling-team', icon: Phone, role: 'calling' },
@@ -27,7 +28,7 @@ const navItems = [
   { name: 'Backend Team', path: '/backend-team', icon: Server, role: 'backend' },
   { name: 'Account Team', path: '/account-team', icon: DollarSign, role: 'accounting' },
   { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, role: 'marketing' },
-   { name: 'Employees', path: '/employees', icon: Users, role: 'admin' }, // 👈 NEW
+  { name: 'Employees', path: '/employees', icon: Users, role: 'admin' },
 ];
 
 const dataManagement = {
@@ -39,8 +40,25 @@ const dataManagement = {
   ],
 };
 
-// ✅ 1. EXTRACTED & MEMOIZED SIDEBAR CONTENT
-// Defined outside main component to prevent recreation on every render
+// 🔹 1. DEFINE PROPS INTERFACE FOR SIDEBAR CONTENT
+interface SidebarContentProps {
+  collapsed: boolean;
+  pathname: string;
+  user: any; // Replace 'any' with your actual User type if available
+  logout: () => void;
+  visibleNav: Array<{
+    name: string;
+    path: string;
+    icon: React.ElementType;
+    role: string;
+  }>;
+  showDataManagement: boolean;
+  dataOpen: boolean;
+  setDataOpen: React.Dispatch<React.SetStateAction<boolean>>;
+  setMobileOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}
+
+// ✅ 2. APPLY TYPES TO MEMOIZED COMPONENT
 const SidebarContent = React.memo(function SidebarContent({
   collapsed,
   pathname,
@@ -51,7 +69,7 @@ const SidebarContent = React.memo(function SidebarContent({
   dataOpen,
   setDataOpen,
   setMobileOpen,
-}) {
+}: SidebarContentProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -160,18 +178,19 @@ function Sidebar() {
   const pathname = usePathname() ?? '';
   const { user, logout } = useAuth();
 
-  // ✅ 2. MEMOIZE DERIVED STATE
-  const isAdmin = useMemo(() => user?.roles?.includes('admin'), [user?.roles]);
+  // ✅ MEMOIZE DERIVED STATE - Ensure boolean values with ?? false
+  const isAdmin = useMemo(() => user?.roles?.includes('admin') ?? false, [user?.roles]);
 
   const visibleNav = useMemo(() => {
+    if (!user) return [];
     return isAdmin
       ? navItems
       : navItems.filter((n) => n.role === 'all' || user?.roles?.includes(n.role));
   }, [isAdmin, user?.roles]);
 
-  const showDataManagement = isAdmin;
+  const showDataManagement = isAdmin ?? false;
 
-  // ✅ 3. STABLE CALLBACKS
+  // ✅ STABLE CALLBACKS
   const handleLogout = useCallback(() => {
     logout();
   }, [logout]);
@@ -217,7 +236,7 @@ function Sidebar() {
         }`}
       >
         <SidebarContent
-          collapsed={false} // Mobile is always expanded
+          collapsed={false}
           pathname={pathname}
           user={user}
           logout={handleLogout}
@@ -258,5 +277,5 @@ function Sidebar() {
   );
 }
 
-// ✅ 4. PREVENT FULL COMPONENT RE-RENDERS
+// ✅ PREVENT FULL COMPONENT RE-RENDERS
 export default React.memo(Sidebar);

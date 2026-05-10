@@ -706,30 +706,55 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Agreement Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
+                
+                {/* ✅ FIXED: Agreement Start Date - extract e.target.value */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Start Date</label>
-                  <div className="relative"><input type="date" value={agreement.agreementStartDate} onChange={(v) => updateAgreement('agreementStartDate', v)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="agreement-agreementStartDate" />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={agreement.agreementStartDate} 
+                      onChange={(e) => updateAgreement('agreementStartDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="agreement-agreementStartDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                   </div>
                 </div>
+                
+                {/* ✅ FIXED: Agreement End Date - extract e.target.value */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement End Date</label>
-                  <div className="relative"><input type="date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="agreement-agreementEndDate" />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={agreement.agreementEndDate} 
+                      onChange={(e) => updateAgreement('agreementEndDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="agreement-agreementEndDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                   </div>
                 </div>
+                
                 <Input label="Address Line 1" value={agreement.addressLine1} onChange={(v) => updateAgreement('addressLine1', v)} disabled={!isEditable} placeholder="Address Line 1" id="agreement-addressLine1" />
                 <Input label="Address Line 2" value={agreement.addressLine2} onChange={(v) => updateAgreement('addressLine2', v)} disabled={!isEditable} placeholder="Address Line 2" id="agreement-addressLine2" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
-                  <select value={agreement.agreementStatus} onChange={(v) => updateAgreement('agreementStatus', v)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
+                  <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
                     {['Owner Pending','Tenant Pending','Witness Pending','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Back Office Status</label>
-                  <select value={agreement.backOfficeStatus} onChange={(v) => updateAgreement('backOfficeStatus', v)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
+                  <select value={agreement.backOfficeStatus} onChange={(e) => updateAgreement('backOfficeStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
                     <option value="">Select Back Office Status</option>
                     {['Govt. Approval pending','Govt. Quiery','Govt. Copy send clint','Govt. Other issue','Challan Pending','DHC Pending','ReShadule visit','Payment Pending','POA Pending','PVR Pending','Cummision Sending','Document Pending','Draft Confirmation Pending','Other State Bio. Pending','NRI Bio Pending','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -810,15 +835,68 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label><div className="relative"><input type="date" value={p.paymentDate} onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </div></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Mode</label><select value={p.modeOfPayment} onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"><option value="">Select Mode</option><option value="CASH">Cash</option><option value="ONLINE">Online</option><option value="CHEQUE">Cheque</option></select></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+                    <div className="relative">
+                      <input 
+                        type="date" 
+                        value={p.paymentDate} 
+                        onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} 
+                        disabled={!isEditable} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      />
+                      <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                    <input 
+                      type="text" 
+                      placeholder="Amount" 
+                      value={p.paymentAmount} 
+                      onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Mode</label>
+                    <select 
+                      value={p.modeOfPayment} 
+                      onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <option value="">Select Mode</option>
+                      <option value="CASH">Cash</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CHEQUE">Cheque</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="Payer Name" 
+                      value={p.payerName} 
+                      onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
                 </div>
               ))}
-              {isEditable && (<button onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" type="button"><Plus className="w-4 h-4" /> Add Owner Payment</button>)}
+              {isEditable && (
+                <button 
+                  onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} 
+                  className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
+                  type="button"
+                >
+                  <Plus className="w-4 h-4" /> Add Owner Payment
+                </button>
+              )}
             </div>
 
             {/* Tenant Payments */}
@@ -826,15 +904,68 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label><div className="relative"><input type="date" value={p.paymentDate} onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  </div></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Mode</label><select value={p.modeOfPayment} onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"><option value="">Select Mode</option><option value="CASH">Cash</option><option value="ONLINE">Online</option><option value="CHEQUE">Cheque</option></select></div>
-                  <div><label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+                    <div className="relative">
+                      <input 
+                        type="date" 
+                        value={p.paymentDate} 
+                        onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} 
+                        disabled={!isEditable} 
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      />
+                      <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                    <input 
+                      type="text" 
+                      placeholder="Amount" 
+                      value={p.paymentAmount} 
+                      onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Mode</label>
+                    <select 
+                      value={p.modeOfPayment} 
+                      onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                    >
+                      <option value="">Select Mode</option>
+                      <option value="CASH">Cash</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CHEQUE">Cheque</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label>
+                    <input 
+                      type="text" 
+                      placeholder="Payer Name" 
+                      value={p.payerName} 
+                      onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
                 </div>
               ))}
-              {isEditable && (<button onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" type="button"><Plus className="w-4 h-4" /> Add Tenant Payment</button>)}
+              {isEditable && (
+                <button 
+                  onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} 
+                  className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
+                  type="button"
+                >
+                  <Plus className="w-4 h-4" /> Add Tenant Payment
+                </button>
+              )}
             </div>
 
             {/* Total Amount Received - Sum of all payments */}
@@ -858,29 +989,149 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <textarea value={payment.description} onChange={(e) => updatePayment('description', e.target.value)} disabled={!isEditable} placeholder="Add any payment related notes here..." rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" />
+                <textarea 
+                  value={payment.description} 
+                  onChange={(e) => updatePayment('description', e.target.value)} 
+                  disabled={!isEditable} 
+                  placeholder="Add any payment related notes here..." 
+                  rows={3} 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" 
+                />
               </div>
             </div>
 
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Govt GRN Date</label><div className="relative"><input type="date" value={payment.govtGrnDate} onChange={(e) => updatePayment('govtGrnDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">GRN Number</label><input type="text" placeholder="GRN Number" value={payment.grnNumber} onChange={(e) => updatePayment('grnNumber', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">GRN Amount</label><input type="text" placeholder="GRN Amount" value={payment.grnAmount} onChange={(e) => updatePayment('grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Govt GRN Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={payment.govtGrnDate} 
+                      onChange={(e) => updatePayment('govtGrnDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">GRN Number</label>
+                  <input 
+                    type="text" 
+                    placeholder="GRN Number" 
+                    value={payment.grnNumber} 
+                    onChange={(e) => updatePayment('grnNumber', e.target.value)} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">GRN Amount</label>
+                  <input 
+                    type="text" 
+                    placeholder="GRN Amount" 
+                    value={payment.grnAmount} 
+                    onChange={(e) => updatePayment('grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Date</label><div className="relative"><input type="date" value={payment.dhcDate} onChange={(e) => updatePayment('dhcDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Number</label><input type="text" placeholder="DHC Number" value={payment.dhcNumber} onChange={(e) => updatePayment('dhcNumber', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">DHC Amount</label><input type="text" placeholder="DHC Amount" value={payment.dhcAmount} onChange={(e) => updatePayment('dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">DHC Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={payment.dhcDate} 
+                      onChange={(e) => updatePayment('dhcDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">DHC Number</label>
+                  <input 
+                    type="text" 
+                    placeholder="DHC Number" 
+                    value={payment.dhcNumber} 
+                    onChange={(e) => updatePayment('dhcNumber', e.target.value)} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">DHC Amount</label>
+                  <input 
+                    type="text" 
+                    placeholder="DHC Amount" 
+                    value={payment.dhcAmount} 
+                    onChange={(e) => updatePayment('dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Date</label><div className="relative"><input type="date" value={payment.commissionDate} onChange={(e) => updatePayment('commissionDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" /><svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Name</label><input type="text" placeholder="Commission Name" value={payment.commissionName} onChange={(e) => updatePayment('commissionName', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
-                <div><label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label><input type="text" placeholder="Commission Amount" value={payment.commissionAmount} onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" /></div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={payment.commissionDate} 
+                      onChange={(e) => updatePayment('commissionDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Name</label>
+                  <input 
+                    type="text" 
+                    placeholder="Commission Name" 
+                    value={payment.commissionName} 
+                    onChange={(e) => updatePayment('commissionName', e.target.value)} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label>
+                  <input 
+                    type="text" 
+                    placeholder="Commission Amount" 
+                    value={payment.commissionAmount} 
+                    onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                  />
+                </div>
               </div>
             </div>
-            {isEditable && (<div className="flex justify-end"><button onClick={savePayment} disabled={saving} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button"><Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}</button></div>)}
+            {isEditable && (
+              <div className="flex justify-end">
+                <button 
+                  onClick={savePayment} 
+                  disabled={saving} 
+                  className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" 
+                  type="button"
+                >
+                  <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -891,4 +1142,3 @@ function LeadFormContent() {
 export default memo(function LeadFormPage() {
   return <LeadFormContent />;
 });
-export type { DropdownData };

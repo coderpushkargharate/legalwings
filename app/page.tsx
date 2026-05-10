@@ -25,10 +25,23 @@ interface DashboardStats {
   newLeadsToday: number;
 }
 
+// 🔹 Extend User type locally for team property
+interface ExtendedUser {
+  team?: string;
+  roles?: string[];
+  firstName: string;
+  [key: string]: any;
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { apiFetch } = useApi();
-  const [stats, setStats] = useState<DashboardStats>({ totalLeads: 0, totalClients: 0, totalAgreements: 0, newLeadsToday: 0 });
+  const [stats, setStats] = useState<DashboardStats>({ 
+    totalLeads: 0, 
+    totalClients: 0, 
+    totalAgreements: 0, 
+    newLeadsToday: 0 
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -77,12 +90,15 @@ export default function DashboardPage() {
     { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, desc: 'Marketing campaigns and analytics', color: 'bg-cyan-500', role: 'marketing' },
   ];
 
-  // 🔹 Filter teams based on user role
+  // 🔹 Filter teams based on user role - with type-safe access
   const visibleTeams = React.useMemo(() => {
     if (!user) return [];
     
-    const isAdmin = user.roles?.includes('admin');
-    const isAccounting = user.roles?.includes('accounting');
+    // 🔹 Cast to ExtendedUser to access 'team' property safely
+    const extendedUser = user as ExtendedUser;
+    
+    const isAdmin = extendedUser.roles?.includes('admin');
+    const isAccounting = extendedUser.roles?.includes('accounting');
     
     // 🔹 Admin & Accounting see ALL teams
     if (isAdmin || isAccounting) {
@@ -90,13 +106,13 @@ export default function DashboardPage() {
     }
     
     // 🔹 Employees see ONLY their assigned team
-    const userTeam = user.team?.toLowerCase();
+    const userTeam = extendedUser.team?.toLowerCase();
     if (userTeam) {
       return allTeams.filter(team => team.role === userTeam);
     }
     
     // 🔹 Fallback: show teams matching user roles
-    return allTeams.filter(team => user.roles?.includes(team.role));
+    return allTeams.filter(team => extendedUser.roles?.includes(team.role));
   }, [user]);
 
   const statCards = [
@@ -117,17 +133,20 @@ export default function DashboardPage() {
     );
   }
 
+  // 🔹 Cast user for template access too
+  const extendedUser = user as ExtendedUser;
+
   return (
     <AppShell>
       <Header title="Dashboard" />
       <div className="p-6 max-w-7xl mx-auto">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-slate-800">Welcome back, {user?.firstName}</h2>
+          <h2 className="text-2xl font-bold text-slate-800">Welcome back, {extendedUser?.firstName}</h2>
           <p className="text-sm text-slate-500 mt-1">Here is what is happening with your CRM today.</p>
           {/* 🔹 Show user's team/role for clarity */}
-          {user.team && (
+          {extendedUser.team && (
             <p className="text-xs text-slate-400 mt-1">
-              Team: <span className="font-medium text-slate-600">{user.team}</span>
+              Team: <span className="font-medium text-slate-600">{extendedUser.team}</span>
             </p>
           )}
         </div>

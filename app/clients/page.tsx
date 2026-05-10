@@ -21,12 +21,9 @@ interface Client {
   createdAt?: string;
 }
 
-interface ClientsPageProps {
-  onClientCreated?: (client: Client) => void;
-  onClientUpdated?: (client: Client) => void;
-}
+// ✅ Removed ClientsPageProps interface - pages can't accept custom props in App Router
 
-export default function ClientsPage({ onClientCreated, onClientUpdated }: ClientsPageProps) {
+export default function ClientsPage() { // ✅ Removed props from function signature
   const { apiFetch } = useApi();
   const [clients, setClients] = useState<Client[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
@@ -48,7 +45,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
   const [isPending, startTransition] = useTransition();
   const searchTimerRef = useRef<NodeJS.Timeout>();
 
-  // Fetch clients with proper error handling
   const fetchClients = useCallback(async (isInitial = false) => {
     if (isInitial) {
       setInitialLoading(true);
@@ -91,7 +87,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
     }
   }, [apiFetch, page, searchText, clientType]);
 
-  // Initial load
   useEffect(() => {
     let mounted = true;
     if (mounted) {
@@ -100,7 +95,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
     return () => { mounted = false; };
   }, []);
 
-  // Debounced search
   useEffect(() => {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     
@@ -128,7 +122,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
   const handleSave = async () => {
     setFormError(null);
     
-    // Validate form
     if (!form.firstName.trim() || !form.lastName.trim() || !form.phoneNo) {
       setFormError('First name, last name, and phone number are required');
       return;
@@ -163,7 +156,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         
-        // Handle duplicate phone number
         if (response.status === 409 && errorData.existingClient) {
           setFormError(`Client with phone ${form.phoneNo} already exists`);
           return;
@@ -174,15 +166,10 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
       
       const savedClient = await response.json();
       
-      // Notify parent components about client changes
-      if (editClient && onClientUpdated) {
-        onClientUpdated(savedClient.client || savedClient);
-      } else if (!editClient && onClientCreated) {
-        onClientCreated(savedClient);
-      }
+      // ✅ Removed onClientCreated/onClientUpdated callbacks
+      // Data refresh below ensures UI stays consistent
       
-      // Refresh the list to ensure consistency
-      await fetchClients(false);
+      await fetchClients(false); // ✅ Already refreshing, so callbacks were redundant
       
       setShowModal(false);
       setEditClient(null);
@@ -203,7 +190,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
     
     setDeletingId(id);
     
-    // Optimistic update
     startTransition(() => {
       setClients(prev => prev.filter(c => c.id !== id));
     });
@@ -215,12 +201,11 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
         throw new Error('Failed to delete');
       }
       
-      // Refresh to ensure consistency
       await fetchClients(false);
     } catch (error: any) {
       console.error('Delete error:', error);
       setFormError(error.message || 'Failed to delete client. Reverting...');
-      await fetchClients(false); // Re-fetch on error
+      await fetchClients(false);
     } finally {
       setDeletingId(null);
     }
@@ -265,7 +250,6 @@ export default function ClientsPage({ onClientCreated, onClientUpdated }: Client
     fetchClients(false);
   };
 
-  // Expose refresh method for external triggers
   const refreshClients = useCallback(() => {
     fetchClients(false);
   }, [fetchClients]);
