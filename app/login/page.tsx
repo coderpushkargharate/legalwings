@@ -38,10 +38,12 @@ export default function LoginPage() {
         <div className="absolute bottom-0 right-0 w-96 h-96 bg-teal-500/5 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
 
         <div className="relative z-10 text-center">
-          <div className="w-20 h-20 bg-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-lg shadow-teal-600/30">
-            <Scale className="w-10 h-10 text-white" />
-          </div>
-          <h1 className="text-4xl font-bold text-white mb-4">LegalWings</h1>
+         <img 
+          src="/WhatsApp_Image_2026-05-10_at_7.07.13_AM-removebg-preview.png" 
+          alt="LegalWings Logo" 
+          className="w-1/2 max-w-xs mx-auto drop-shadow-2xl mx-auto" 
+        />
+          <h1 className="text-4xl font-bold text-white mb-4">LegalWing</h1>
           <p className="text-lg text-slate-300 mb-2">Rent Agreement CRM System</p>
           <p className="text-sm text-slate-400 max-w-md mx-auto mt-6">
             Manage your rent agreements, clients, leads, and payments all in one place. Streamline your legal workflow with our comprehensive CRM solution.

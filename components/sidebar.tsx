@@ -74,12 +74,14 @@ const SidebarContent = React.memo(function SidebarContent({
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="flex items-center gap-3 px-4 py-5 border-b border-slate-700/50">
-        <div className="w-9 h-9 bg-teal-600 rounded-lg flex items-center justify-center flex-shrink-0">
-          <Scale className="w-5 h-5 text-white" />
-        </div>
+        <img 
+          src="/WhatsApp_Image_2026-05-10_at_7.07.13_AM-removebg-preview.png" 
+          alt="LegalWings Logo" 
+          className="w-1/2 max-w-xs  drop-shadow-2xl " 
+        />
         {!collapsed && (
           <div className="overflow-hidden">
-            <h2 className="text-sm font-bold text-white tracking-wide">LegalWings</h2>
+            <h2 className="text-sm font-bold text-white tracking-wide">LegalWing</h2>
             <p className="text-[10px] text-slate-400">CRM System</p>
           </div>
         )}
@@ -208,10 +210,12 @@ function Sidebar() {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 h-14 bg-slate-900 border-b border-slate-700/50 flex items-center justify-between px-4 z-50">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
-            <Scale className="w-4 h-4 text-white" />
-          </div>
-          <span className="text-sm font-bold text-white">LegalWings CRM</span>
+           <img 
+          src="/WhatsApp_Image_2026-05-10_at_7.07.13_AM-removebg-preview.png" 
+          alt="LegalWings Logo" 
+          className="w-1/2 max-w-xs mx-auto drop-shadow-2xl mx-auto" 
+        />
+          <span className="text-sm font-bold text-white">LegalWing CRM</span>
         </div>
         <button
           onClick={toggleMobile}

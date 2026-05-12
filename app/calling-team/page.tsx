@@ -8,10 +8,13 @@ import type { Column, Lead } from '@/components/leads-table';
 
 const columns: Column[] = [
   {
-    key: 'createdDate',
+    key: 'leadDate', // ✅ Changed from 'createdDate' to match form field
     label: 'Lead Date',
     width: '100px',
-    render: (lead) => lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
+    render: (lead) => {
+      const leadDate = (lead as Lead & { leadDate?: string }).leadDate;
+      return leadDate ? new Date(leadDate).toLocaleDateString() : '-';
+    },
   },
   {
     key: 'name',
