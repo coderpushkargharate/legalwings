@@ -889,9 +889,10 @@ export default function LeadsTable({
   const [cancelReason, setCancelReason] = useState('');
   const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
 
+  // ✅ FIXED: Use optional chaining throughout to handle user possibly being null
   const canExport = Array.isArray(user?.roles) && (
-    user.roles.includes('ADMIN') || user.roles.includes('ACCOUNTING') ||
-    user.roles.includes('admin') || user.roles.includes('accounting')
+    user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') ||
+    user?.roles?.includes('admin') || user?.roles?.includes('accounting')
   );
 
   useEffect(() => {
