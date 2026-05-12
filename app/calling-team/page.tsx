@@ -8,38 +8,38 @@ import type { Column, Lead } from '@/components/leads-table';
 
 const columns: Column[] = [
   {
+    key: 'createdDate',
+    label: 'Lead Date',
+    width: '100px',
+    render: (lead) => lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
+  },
+  {
     key: 'name',
     label: 'Name',
-    width: '160px',
+    width: '150px',
     render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
   },
   {
     key: 'phoneNo',
     label: 'Phone',
-    width: '110px',
+    width: '120px',
     render: (lead) => lead.client?.phoneNo || '-',
   },
   {
     key: 'lastFollowUp',
     label: 'Last Follow Up',
-    width: '120px',
+    width: '110px',
     render: (lead) => lead.lastFollowUpDate ? new Date(lead.lastFollowUpDate).toLocaleDateString() : '-',
   },
   {
     key: 'nextFollowUp',
     label: 'Next Follow Up',
-    width: '120px',
+    width: '110px',
     render: (lead) => lead.nextFollowUpDate ? new Date(lead.nextFollowUpDate).toLocaleDateString() : '-',
   },
   {
-    key: 'appointmentTime',
-    label: 'Appointment',
-    width: '140px',
-    render: (lead) => lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString() : '-',
-  },
-  {
     key: 'leadStatus',
-    label: 'Lead Status',
+    label: 'Status',
     width: '130px',
     render: (lead) => {
       const s = lead.leadStatus || '-';
@@ -48,21 +48,40 @@ const columns: Column[] = [
     },
   },
   {
+    key: 'appointment',
+    label: 'Appointment',
+    width: '140px',
+    render: (lead) => lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-',
+  },
+  {
+    key: 'visitAddress',
+    label: 'Visit Location',
+    width: '140px',
+    render: (lead) => lead.visitAddress || lead.client?.areaName || '-',
+  },
+  {
     key: 'clientType',
     label: 'Client Type',
     width: '100px',
     render: (lead) => lead.client?.clientType || '-',
   },
   {
-    key: 'visitAddress',
-    label: 'Visit Address',
-    render: (lead) => lead.visitAddress || '-',
+    key: 'visitCount',
+    label: 'Visit Count',
+    width: '90px',
+    render: (lead) => lead.visitCount || 0,
   },
   {
-    key: 'createdDate',
-    label: 'Created',
-    width: '100px',
-    render: (lead) => lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
+    key: 'createdBy',
+    label: 'Created By',
+    width: '130px',
+    render: (lead) => lead.createdByUserName || '-',
+  },
+  {
+    key: 'assignedTo',
+    label: 'Assigned To',
+    width: '130px',
+    render: (lead) => lead.assignedToUserName || 'Team Only',
   },
 ];
 

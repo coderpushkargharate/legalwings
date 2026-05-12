@@ -4,10 +4,7 @@
 import React from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
-// ✅ Import both Column AND Lead types from the source component
 import LeadsTable, { type Column, type Lead } from '@/components/leads-table';
-
-// ✅ Remove local Lead type definition - use imported one for consistency
 
 const columns: Column[] = [
   { 
@@ -46,11 +43,9 @@ const columns: Column[] = [
     key: 'amount', 
     label: 'Amount', 
     width: '100px', 
-    // ✅ Handle amount which may be string | undefined | null
     render: (lead: Lead) => {
       const amount = lead.amount;
       if (amount == null || amount === '') return '-';
-      // Convert string to number if needed, then format
       const numericValue = typeof amount === 'string' ? parseFloat(amount) : amount;
       return isNaN(numericValue) ? '-' : `₹${numericValue}`;
     }
@@ -68,6 +63,65 @@ const columns: Column[] = [
     render: (lead: Lead) => 
       lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-' 
   },
+  // ✅ Accounting-specific columns (added at end)
+  { 
+    key: 'tokenNumber', 
+    label: 'Token No.', 
+    width: '120px', 
+    render: (lead: Lead) => lead.agreement?.tokenNo || '-' 
+  },
+  { 
+    key: 'totalAmount', 
+    label: 'Total Amount', 
+    width: '110px', 
+    render: (lead: Lead) => {
+      const amount = lead.payment?.totalAmount;
+      if (amount == null) return '₹ -';
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
+        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
+      }).format(num);
+    }
+  },
+  { 
+    key: 'paidAmount', 
+    label: 'Paid Amount', 
+    width: '110px', 
+    render: (lead: Lead) => {
+      const amount = lead.payment?.paidAmount;
+      if (amount == null) return '₹ -';
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
+        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
+      }).format(num);
+    }
+  },
+  { 
+    key: 'pendingAmount', 
+    label: 'Pending', 
+    width: '110px', 
+    render: (lead: Lead) => {
+      const amount = lead.payment?.pendingAmount || lead.payment?.outstandingAmount;
+      if (amount == null) return '₹ -';
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
+        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
+      }).format(num);
+    }
+  },
+  { 
+    key: 'commissionAmount', 
+    label: 'Commission', 
+    width: '110px', 
+    render: (lead: Lead) => {
+      const amount = lead.payment?.commissionAmount;
+      if (amount == null) return '₹ -';
+      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
+      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
+        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
+      }).format(num);
+    }
+  },
 ];
 
 export default function AccountTeamPage() {
@@ -79,9 +133,11 @@ export default function AccountTeamPage() {
           📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial & operational tracking.
         </div>
         <LeadsTable
+          // ✅ KEEP "ALL" - yehi aapke backend mein kaam karta hai
           transitLevel="ALL"
           title="All Leads Overview"
           columns={columns}
+          showAddButton={false}
         />
       </div>
     </AppShell>

@@ -24,58 +24,76 @@ export async function POST(
 ) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+  
   try {
     const { db } = await connectToDatabase();
     const { id } = await params;
     const body = await request.json();
-    const { team, assignedToUserId } = body;
+    const { team, assignedToUserId, reason } = body;
 
     if (!team || !TEAM_TO_TRANSIT_LEVEL[team]) {
       return NextResponse.json({ error: 'Invalid team specified' }, { status: 400 });
     }
 
-    const transitLevel = TEAM_TO_TRANSIT_LEVEL[team];
+    const destinationTransitLevel = TEAM_TO_TRANSIT_LEVEL[team];
 
     // 🔹 If assigning to specific employee, verify they belong to the team
     let assignedEmployeeName = null;
     if (assignedToUserId) {
-      const employee = await db.collection('users').findOne({ 
+      const employee = await db.collection('users').findOne({
         _id: new ObjectId(assignedToUserId),
-        roles: { $in: [team.toLowerCase(), 'employee'] } 
+        roles: { $in: [team.toLowerCase(), 'employee'] }
       });
-      
       if (!employee) {
         return NextResponse.json({ error: 'Employee not found or not part of selected team' }, { status: 400 });
       }
       assignedEmployeeName = `${employee.firstName} ${employee.lastName}`;
     }
 
-    // Update the lead's transitLevel, assignment, and audit fields
-    const updateData: Record<string, any> = {
-      transitLevel,
-      updatedAt: new Date(),
-      updatedByUserId: user.userId,
-      updatedByUserName: `${user.firstName} ${user.lastName}`,
-      forwardedTo: team,
+    // ✅ Get current lead to track forwarding history
+    const currentLead = await db.collection('leads').findOne({ _id: new ObjectId(id) });
+    if (!currentLead) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+
+    // ✅ Create history entry for audit trail
+    const forwardEntry = {
+      fromTeam: currentLead.transitLevel || 'UNKNOWN',
+      toTeam: destinationTransitLevel,
+      forwardedBy: `${user.firstName} ${user.lastName}`,
+      forwardedByUserId: user.userId,
       forwardedAt: new Date(),
-      forwardedBy: user.userId,
+      reason: reason || null,
     };
 
-    // 🔹 Add employee-specific assignment if provided
+    // ✅ FIXED: Update Logic for BIDIRECTIONAL visibility
+    const updateObj: any = {
+      $set: {
+        transitLevel: destinationTransitLevel,
+        updatedAt: new Date(),
+        updatedByUserId: user.userId,
+        updatedByUserName: `${user.firstName} ${user.lastName}`,
+        forwardedTo: team,
+        forwardedAt: new Date(),
+        forwardedBy: user.userId,
+        forwardReason: reason || null,
+      },
+      $addToSet: { visibleToTeams: destinationTransitLevel },
+      $push: { forwardedHistory: forwardEntry }
+    };
+
     if (assignedToUserId) {
-      updateData.assignedToUserId = new ObjectId(assignedToUserId);
-      updateData.assignedToUserName = assignedEmployeeName;
-      updateData.assignedAt = new Date();
+      updateObj.$set.assignedToUserId = new ObjectId(assignedToUserId);
+      updateObj.$set.assignedToUserName = assignedEmployeeName;
+      updateObj.$set.assignedAt = new Date();
     } else {
-      // If assigning to team only, clear any previous employee assignment
-      updateData.assignedToUserId = null;
-      updateData.assignedToUserName = null;
+      updateObj.$set.assignedToUserId = null;
+      updateObj.$set.assignedToUserName = null;
     }
 
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
-      { $set: updateData }
+      updateObj
     );
 
     if (result.matchedCount === 0) {
@@ -83,12 +101,13 @@ export async function POST(
     }
 
     return NextResponse.json({
-      message: assignedToUserId 
+      message: assignedToUserId
         ? `Lead successfully assigned to ${assignedEmployeeName} in ${team} team`
         : `Lead successfully forwarded to ${team} team`,
       leadId: id,
-      newTransitLevel: transitLevel,
+      newTransitLevel: destinationTransitLevel,
       assignedToUserId: assignedToUserId || null,
+      visibleToTeams: [...(currentLead.visibleToTeams || []), destinationTransitLevel],
     });
   } catch (error) {
     console.error('Assign team/employee error:', error);

@@ -12,21 +12,27 @@ function getAuth(request: Request): JWTPayload | null {
 export async function GET(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
+  
   try {
     const { db } = await connectToDatabase();
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     const viewAll = searchParams.get('viewAll') === 'true';
-
     const filter: Record<string, unknown> = {};
 
-    // 🔹 RBAC: Employees only see their own leads. Admin & Accounting see ALL.
-    const isAdmin = user.roles?.includes('admin');
-    const isAccounting = user.roles?.includes('accounting');
-    
+    // 🔹 RBAC & Visibility Logic
+    const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
+    const isAccounting = user.roles?.includes('accounting') || user.roles?.includes('ACCOUNTING');
+
     if (!isAdmin && !isAccounting && !viewAll) {
-      filter.createdByUserId = user.userId;
+      const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
+      const possibleTeamNames = [userTeam, `${userTeam}_TEAM`, userTeam.replace('_TEAM', '')];
+      
+      filter.$or = [
+        { createdByUserId: user.userId },
+        { assignedToUserId: user.userId ? new ObjectId(user.userId) : null },
+        { visibleToTeams: { $in: possibleTeamNames } }
+      ];
     }
 
     // Single lead view
@@ -43,23 +49,45 @@ export async function GET(request: Request) {
     const searchText = searchParams.get('searchText');
     const cityId = searchParams.get('cityId');
     const areaId = searchParams.get('areaId');
+    const assignedToUserId = searchParams.get('assignedToUserId');
 
-    if (transitLevel && transitLevel !== 'ALL') filter.transitLevel = transitLevel;
+    // ✅ FIXED: Robust team name normalization for bidirectional visibility
+    if (transitLevel && transitLevel !== 'ALL') {
+      const upperTransit = transitLevel.toUpperCase();
+      // Handle both formats: 'CALLING' or 'CALLING_TEAM'
+      const normalizedTeam = upperTransit.endsWith('_TEAM') 
+        ? upperTransit 
+        : `${upperTransit}_TEAM`;
+      
+      // MongoDB matches array elements: { visibleToTeams: 'CALLING_TEAM' }
+      // matches documents where visibleToTeams array CONTAINS 'CALLING_TEAM'
+      filter.visibleToTeams = normalizedTeam;
+    }
+    
     if (clientType) filter['client.clientType'] = clientType;
     if (leadStatus) filter.leadStatus = leadStatus;
     if (cityId) filter['city.id'] = cityId;
     if (areaId) filter['area.id'] = areaId;
+    if (assignedToUserId) filter.assignedToUserId = new ObjectId(assignedToUserId);
+
+    // Handle search text with $or merge
     if (searchText) {
-      filter.$or = [
+      const searchConditions = [
         { 'client.firstName': { $regex: searchText, $options: 'i' } },
         { 'client.lastName': { $regex: searchText, $options: 'i' } },
         { 'client.phoneNo': { $regex: searchText, $options: 'i' } },
       ];
+      
+      if (Array.isArray((filter as any).$or)) {
+        (filter as any).$or = [...(filter as any).$or, ...searchConditions];
+      } else {
+        (filter as any).$or = searchConditions;
+      }
     }
 
     const page = parseInt(searchParams.get('page') || '0');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
-
+    
     const total = await db.collection('leads').countDocuments(filter);
     const leads = await db.collection('leads')
       .find(filter)
@@ -85,22 +113,25 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-
   try {
     const { db } = await connectToDatabase();
     const body = await request.json();
-
-    // 🔹 Automatically attach creator ID & Name
+    
+    const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
+    const transitLevel = body.transitLevel || `${userTeam}_TEAM`;
+    
     const lead = {
       ...body,
+      transitLevel,
       createdByUserId: user.userId,
       createdByUserName: `${user.firstName} ${user.lastName}`,
       updatedByUserId: user.userId,
       updatedByUserName: `${user.firstName} ${user.lastName}`,
       createdAt: new Date(),
       updatedAt: new Date(),
+      visibleToTeams: [transitLevel],
     };
-
+    
     const result = await db.collection('leads').insertOne(lead);
     return NextResponse.json({ ...lead, id: result.insertedId.toString() }, { status: 201 });
   } catch (error) {
@@ -117,11 +148,9 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
-
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
-
     await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }

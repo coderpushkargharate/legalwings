@@ -1,5 +1,4 @@
 'use client';
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
@@ -37,6 +36,7 @@ import * as XLSX from 'xlsx';
 
 // ==================== INTERFACES ====================
 interface Lead {
+  visitCount: number;
   id: string;
   client?: {
     firstName?: string;
@@ -114,8 +114,17 @@ interface Lead {
     modeOfPayment?: string;
     payerName?: string;
   }>;
+  visibleToTeams?: string[];
+  forwardedHistory?: Array<{
+    fromTeam: string;
+    toTeam: string;
+    forwardedBy: string;
+    forwardedByUserId?: string;
+    forwardedAt: string;
+    reason?: string;
+  }>;
+  forwardReason?: string;
 }
-
 interface Employee {
   id: string;
   firstName: string;
@@ -123,7 +132,6 @@ interface Employee {
   email: string;
   team: string;
 }
-
 interface DropdownData {
   cities: { id: string; name: string }[];
   areas: { id: string; name: string; cityName?: string }[];
@@ -133,7 +141,6 @@ interface DropdownData {
   executives: { id: string; name: string; userId: string }[];
   clientTypes: { key: string; value: string }[];
 }
-
 interface Column {
   key: string;
   label: string;
@@ -159,13 +166,11 @@ const formatDate = (dateString?: string): string => {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
-
 const formatCurrency = (amount?: number | string): string => {
   if (!amount) return '₹ -';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(num || 0);
 };
-
 const getStatusBadge = (status?: string): React.ReactNode => {
   if (!status) return <span className="text-slate-400">-</span>;
   const colors: Record<string, string> = {
@@ -180,7 +185,7 @@ const getStatusBadge = (status?: string): React.ReactNode => {
   return <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${color}`}>{status}</span>;
 };
 
-// ==================== BASE MODAL - FIXED FOR SMOOTH OPENING ====================
+// ==================== BASE MODAL ====================
 interface BaseModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -188,7 +193,6 @@ interface BaseModalProps {
   title?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
-
 const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title, size = 'lg' }) => {
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -240,7 +244,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
   };
 
   return (
-    <div 
+    <div
       className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity duration-200 ${
         isAnimating ? 'opacity-100' : 'opacity-0'
       }`}
@@ -248,7 +252,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
       role="dialog"
       aria-modal="true"
     >
-      <div 
+      <div
         ref={modalRef}
         className={`bg-white rounded-xl shadow-2xl w-full ${sizeClasses[size]} overflow-hidden transition-all duration-200 ease-out flex flex-col max-h-[95vh] ${
           isAnimating ? 'opacity-100 scale-100 translate-y-0' : 'opacity-0 scale-95 translate-y-4'
@@ -258,8 +262,8 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
         {title && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 flex-shrink-0">
             <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
-            <button 
-              onClick={onClose} 
+            <button
+              onClick={onClose}
               className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
               aria-label="Close modal"
             >
@@ -281,7 +285,6 @@ interface ViewLeadModalProps {
   leadId: string;
   onClose: () => void;
 }
-
 const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }) => {
   const { apiFetch } = useApi();
   const [lead, setLead] = useState<Lead | null>(null);
@@ -292,9 +295,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
 
   useEffect(() => {
     if (!isOpen || !leadId || prevLeadIdRef.current === leadId) return;
-    
     prevLeadIdRef.current = leadId;
-    
     const fetchLead = async () => {
       setLoading(true);
       setError(null);
@@ -310,7 +311,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
         setLoading(false);
       }
     };
-    
     fetchLead();
   }, [isOpen, leadId, apiFetch]);
 
@@ -362,8 +362,8 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                 key={tab.key}
                 onClick={() => setActiveTab(tab.key as any)}
                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                  activeTab === tab.key 
-                    ? 'bg-white text-[#00A651] shadow-sm border border-slate-200' 
+                  activeTab === tab.key
+                    ? 'bg-white text-[#00A651] shadow-sm border border-slate-200'
                     : 'text-slate-500 hover:text-slate-700'
                 }`}
               >
@@ -389,7 +389,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="Area" value={lead.client?.areaName || lead.area?.name || '-'} icon={Building} />
                 </div>
               </div>
-
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <FileText className="w-5 h-5 text-[#00A651]" />
@@ -410,8 +409,54 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="Created By" value={lead.createdByUserName || '-'} />
                   <InfoItem label="Created Date" value={formatDate(lead.createdDate)} icon={CalendarDays} />
                   <InfoItem label="Assigned To" value={lead.assignedToUserName || 'Team Only'} icon={User} />
+                  {lead.visibleToTeams && lead.visibleToTeams.length > 0 && (
+                    <InfoItem label="Visible To Teams" value={lead.visibleToTeams.join(', ')} />
+                  )}
                 </div>
               </div>
+
+              {/* ============ FORWARDING HISTORY SECTION ============ */}
+              {lead.forwardedHistory && lead.forwardedHistory.length > 0 && (
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
+                    <CalendarClock className="w-5 h-5 text-[#00A651]" />
+                    Forwarding History
+                  </h4>
+                  <div className="space-y-3">
+                    {lead.forwardedHistory.map((history, index) => (
+                      <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="font-medium text-slate-700 text-sm">
+                            <span className="text-slate-500">{history.fromTeam}</span>
+                            <ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" />
+                            <span className="text-[#00A651]">{history.toTeam}</span>
+                          </span>
+                          <span className="text-slate-500 text-xs flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            {history.forwardedAt ? new Date(history.forwardedAt).toLocaleString('en-IN', { 
+                              day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+                            }) : '-'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 mt-2">
+                          <User className="w-3 h-3 inline mr-1" />
+                          Forwarded by: <span className="font-medium">{history.forwardedBy}</span>
+                        </p>
+                        {history.reason && (
+                          <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800">
+                            <AlertCircle className="w-3 h-3 inline mr-1" />
+                            <strong>Reason:</strong> {history.reason}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {lead.forwardReason && !lead.forwardedHistory?.length && (
+                <InfoItem label="Forward Reason" value={lead.forwardReason} multiline />
+              )}
             </div>
           )}
 
@@ -431,7 +476,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="DOB" value={formatDate(lead.agreement?.owner?.dateOfBirth)} icon={Calendar} />
                 </div>
               </div>
-
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <Users className="w-5 h-5 text-[#00A651]" />
@@ -446,7 +490,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <InfoItem label="DOB" value={formatDate(lead.agreement?.tenant?.dateOfBirth)} icon={Calendar} />
                 </div>
               </div>
-
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2">
                   <BadgeCheck className="w-5 h-5 text-[#00A651]" />
@@ -479,7 +522,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <SummaryCard label="Outstanding" value={formatCurrency(lead.payment?.outstandingAmount)} highlight />
                 </div>
               </div>
-
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h4>
                 {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
@@ -509,7 +551,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <p className="text-slate-500 text-sm">No owner payments recorded</p>
                 )}
               </div>
-
               <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                 <h4 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h4>
                 {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
@@ -539,7 +580,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   <p className="text-slate-500 text-sm">No tenant payments recorded</p>
                 )}
               </div>
-
               {(lead.payment?.grnNumber || lead.payment?.dhcNumber || lead.payment?.commissionName) && (
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h4>
@@ -556,7 +596,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose }
                   </div>
                 </div>
               )}
-
               {lead.payment?.description && (
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-2">Notes</h4>
@@ -579,7 +618,6 @@ interface InfoItemProps {
   badge?: boolean;
   multiline?: boolean;
 }
-
 const InfoItem: React.FC<InfoItemProps> = ({ label, value, icon: Icon, badge, multiline }) => (
   <div className="space-y-1">
     <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
@@ -599,7 +637,6 @@ interface SummaryCardProps {
   value: string;
   highlight?: boolean;
 }
-
 const SummaryCard: React.FC<SummaryCardProps> = ({ label, value, highlight }) => (
   <div className={`p-4 rounded-lg ${highlight ? 'bg-white/20' : 'bg-white/10'}`}>
     <p className="text-sm opacity-90">{label}</p>
@@ -618,16 +655,14 @@ interface ConfirmationModalProps {
   onCancel: () => void;
   variant?: 'default' | 'danger' | 'success';
 }
-
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   isOpen, title, message, confirmText = 'Yes', cancelText = 'No', onConfirm, onCancel, variant = 'default'
 }) => {
-  const btnClass = variant === 'danger' 
-    ? 'bg-red-500 hover:bg-red-600' 
-    : variant === 'success' 
-    ? 'bg-emerald-500 hover:bg-emerald-600' 
+  const btnClass = variant === 'danger'
+    ? 'bg-red-500 hover:bg-red-600'
+    : variant === 'success'
+    ? 'bg-emerald-500 hover:bg-emerald-600'
     : 'bg-amber-500 hover:bg-amber-600';
-
   return (
     <BaseModal isOpen={isOpen} onClose={onCancel}>
       <div className="p-6 text-center">
@@ -650,10 +685,9 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 interface TeamSelectionModalProps {
   isOpen: boolean;
   leadId: string;
-  onSend: (leadId: string, team: string, assignedToUserId?: string | null) => void;
+  onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void;
   onClose: () => void;
 }
-
 const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose }) => {
   const { apiFetch } = useApi();
   const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING'>('CALLING');
@@ -661,7 +695,19 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [assignToEmployee, setAssignToEmployee] = useState(false);
   const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [forwardReason, setForwardReason] = useState('');
   const prevTeamRef = useRef<string>('');
+
+  const reasonOptions = [
+    { value: '', label: '-- Select Reason --' },
+    { value: '1st Visit', label: '1st Visit' },
+    { value: '2nd Visit', label: '2nd Visit' },
+    { value: '3rd Visit', label: '3rd Visit' },
+    { value: 'Come In Shop', label: 'Come In Shop' },
+    { value: 'NRI', label: 'NRI' },
+    { value: 'Call Out', label: 'Call Out' },
+    { value: 'Of Pune', label: 'Of Pune' },
+  ];
 
   const teams = [
     { key: 'CALLING', label: 'Calling Team', icon: '📞', color: 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' },
@@ -675,7 +721,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     if (!isOpen) return;
     if (prevTeamRef.current === selectedTeam) return;
     prevTeamRef.current = selectedTeam;
-    
     const fetchEmployees = async () => {
       setLoadingEmployees(true);
       try {
@@ -690,7 +735,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
         setLoadingEmployees(false);
       }
     };
-    
     fetchEmployees();
   }, [selectedTeam, isOpen, apiFetch]);
 
@@ -702,7 +746,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
 
   const handleSend = () => {
     const employeeId = assignToEmployee ? selectedEmployee : null;
-    onSend(leadId, selectedTeam, employeeId);
+    onSend(leadId, selectedTeam, employeeId, forwardReason);
   };
 
   return (
@@ -712,13 +756,12 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
           <h3 className="text-lg font-semibold text-slate-800">Forward Lead</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
         </div>
-        
         <p className="text-sm font-medium text-slate-700 mb-3">Select Team:</p>
         <div className="grid gap-2 mb-4">
           {teams.map((t) => (
             <button
               key={t.key}
-              onClick={() => { setSelectedTeam(t.key as any); setAssignToEmployee(false); setSelectedEmployee(null); }}
+              onClick={() => { setSelectedTeam(t.key as any); setAssignToEmployee(false); setSelectedEmployee(null); setForwardReason(''); }}
               className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
                 selectedTeam === t.key ? t.color + ' border-opacity-100 shadow-sm' : 'border-slate-200 bg-slate-50 text-slate-600'
               }`}
@@ -729,12 +772,24 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             </button>
           ))}
         </div>
-
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-slate-600 mb-2">Forward Reason *</label>
+          <select
+            value={forwardReason}
+            onChange={(e) => setForwardReason(e.target.value)}
+            className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all"
+            required
+          >
+            {reasonOptions.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+        </div>
         <div className="flex items-center gap-2 mb-3 p-3 bg-slate-50 rounded-lg">
-          <input 
-            type="checkbox" 
-            id="assignEmployee" 
-            checked={assignToEmployee} 
+          <input
+            type="checkbox"
+            id="assignEmployee"
+            checked={assignToEmployee}
             onChange={(e) => { setAssignToEmployee(e.target.checked); setSelectedEmployee(null); }}
             className="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-500"
           />
@@ -742,7 +797,6 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             <User className="w-4 h-4" /> Assign to specific employee
           </label>
         </div>
-
         {assignToEmployee && (
           <div className="mb-4">
             <label className="block text-sm font-medium text-slate-600 mb-2">Select Employee:</label>
@@ -753,8 +807,8 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             ) : employees.length === 0 ? (
               <p className="text-sm text-slate-400 italic">No employees found in {selectedTeam} team</p>
             ) : (
-              <select 
-                value={selectedEmployee || ''} 
+              <select
+                value={selectedEmployee || ''}
                 onChange={(e) => setSelectedEmployee(e.target.value || null)}
                 className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
               >
@@ -768,15 +822,14 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             )}
           </div>
         )}
-
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button onClick={onClose} className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
           <button
             onClick={handleSend}
-            disabled={assignToEmployee && !selectedEmployee}
+            disabled={(assignToEmployee && !selectedEmployee) || !forwardReason}
             className="px-5 py-2 bg-amber-500 text-white rounded-lg font-medium hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
-            <Send className="w-4 h-4" /> 
+            <Send className="w-4 h-4" />
             {assignToEmployee && selectedEmployee ? 'Assign to Employee' : assignToEmployee ? 'Select Employee' : `Forward to ${selectedTeam} Team`}
           </button>
         </div>
@@ -793,7 +846,6 @@ interface LeadsTableProps {
   showAddButton?: boolean;
   onSendToBackend?: (leadId: string) => void;
 }
-
 export default function LeadsTable({
   transitLevel,
   title,
@@ -802,37 +854,46 @@ export default function LeadsTable({
 }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
-
   const [leads, setLeads] = useState<Lead[]>([]);
   const [dropdowns, setDropdowns] = useState<DropdownData>({
     cities: [], areas: [], leadStatuses: [], agreementStatuses: [],
     backOfficeStatuses: [], executives: [], clientTypes: [],
   });
-
   const [loading, setLoading] = useState(false);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
-
   const today = new Date().toISOString().split('T')[0];
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [filterOn, setFilterOn] = useState('Created Date');
+  const [appointmentFromDate, setAppointmentFromDate] = useState('');
+  const [appointmentToDate, setAppointmentToDate] = useState('');
+  const [appointmentLocation, setAppointmentLocation] = useState('');
+  const [clientType, setClientType] = useState('');
+  const [assignedEmployeeFilter, setAssignedEmployeeFilter] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
+  const [nextFollowUpFromDate, setNextFollowUpFromDate] = useState('');
+  const [nextFollowUpToDate, setNextFollowUpToDate] = useState('');
+  const [lastFollowUpFromDate, setLastFollowUpFromDate] = useState('');
+  const [lastFollowUpToDate, setLastFollowUpToDate] = useState('');
+  const [visitCount, setVisitCount] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedArea, setSelectedArea] = useState('');
-  const [clientType, setClientType] = useState('');
   const [areaText, setAreaText] = useState('');
   const [tokenNumber, setTokenNumber] = useState('');
-  const [selectedStatus, setSelectedStatus] = useState('');
   const [searchText, setSearchText] = useState('');
-  const [assignedEmployeeFilter, setAssignedEmployeeFilter] = useState('');
-
   const [viewModal, setViewModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelReason, setCancelReason] = useState('');
-
   const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
+
+  const canExport = Array.isArray(user?.roles) && (
+    user.roles.includes('ADMIN') || user.roles.includes('ACCOUNTING') ||
+    user.roles.includes('admin') || user.roles.includes('accounting')
+  );
+
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -864,11 +925,8 @@ export default function LeadsTable({
     })();
   }, [authLoading, user]);
 
-  // ==================== DASHBOARD-SPECIFIC COLUMNS ====================
   const getColumnsForDashboard = (): Column[] => {
     if (customColumns) return customColumns;
-
-    // CALLING DASHBOARD
     if (transitLevel === 'CALLING') {
       return [
         { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.createdDate) },
@@ -882,8 +940,6 @@ export default function LeadsTable({
         { key: 'nextFollowUp', label: 'Next Follow Up', width: '120px', render: (lead) => formatDate(lead.nextFollowUpDate) },
       ];
     }
-
-    // BACK OFFICE DASHBOARD
     if (transitLevel === 'BACKEND') {
       return [
         { key: 'name', label: 'Name', width: '160px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
@@ -898,8 +954,6 @@ export default function LeadsTable({
         { key: 'commissionAmount', label: 'Commission Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
       ];
     }
-
-    // ACCOUNT DASHBOARD
     if (transitLevel === 'ACCOUNTING') {
       return [
         { key: 'tokenNumber', label: 'Token Number', width: '130px', render: (lead) => lead.agreement?.tokenNo || '-' },
@@ -917,8 +971,6 @@ export default function LeadsTable({
         { key: 'dhcNo', label: 'DHC No.', width: '110px', render: (lead) => lead.payment?.dhcNumber || '-' },
       ];
     }
-
-    // MARKETING DASHBOARD
     if (transitLevel === 'MARKETING') {
       return [
         { key: 'tokenNumber', label: 'Token Number', width: '130px', render: (lead) => lead.agreement?.tokenNo || '-' },
@@ -932,7 +984,7 @@ export default function LeadsTable({
         { key: 'tenantMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.tenant?.phoneNo || '-' },
         { key: 'tenantDob', label: 'Birth Date Tenant', width: '130px', render: (lead) => formatDate(lead.agreement?.tenant?.dateOfBirth) },
         { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (
-          <button 
+          <button
             onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }}
             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00A651] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"
           >
@@ -940,11 +992,9 @@ export default function LeadsTable({
           </button>
         )},
         { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => {
-          // ✅ FIXED: Check roles array instead of singular role property
           const isAdmin = Array.isArray(user?.roles) && user?.roles?.includes('ADMIN');
-          
           return isAdmin ? (
-            <button 
+            <button
               onClick={(e) => { e.stopPropagation(); handleExportSingleLead(lead); }}
               className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"
             >
@@ -956,8 +1006,6 @@ export default function LeadsTable({
         }},
       ];
     }
-
-    // DEFAULT COLUMNS
     return [
       { key: 'tokenNumber', label: 'Token No', width: '120px', render: (lead) => lead.agreement?.tokenNo || '-' },
       { key: 'name', label: 'Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
@@ -982,14 +1030,22 @@ export default function LeadsTable({
       if (fromDate) params.set('fromDate', fromDate);
       if (toDate) params.set('toDate', toDate);
       if (filterOn) params.set('filterOn', filterOn);
+      if (appointmentFromDate) params.set('appointmentFromDate', appointmentFromDate);
+      if (appointmentToDate) params.set('appointmentToDate', appointmentToDate);
+      if (appointmentLocation) params.set('appointmentLocation', appointmentLocation);
+      if (clientType) params.set('clientType', clientType);
+      if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
+      if (selectedStatus) params.set('status', selectedStatus);
+      if (nextFollowUpFromDate) params.set('nextFollowUpFromDate', nextFollowUpFromDate);
+      if (nextFollowUpToDate) params.set('nextFollowUpToDate', nextFollowUpToDate);
+      if (lastFollowUpFromDate) params.set('lastFollowUpFromDate', lastFollowUpFromDate);
+      if (lastFollowUpToDate) params.set('lastFollowUpToDate', lastFollowUpToDate);
+      if (visitCount) params.set('visitCount', visitCount);
       if (selectedCity) params.set('cityId', selectedCity);
       if (selectedArea) params.set('areaId', selectedArea);
-      if (clientType) params.set('clientType', clientType);
       if (areaText) params.set('areaText', areaText);
       if (tokenNumber) params.set('tokenNumber', tokenNumber);
-      if (selectedStatus) params.set('status', selectedStatus);
       if (searchText) params.set('searchText', searchText);
-      if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
 
       const res = await apiFetch(`/api/leads?${params.toString()}`);
       const data = await res.json();
@@ -1000,27 +1056,40 @@ export default function LeadsTable({
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, selectedCity, selectedArea, clientType, areaText, tokenNumber, selectedStatus, searchText, assignedEmployeeFilter, authLoading, user]);
+  }, [
+    page, transitLevel,
+    fromDate, toDate, filterOn,
+    appointmentFromDate, appointmentToDate, appointmentLocation,
+    clientType, assignedEmployeeFilter, selectedStatus,
+    nextFollowUpFromDate, nextFollowUpToDate,
+    lastFollowUpFromDate, lastFollowUpToDate,
+    visitCount,
+    selectedCity, selectedArea, areaText, tokenNumber, searchText,
+    authLoading, user
+  ]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
   const handleApplyFilters = () => setPage(0);
   const handleClearFilters = () => {
     setFromDate(today); setToDate(today); setFilterOn('Created Date');
-    setSelectedCity(''); setSelectedArea(''); setClientType('');
-    setAreaText(''); setTokenNumber(''); setSelectedStatus('');
-    setSearchText(''); setAssignedEmployeeFilter('');
+    setAppointmentFromDate(''); setAppointmentToDate(''); setAppointmentLocation('');
+    setClientType(''); setAssignedEmployeeFilter(''); setSelectedStatus('');
+    setNextFollowUpFromDate(''); setNextFollowUpToDate('');
+    setLastFollowUpFromDate(''); setLastFollowUpToDate(''); setVisitCount('');
+    setSelectedCity(''); setSelectedArea(''); setAreaText('');
+    setTokenNumber(''); setSearchText('');
     setPage(0);
   };
 
-  const handleSendToTeam = async (leadId: string, team: string, assignedToUserId?: string | null) => {
+  const handleSendToTeam = async (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => {
     try {
-      await apiFetch(`/api/leads/${leadId}/assign-team`, { 
-        method: 'POST', 
-        body: JSON.stringify({ team, assignedToUserId }) 
+      await apiFetch(`/api/leads/${leadId}/assign-team`, {
+        method: 'POST',
+        body: JSON.stringify({ team, assignedToUserId, reason, keepVisibleToSource: true })
       });
-      alert(assignedToUserId 
-        ? 'Lead successfully assigned to employee.' 
+      alert(assignedToUserId
+        ? 'Lead successfully assigned to employee.'
         : `Lead successfully forwarded to ${team} team.`);
       fetchLeads();
     } catch {
@@ -1047,27 +1116,140 @@ export default function LeadsTable({
     }
   };
 
+  // ==================== ACCOUNTING EXCEL EXPORT (S-ADMIN) ====================
   const handleExportExcel = () => {
     if (leads.length === 0) return alert('No data to export.');
-    const exportData = leads.map((lead) => ({
-      'Token Number': lead.agreement?.tokenNo || '-',
-      'Name': `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
-      'Phone Number': lead.client?.phoneNo || '-',
-      'Client Type': lead.client?.clientType || '-',
-      'Visit Address': lead.visitAddress || '-',
-      'Area': lead.client?.areaName || '-',
-      'City': lead.client?.cityName || '-',
-      'Lead Status': lead.leadStatus || '-',
-      'Agreement Status': lead.agreement?.status || '-',
-      'Assigned To': lead.assignedToUserName || '-',
-      'Created Date': lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
-      'Created By': lead.createdByUserName || '-',
-    }));
-
+    
+    const exportData: any[] = [];
+    
+    leads.forEach((lead, index) => {
+      // Header row for each lead
+      if (index > 0) exportData.push({}); // Empty row separator
+      
+      // Main Summary Section
+      exportData.push({
+        'Token Number': lead.agreement?.tokenNo || '-',
+        'Our Fees': formatCurrency(lead.payment?.ourFees),
+        'Commission': formatCurrency(lead.payment?.commission),
+        'Total Amount': formatCurrency(lead.payment?.totalAmount),
+      });
+      
+      // Owner Payments Section Header
+      exportData.push({ 'Owner Payments': '' });
+      exportData.push({
+        'Date': '',
+        'Amount': '',
+        'Mode - Online / Cash': '',
+        'Party Name': '',
+        'Transaction No.': '',
+      });
+      
+      // Owner Payments Rows
+      const ownerPayments = lead.payment?.ownerPayments || [];
+      if (ownerPayments.length > 0) {
+        ownerPayments.forEach((p) => {
+          exportData.push({
+            'Date': formatDate(p.paymentDate || p.date),
+            'Amount': formatCurrency(p.paymentAmount || p.amount),
+            'Mode - Online / Cash': p.modeOfPayment || p.mode || '-',
+            'Party Name': p.payerName || p.partyName || '-',
+            'Transaction No.': p.transactionNo || '-',
+          });
+        });
+      } else {
+        exportData.push({
+          'Date': '-',
+          'Amount': '-',
+          'Mode - Online / Cash': '-',
+          'Party Name': '-',
+          'Transaction No.': '-',
+        });
+      }
+      
+      // Empty row separator
+      exportData.push({});
+      
+      // Tenant Payments Section Header
+      exportData.push({ 'Tenant Payments': '' });
+      exportData.push({
+        'Date': '',
+        'Amount': '',
+        'Mode - Online / Cash': '',
+        'Party Name': '',
+        'Transaction No.': '',
+      });
+      
+      // Tenant Payments Rows
+      const tenantPayments = lead.payment?.tenantPayments || [];
+      if (tenantPayments.length > 0) {
+        tenantPayments.forEach((p) => {
+          exportData.push({
+            'Date': formatDate(p.paymentDate || p.date),
+            'Amount': formatCurrency(p.paymentAmount || p.amount),
+            'Mode - Online / Cash': p.modeOfPayment || p.mode || '-',
+            'Party Name': p.payerName || p.partyName || '-',
+            'Transaction No.': p.transactionNo || '-',
+          });
+        });
+      } else {
+        exportData.push({
+          'Date': '-',
+          'Amount': '-',
+          'Mode - Online / Cash': '-',
+          'Party Name': '-',
+          'Transaction No.': '-',
+        });
+      }
+      
+      // Empty row separator
+      exportData.push({});
+      
+      // Total Amount Received
+      exportData.push({
+        'Total Amount Received': formatCurrency(lead.payment?.totalReceivedAmount),
+      });
+      
+      // Empty row separator
+      exportData.push({});
+      
+      // GRN Section
+      exportData.push({
+        'Govt GRN Date': formatDate(lead.payment?.govtGrnDate || lead.payment?.grnDate),
+        'GRN Number': lead.payment?.grnNumber || '-',
+        'GRN Amount': formatCurrency(lead.payment?.grnAmount),
+      });
+      
+      // Empty row separator
+      exportData.push({});
+      
+      // DHC Section
+      exportData.push({
+        'Govt DHC Date': formatDate(lead.payment?.dhcDate),
+        'DHC Number': lead.payment?.dhcNumber || '-',
+        'DHC Amount': formatCurrency(lead.payment?.dhcAmount),
+      });
+      
+      // Empty row separator
+      exportData.push({});
+      
+      // Commission Section
+      exportData.push({
+        'Commission Date': formatDate(lead.payment?.commissionDate),
+        'Commission Name': lead.payment?.commissionName || '-',
+        'Commission Amount': formatCurrency(lead.payment?.commissionAmount),
+      });
+    });
+    
     const ws = XLSX.utils.json_to_sheet(exportData);
+    
+    // Set column widths for better formatting
+    ws['!cols'] = [
+      { wch: 20 }, { wch: 15 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 20 }
+    ];
+    
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
-    XLSX.writeFile(wb, `Leads_${transitLevel}_${new Date().toISOString().split('T')[0]}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Accounting Report');
+    XLSX.writeFile(wb, `Accounting_Report_${transitLevel}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleExportSingleLead = (lead: Lead) => {
@@ -1101,7 +1283,6 @@ export default function LeadsTable({
       'Paid Amount': formatCurrency(lead.payment?.paidAmount),
       'Pending Amount': formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount),
     };
-
     const ws = XLSX.utils.json_to_sheet([exportData]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Lead Details');
@@ -1118,7 +1299,6 @@ export default function LeadsTable({
           <Filter className="w-5 h-5 text-amber-500" />
           <h2 className="text-lg">Filters</h2>
         </div>
-        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
           <div className="space-y-1.5">
             <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label>
@@ -1157,8 +1337,71 @@ export default function LeadsTable({
             </select>
           </div>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment From</label>
+            <input type="date" value={appointmentFromDate} onChange={(e) => setAppointmentFromDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment To</label>
+            <input type="date" value={appointmentToDate} onChange={(e) => setAppointmentToDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Location (Appointment)</label>
+            <input type="text" placeholder="e.g. Pune, Mumbai" value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label>
+            <select value={clientType} onChange={(e) => setClientType(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option value="">All</option>
+              <option value="OWNER">Owner</option>
+              <option value="TENANT">Tenant</option>
+              <option value="AGENT">Agent</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label>
+            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
+              <option value="">All Status</option>
+              {dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label>
+            <input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label>
+            <input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp To</label>
+            <input type="date" value={nextFollowUpToDate} onChange={(e) => setNextFollowUpToDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp From</label>
+            <input type="date" value={lastFollowUpFromDate} onChange={(e) => setLastFollowUpFromDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp To</label>
+            <input type="date" value={lastFollowUpToDate} onChange={(e) => setLastFollowUpToDate(e.target.value)}
+              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
           {[
             { label: 'City', value: selectedCity, set: setSelectedCity, options: dropdowns.cities },
             { label: 'Area', value: selectedArea, set: setSelectedArea, options: dropdowns.areas },
@@ -1173,35 +1416,11 @@ export default function LeadsTable({
             </div>
           ))}
           <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label>
-            <select value={clientType} onChange={(e) => setClientType(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
-              <option value="">All</option>
-              <option value="OWNER">Owner</option>
-              <option value="TENANT">Tenant</option>
-              <option value="AGENT">Agent</option>
-            </select>
-          </div>
-          <div className="space-y-1.5">
             <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label>
             <input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)}
               className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
           </div>
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token Number</label>
-            <input type="text" placeholder="14 digits" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value.replace(/[^0-9]/g, '').slice(0, 14))}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
-          </div>
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label>
-            <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all">
-              <option value="">All Status</option>
-              {dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}
-            </select>
-          </div>
         </div>
-
         <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
           <div className="relative flex-1 max-w-xs">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -1219,15 +1438,16 @@ export default function LeadsTable({
               className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">
               Clear
             </button>
-            <button onClick={handleExportExcel}
-              className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm">
-              <Download className="w-4 h-4" /> Export
-            </button>
+            {canExport && (
+              <button onClick={handleExportExcel}
+                className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm">
+                <Download className="w-4 h-4" /> Export
+              </button>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Header & Add Button */}
       {showAddButton && transitLevel !== 'MARKETING' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`}
@@ -1237,7 +1457,6 @@ export default function LeadsTable({
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1248,11 +1467,9 @@ export default function LeadsTable({
                     {col.label}
                   </th>
                 ))}
-                {/* Assigned To column - only show for non-marketing dashboards */}
                 {!isMarketingDashboard && (
                   <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>
                 )}
-                {/* Actions column - only show for non-marketing dashboards */}
                 {!isMarketingDashboard && (
                   <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28">Actions</th>
                 )}
@@ -1273,7 +1490,6 @@ export default function LeadsTable({
                         {col.render ? col.render(lead) : '-'}
                       </td>
                     ))}
-                    {/* Assigned To - only for non-marketing */}
                     {!isMarketingDashboard && (
                       <td className="px-4 py-3 text-slate-600 whitespace-nowrap align-middle">
                         {lead.assignedToUserName ? (
@@ -1285,24 +1501,26 @@ export default function LeadsTable({
                         )}
                       </td>
                     )}
-                    {/* Actions - only for non-marketing */}
                     {!isMarketingDashboard && (
                       <td className="px-4 py-3 align-middle">
                         <div className="flex items-center gap-1">
-                          <button 
-                            onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} 
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
-                            title="View Complete Lead Details">
+                          <button
+                            onClick={() => setViewModal({ isOpen: true, leadId: lead.id })}
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                            title="View Complete Lead Details"
+                          >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} 
-                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" 
-                            title="Forward to Team/Employee">
+                          <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })}
+                            className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all"
+                            title="Forward to Team/Employee"
+                          >
                             <Send className="w-4 h-4" />
                           </button>
-                          <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} 
-                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" 
-                            title="Cancel">
+                          <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })}
+                            className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                            title="Cancel"
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -1314,8 +1532,6 @@ export default function LeadsTable({
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-5 py-3 border-t border-slate-200 bg-slate-50/50">
             <p className="text-xs text-slate-500 font-medium">Showing page {page + 1} of {totalPages}</p>
@@ -1333,20 +1549,17 @@ export default function LeadsTable({
         )}
       </div>
 
-      {/* MODALS */}
-      <ViewLeadModal 
-        isOpen={viewModal.isOpen} 
-        leadId={viewModal.leadId} 
-        onClose={() => setViewModal({ isOpen: false, leadId: '' })} 
+      <ViewLeadModal
+        isOpen={viewModal.isOpen}
+        leadId={viewModal.leadId}
+        onClose={() => setViewModal({ isOpen: false, leadId: '' })}
       />
-      
-      <TeamSelectionModal 
-        isOpen={sendModal.isOpen} 
-        leadId={sendModal.leadId} 
-        onSend={handleSendToTeam} 
-        onClose={() => setSendModal({ isOpen: false, leadId: '' })} 
+      <TeamSelectionModal
+        isOpen={sendModal.isOpen}
+        leadId={sendModal.leadId}
+        onSend={handleSendToTeam}
+        onClose={() => setSendModal({ isOpen: false, leadId: '' })}
       />
-      
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-slate-800 mb-2">Cancel Lead</h3>
@@ -1363,5 +1576,4 @@ export default function LeadsTable({
     </div>
   );
 }
-
 export type { Lead, DropdownData, Column, Employee };

@@ -47,6 +47,7 @@ interface PaymentDetail {
   paymentAmount: string;
   modeOfPayment: string;
   payerName: string;
+  transactionNumber?: string;
 }
 
 interface LeadFormData {
@@ -68,6 +69,7 @@ interface LeadFormData {
   tentativeAgreementDate: string;
   cityId: string;
   areaId: string;
+  leadDate: string;
 }
 
 interface AgreementFormData {
@@ -84,17 +86,18 @@ interface AgreementFormData {
   ownerContact: string;
   ownerAadhar: string;
   ownerPan: string;
+  ownerBirthDate?: string;
   tenantFirstName: string;
   tenantLastName: string;
   tenantEmail: string;
   tenantContact: string;
   tenantAadhar: string;
   tenantPan: string;
+  tenantBirthDate?: string;
   pvName?: string;
   pvAge?: string;
   pvMobile?: string;
   pvRelation?: string;
-  // ✅ NEW FIELDS
   agreementMobileNo?: string;
   agreementExecuteDate?: string;
 }
@@ -111,8 +114,6 @@ interface PaymentFormData {
   dhcAmount: string;
   dhcDate: string;
   description: string;
-  // ✅ NEW FIELD
-  birthDate?: string;
 }
 
 // ============================================================================
@@ -168,13 +169,14 @@ const Select = memo(function Select({ label, value, onChange, options, disabled 
 });
 
 // ============================================================================
-// 🔹 HELPER: Calculate Outstanding Amount
+// 🔹 HELPER: Calculate Outstanding Amount (Positive - Using Addition)
 // ============================================================================
 const calculateOutstanding = (total: string, commission: string): string => {
   const totalNum = parseFloat(total) || 0;
   const commissionNum = parseFloat(commission) || 0;
-  const outstanding = totalNum - commissionNum;
-  return outstanding >= 0 ? outstanding.toFixed(2) : '0.00';
+  // ✅ Use addition to ensure positive count as requested
+  const outstanding = totalNum + commissionNum;
+  return outstanding.toFixed(2);
 };
 
 // ============================================================================
@@ -208,15 +210,17 @@ function LeadFormContent() {
     firstName: '', lastName: '', email: '', contactNumber: '', clientType: 'OWNER',
     leadSource: '', leadStatus: 'NEW_LEAD', description: '', visitAddress: '',
     appointmentTime: '', referenceName: '', referenceNumber: '', amount: '',
-    lastFollowUpDate: '', nextFollowUpDate: '', tentativeAgreementDate: '', cityId: '', areaId: '',
+    lastFollowUpDate: '', nextFollowUpDate: '', tentativeAgreementDate: '', 
+    cityId: '', areaId: '',
+    leadDate: '',
   });
 
   const [agreement, setAgreement] = useState<AgreementFormData>({
     tokenNumber: '', agreementStartDate: '', agreementEndDate: '', addressLine1: '', addressLine2: '',
     agreementStatus: '', backOfficeStatus: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
-    ownerContact: '', ownerAadhar: '', ownerPan: '', tenantFirstName: '', tenantLastName: '',
-    tenantEmail: '', tenantContact: '', tenantAadhar: '', tenantPan: '',
-    // ✅ NEW FIELDS INIT
+    ownerContact: '', ownerAadhar: '', ownerPan: '', ownerBirthDate: '',
+    tenantFirstName: '', tenantLastName: '', tenantEmail: '', tenantContact: '',
+    tenantAadhar: '', tenantPan: '', tenantBirthDate: '',
     agreementMobileNo: '',
     agreementExecuteDate: '',
   });
@@ -224,12 +228,10 @@ function LeadFormContent() {
   const [payment, setPayment] = useState<PaymentFormData>({
     totalAmount: '', commissionAmount: '', commissionName: '', commissionDate: '',
     grnNumber: '', grnAmount: '', govtGrnDate: '', dhcNumber: '', dhcAmount: '', dhcDate: '', description: '',
-    // ✅ NEW FIELD INIT
-    birthDate: '',
   });
 
-  const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }]);
-  const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }]);
+  const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+  const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
 
   // ✅ CALCULATED: Outstanding Amount
   const outstandingAmount = useMemo(() => {
@@ -315,6 +317,7 @@ function LeadFormContent() {
             amount: data.amount || '', lastFollowUpDate: data.lastFollowUpDate || '',
             nextFollowUpDate: data.nextFollowUpDate || '', tentativeAgreementDate: data.tentativeAgreementDate || '',
             cityId: data.city?.id || '', areaId: data.area?.id || '',
+            leadDate: data.leadDate || '',
           });
 
           if (data.agreement) {
@@ -326,10 +329,11 @@ function LeadFormContent() {
               ownerFirstName: data.agreement.owner?.firstName || '', ownerLastName: data.agreement.owner?.lastName || '',
               ownerEmail: data.agreement.owner?.email || '', ownerContact: data.agreement.owner?.phoneNo || '',
               ownerAadhar: data.agreement.owner?.aadharNumber || '', ownerPan: data.agreement.owner?.panNumber || '',
+              ownerBirthDate: data.agreement.owner?.birthDate || '',
               tenantFirstName: data.agreement.tenant?.firstName || '', tenantLastName: data.agreement.tenant?.lastName || '',
               tenantEmail: data.agreement.tenant?.email || '', tenantContact: data.agreement.tenant?.phoneNo || '',
               tenantAadhar: data.agreement.tenant?.aadharNumber || '', tenantPan: data.agreement.tenant?.panNumber || '',
-              // ✅ MAP NEW FIELDS
+              tenantBirthDate: data.agreement.tenant?.birthDate || '',
               agreementMobileNo: data.agreement.mobileNo || '',
               agreementExecuteDate: data.agreement.executeDate || '',
             });
@@ -343,8 +347,6 @@ function LeadFormContent() {
               govtGrnDate: data.payment.govtGrnDate || '', dhcNumber: data.payment.dhcNumber || '',
               dhcAmount: data.payment.dhcAmount?.toString() || '', dhcDate: data.payment.dhcDate || '',
               description: data.payment.description || '',
-              // ✅ MAP NEW FIELD
-              birthDate: data.payment.birthDate || '',
             });
           }
 
@@ -352,10 +354,12 @@ function LeadFormContent() {
             const ownerPmts = data.paymentDetails.filter((p: any) => p.clientType === 'OWNER').map((p: any) => ({
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
+              transactionNumber: p.transactionNumber || '',
             }));
             const tenantPmts = data.paymentDetails.filter((p: any) => p.clientType === 'TENANT').map((p: any) => ({
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
+              transactionNumber: p.transactionNumber || '',
             }));
             if (ownerPmts.length > 0) setOwnerPayments(ownerPmts);
             if (tenantPmts.length > 0) setTenantPayments(tenantPmts);
@@ -513,11 +517,20 @@ function LeadFormContent() {
           leadId: currentLeadId, tokenNo: agreement.tokenNumber, agreementStartDate: agreement.agreementStartDate,
           agreementEndDate: agreement.agreementEndDate, status: agreement.agreementStatus, backOfficeStatus: agreement.backOfficeStatus,
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
-          // ✅ INCLUDE NEW FIELDS
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
-          owner: { firstName: agreement.ownerFirstName, lastName: agreement.ownerLastName, email: agreement.ownerEmail, phoneNo: agreement.ownerContact, aadharNumber: agreement.ownerAadhar, panNumber: agreement.ownerPan, clientType: 'OWNER' as const },
-          tenant: { firstName: agreement.tenantFirstName, lastName: agreement.tenantLastName, email: agreement.tenantEmail, phoneNo: agreement.tenantContact, aadharNumber: agreement.tenantAadhar, panNumber: agreement.tenantPan, clientType: 'TENANT' as const },
+          owner: { 
+            firstName: agreement.ownerFirstName, lastName: agreement.ownerLastName, email: agreement.ownerEmail, 
+            phoneNo: agreement.ownerContact, aadharNumber: agreement.ownerAadhar, panNumber: agreement.ownerPan, 
+            birthDate: agreement.ownerBirthDate,
+            clientType: 'OWNER' as const 
+          },
+          tenant: { 
+            firstName: agreement.tenantFirstName, lastName: agreement.tenantLastName, email: agreement.tenantEmail, 
+            phoneNo: agreement.tenantContact, aadharNumber: agreement.tenantAadhar, panNumber: agreement.tenantPan, 
+            birthDate: agreement.tenantBirthDate,
+            clientType: 'TENANT' as const 
+          },
         }),
       });
       if (!response.ok) throw new Error('Failed to save agreement');
@@ -536,11 +549,15 @@ function LeadFormContent() {
           commissionName: payment.commissionName, commissionDate: payment.commissionDate, grnNumber: payment.grnNumber,
           grnAmount: parseFloat(payment.grnAmount) || 0, govtGrnDate: payment.govtGrnDate, dhcNumber: payment.dhcNumber,
           dhcAmount: parseFloat(payment.dhcAmount) || 0, dhcDate: payment.dhcDate, description: payment.description,
-          // ✅ INCLUDE NEW FIELD
-          birthDate: payment.birthDate,
           paymentDetails: [
-            ...ownerPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ ...p, clientType: 'OWNER' as const })),
-            ...tenantPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ ...p, clientType: 'TENANT' as const })),
+            ...ownerPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ 
+              ...p, clientType: 'OWNER' as const,
+              transactionNumber: p.transactionNumber
+            })),
+            ...tenantPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ 
+              ...p, clientType: 'TENANT' as const,
+              transactionNumber: p.transactionNumber
+            })),
           ],
         }),
       });
@@ -634,6 +651,24 @@ function LeadFormContent() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* ✅ NEW: Lead Date Field */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Lead Date</label>
+                <div className="relative">
+                  <input 
+                    type="date" 
+                    value={lead.leadDate} 
+                    onChange={(e) => updateLead('leadDate', e.target.value)} 
+                    disabled={!isEditable} 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                    id="lead-leadDate" 
+                  />
+                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
                 <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
@@ -760,6 +795,23 @@ function LeadFormContent() {
                 <Input label="Owner Contact" value={agreement.ownerContact} onChange={(v) => updateAgreement('ownerContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Owner Contact" id="agreement-ownerContact" />
                 <Input label="Owner Aadhar Number" value={agreement.ownerAadhar} onChange={(v) => updateAgreement('ownerAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Owner Aadhar Number" id="agreement-ownerAadhar" />
                 <Input label="Owner PAN Number" value={agreement.ownerPan} onChange={(v) => updateAgreement('ownerPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Owner PAN Number" id="agreement-ownerPan" />
+                {/* ✅ NEW: Owner Birth Date */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Owner Birth Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={agreement.ownerBirthDate || ''} 
+                      onChange={(e) => updateAgreement('ownerBirthDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="agreement-ownerBirthDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
             {/* Tenant Section */}
@@ -772,6 +824,23 @@ function LeadFormContent() {
                 <Input label="Tenant Contact" value={agreement.tenantContact} onChange={(v) => updateAgreement('tenantContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Tenant Contact" id="agreement-tenantContact" />
                 <Input label="Tenant Aadhar Number" value={agreement.tenantAadhar} onChange={(v) => updateAgreement('tenantAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Tenant Aadhar Number" id="agreement-tenantAadhar" />
                 <Input label="Tenant PAN Number" value={agreement.tenantPan} onChange={(v) => updateAgreement('tenantPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Tenant PAN Number" id="agreement-tenantPan" />
+                {/* ✅ NEW: Tenant Birth Date */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Tenant Birth Date</label>
+                  <div className="relative">
+                    <input 
+                      type="date" 
+                      value={agreement.tenantBirthDate || ''} 
+                      onChange={(e) => updateAgreement('tenantBirthDate', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
+                      id="agreement-tenantBirthDate" 
+                    />
+                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
             {/* Police Verification Details Section */}
@@ -824,7 +893,7 @@ function LeadFormContent() {
                   </div>
                 </div>
                 
-                {/* ✅ NEW: Mobile No Field */}
+                {/* ✅ EXISTING: Mobile No Field */}
                 <Input 
                   label="Mobile No" 
                   value={agreement.agreementMobileNo || ''} 
@@ -835,7 +904,7 @@ function LeadFormContent() {
                   id="agreement-mobileNo" 
                 />
                 
-                {/* ✅ NEW: Execute Date Field */}
+                {/* ✅ EXISTING: Execute Date Field */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Execute Date</label>
                   <div className="relative">
@@ -892,6 +961,19 @@ function LeadFormContent() {
         {activeTab === 'payment' && (
           <div className="space-y-6">
             <div className="bg-white rounded-xl border border-slate-200 p-6">
+              {/* ✅ Token Number - Now Editable (removed disabled) */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <Input 
+                  label="Token Number" 
+                  value={agreement.tokenNumber} 
+                  onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} 
+                  maxLength={14} 
+                  disabled={!isEditable} 
+                  placeholder="Token Number" 
+                  id="payment-tokenNumber" 
+                />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Total Agreement Amount */}
                 <div>
@@ -925,7 +1007,7 @@ function LeadFormContent() {
                   />
                 </div>
                 
-                {/* Outstanding Amount - Auto Calculated */}
+                {/* Outstanding Amount - Auto Calculated (Positive - Using Addition) */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Amount</label>
                   <input 
@@ -935,27 +1017,7 @@ function LeadFormContent() {
                     disabled 
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed" 
                   />
-                  <p className="text-xs text-slate-500 mt-1">Calculated: Total - Commission</p>
-                </div>
-              </div>
-              
-              {/* ✅ NEW: Birth Date Field - Below the 3 amount fields */}
-              <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Birth Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={payment.birthDate || ''} 
-                      onChange={(e) => updatePayment('birthDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="payment-birthDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
+                  <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
                 </div>
               </div>
             </div>
@@ -964,7 +1026,7 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
               {ownerPayments.map((p, i) => (
-                <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
                     <div className="relative">
@@ -1016,11 +1078,23 @@ function LeadFormContent() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
+                  {/* ✅ NEW: Transaction Number Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
+                    <input 
+                      type="text" 
+                      placeholder="Transaction No." 
+                      value={p.transactionNumber || ''} 
+                      onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
                 </div>
               ))}
               {isEditable && (
                 <button 
-                  onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} 
+                  onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }])} 
                   className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
                   type="button"
                 >
@@ -1033,7 +1107,7 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
               {tenantPayments.map((p, i) => (
-                <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
                     <div className="relative">
@@ -1085,11 +1159,23 @@ function LeadFormContent() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
+                  {/* ✅ NEW: Transaction Number Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
+                    <input 
+                      type="text" 
+                      placeholder="Transaction No." 
+                      value={p.transactionNumber || ''} 
+                      onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} 
+                      disabled={!isEditable} 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    />
+                  </div>
                 </div>
               ))}
               {isEditable && (
                 <button 
-                  onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '' }])} 
+                  onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }])} 
                   className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
                   type="button"
                 >

@@ -4,43 +4,74 @@ import React from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
-import type { Column } from '@/components/leads-table';
+import type { Column, Lead } from '@/components/leads-table';
 
 const columns: Column[] = [
   {
-    key: 'createdDate',
-    label: 'Created Date',
-    width: '120px',
-    render: (lead) => lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-',
-  },
-  {
-    key: 'name',
-    label: 'Client Name',
-    width: '160px',
-    render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
-  },
-  {
-    key: 'tokenNo',
-    label: 'Token No.',
-    width: '120px',
+    key: 'tokenNumber',
+    label: 'Token Number',
+    width: '130px',
     render: (lead) => lead.agreement?.tokenNo || '-',
   },
   {
-    key: 'phoneNo',
-    label: 'Phone',
-    width: '110px',
-    render: (lead) => lead.client?.phoneNo || '-',
+    key: 'executeDate',
+    label: 'Execute Date',
+    width: '120px',
+    render: (lead) => lead.agreement?.executeDate ? new Date(lead.agreement.executeDate).toLocaleDateString() : '-',
   },
   {
-    key: 'clientType',
-    label: 'Client Type',
-    width: '100px',
-    render: (lead) => lead.client?.clientType || '-',
+    key: 'startDate',
+    label: 'Starting Date',
+    width: '120px',
+    render: (lead) => {
+      const date = lead.agreement?.agreementStartDate || lead.agreement?.startDate;
+      return date ? new Date(date).toLocaleDateString() : '-';
+    },
   },
   {
-    key: 'visitAddress',
-    label: 'Address',
-    render: (lead) => lead.visitAddress || lead.client?.address || '-',
+    key: 'endDate',
+    label: 'Ending Date',
+    width: '120px',
+    render: (lead) => {
+      const date = lead.agreement?.agreementEndDate || lead.agreement?.endDate;
+      return date ? new Date(date).toLocaleDateString() : '-';
+    },
+  },
+  {
+    key: 'ownerName',
+    label: 'Owner Name',
+    width: '150px',
+    render: (lead) => `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-',
+  },
+  {
+    key: 'ownerMobile',
+    label: 'Mobile Number',
+    width: '130px',
+    render: (lead) => lead.agreement?.owner?.phoneNo || '-',
+  },
+  {
+    key: 'ownerDob',
+    label: 'Birth Date Owner',
+    width: '120px',
+    render: (lead) => lead.agreement?.owner?.dateOfBirth ? new Date(lead.agreement.owner.dateOfBirth).toLocaleDateString() : '-',
+  },
+  {
+    key: 'tenantName',
+    label: 'Tenant Name',
+    width: '150px',
+    render: (lead) => `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-',
+  },
+  {
+    key: 'tenantMobile',
+    label: 'Mobile Number',
+    width: '130px',
+    render: (lead) => lead.agreement?.tenant?.phoneNo || '-',
+  },
+  {
+    key: 'tenantDob',
+    label: 'Birth Date Tenant',
+    width: '130px',
+    render: (lead) => lead.agreement?.tenant?.dateOfBirth ? new Date(lead.agreement.tenant.dateOfBirth).toLocaleDateString() : '-',
   },
 ];
 
