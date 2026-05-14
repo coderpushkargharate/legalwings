@@ -20,7 +20,6 @@ export async function GET(request: Request) {
     const viewAll = searchParams.get('viewAll') === 'true';
     const filter: Record<string, unknown> = {};
 
-    // 🔹 RBAC & Visibility Logic
     const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
     const isAccounting = user.roles?.includes('accounting') || user.roles?.includes('ACCOUNTING');
 
@@ -42,7 +41,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ ...lead, id: lead._id.toString(), _id: undefined });
     }
 
-    // Apply existing filters
+    // Apply filters
     const transitLevel = searchParams.get('transitLevel');
     const clientType = searchParams.get('clientType');
     const leadStatus = searchParams.get('leadStatus');
@@ -50,17 +49,39 @@ export async function GET(request: Request) {
     const cityId = searchParams.get('cityId');
     const areaId = searchParams.get('areaId');
     const assignedToUserId = searchParams.get('assignedToUserId');
+    
+    // Backend specific filters
+    const ownerName = searchParams.get('ownerName');
+    const tenantName = searchParams.get('tenantName');
+    const tokenNumber = searchParams.get('tokenNumber');
+    const agreementStatus = searchParams.get('agreementStatus');
+    const backOfficeStatus = searchParams.get('backOfficeStatus');
+    const grnNo = searchParams.get('grnNo');
+    const dhcNo = searchParams.get('dhcNo');
+    const commissionDate = searchParams.get('commissionDate');
+    const commissionAmount = searchParams.get('commissionAmount');
+    
+    // Accounting specific filters
+    const clientName = searchParams.get('clientName');
+    const phone = searchParams.get('phone');
+    const amount = searchParams.get('amount');
+    const status = searchParams.get('status');
+    const paymentDate = searchParams.get('paymentDate');
+    
+    // Marketing specific filters
+    const executeDate = searchParams.get('executeDate');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+    const ownerMobile = searchParams.get('ownerMobile');
+    const ownerDob = searchParams.get('ownerDob');
+    const tenantMobile = searchParams.get('tenantMobile');
+    const tenantDob = searchParams.get('tenantDob');
 
-    // ✅ FIXED: Robust team name normalization for bidirectional visibility
     if (transitLevel && transitLevel !== 'ALL') {
       const upperTransit = transitLevel.toUpperCase();
-      // Handle both formats: 'CALLING' or 'CALLING_TEAM'
       const normalizedTeam = upperTransit.endsWith('_TEAM') 
         ? upperTransit 
         : `${upperTransit}_TEAM`;
-      
-      // MongoDB matches array elements: { visibleToTeams: 'CALLING_TEAM' }
-      // matches documents where visibleToTeams array CONTAINS 'CALLING_TEAM'
       filter.visibleToTeams = normalizedTeam;
     }
     
@@ -70,14 +91,49 @@ export async function GET(request: Request) {
     if (areaId) filter['area.id'] = areaId;
     if (assignedToUserId) filter.assignedToUserId = new ObjectId(assignedToUserId);
 
-    // Handle search text with $or merge
+    // Backend filters
+    if (ownerName) filter['agreement.owner.firstName'] = { $regex: ownerName, $options: 'i' };
+    if (tenantName) filter['agreement.tenant.firstName'] = { $regex: tenantName, $options: 'i' };
+    if (tokenNumber) filter['agreement.tokenNo'] = { $regex: tokenNumber, $options: 'i' };
+    if (agreementStatus) filter['agreement.status'] = agreementStatus;
+    if (backOfficeStatus) filter['agreement.backOfficeStatus'] = backOfficeStatus;
+    if (grnNo) filter['payment.grnNumber'] = { $regex: grnNo, $options: 'i' };
+    if (dhcNo) filter['payment.dhcNumber'] = { $regex: dhcNo, $options: 'i' };
+    if (commissionDate) filter['payment.commissionDate'] = commissionDate;
+    if (commissionAmount) filter['payment.commissionAmount'] = parseFloat(commissionAmount);
+
+    // Accounting filters
+    if (clientName) {
+      filter.$or = [
+        { 'client.firstName': { $regex: clientName, $options: 'i' } },
+        { 'client.lastName': { $regex: clientName, $options: 'i' } },
+        ...(filter.$or || [])
+      ];
+    }
+    if (phone) filter['client.phoneNo'] = { $regex: phone, $options: 'i' };
+    if (amount) filter['payment.totalAmount'] = parseFloat(amount);
+    if (status) filter['agreement.status'] = status;
+    if (paymentDate) filter['payment.paymentDate'] = paymentDate;
+
+    // Marketing filters
+    if (executeDate) filter['agreement.executeDate'] = executeDate;
+    if (startDate) filter['agreement.agreementStartDate'] = startDate;
+    if (endDate) filter['agreement.agreementEndDate'] = endDate;
+    if (ownerMobile) filter['agreement.owner.phoneNo'] = { $regex: ownerMobile, $options: 'i' };
+    if (ownerDob) filter['agreement.owner.dateOfBirth'] = ownerDob;
+    if (tenantMobile) filter['agreement.tenant.phoneNo'] = { $regex: tenantMobile, $options: 'i' };
+    if (tenantDob) filter['agreement.tenant.dateOfBirth'] = tenantDob;
+
+    // Search text
     if (searchText) {
       const searchConditions = [
         { 'client.firstName': { $regex: searchText, $options: 'i' } },
         { 'client.lastName': { $regex: searchText, $options: 'i' } },
         { 'client.phoneNo': { $regex: searchText, $options: 'i' } },
+        { 'agreement.tokenNo': { $regex: searchText, $options: 'i' } },
+        { 'agreement.owner.firstName': { $regex: searchText, $options: 'i' } },
+        { 'agreement.tenant.firstName': { $regex: searchText, $options: 'i' } },
       ];
-      
       if (Array.isArray((filter as any).$or)) {
         (filter as any).$or = [...(filter as any).$or, ...searchConditions];
       } else {
@@ -148,16 +204,57 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
+    
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
-    await db.collection('leads').updateOne(
+    
+    // Remove _id if present
+    if (updateData._id) delete updateData._id;
+    
+    const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
-    return NextResponse.json({ message: 'Lead updated successfully' });
+    
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ message: 'Lead updated successfully', id });
   } catch (error) {
     console.error('Lead PUT error:', error);
+    return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  const user = getAuth(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const { db } = await connectToDatabase();
+    const body = await request.json();
+    const { id, ...updateData } = body;
+    if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
+    
+    updateData.updatedAt = new Date();
+    updateData.updatedByUserId = user.userId;
+    updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
+    
+    if (updateData._id) delete updateData._id;
+    
+    const result = await db.collection('leads').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateData }
+    );
+    
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    
+    return NextResponse.json({ message: 'Lead updated successfully', id });
+  } catch (error) {
+    console.error('Lead PATCH error:', error);
     return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
   }
 }
