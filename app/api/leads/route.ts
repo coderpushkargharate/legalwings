@@ -9,6 +9,21 @@ function getAuth(request: Request): JWTPayload | null {
   return verifyToken(token);
 }
 
+// ✅ Helper: Safely merge $or conditions
+function mergeOrConditions(filter: Record<string, unknown>, newConditions: Record<string, unknown>[]) {
+  if (!filter.$or) {
+    filter.$or = newConditions;
+  } else if (Array.isArray(filter.$or)) {
+    filter.$or = [...(filter.$or as Record<string, unknown>[]), ...newConditions];
+  }
+}
+
+// ✅ Helper: Validate and convert string to ObjectId
+function toObjectId(id: string | null): ObjectId | null {
+  if (!id || !ObjectId.isValid(id)) return null;
+  return new ObjectId(id);
+}
+
 export async function GET(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -23,6 +38,7 @@ export async function GET(request: Request) {
     const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
     const isAccounting = user.roles?.includes('accounting') || user.roles?.includes('ACCOUNTING');
 
+    // 🔐 Team-based access control
     if (!isAdmin && !isAccounting && !viewAll) {
       const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
       const possibleTeamNames = [userTeam, `${userTeam}_TEAM`, userTeam.replace('_TEAM', '')];
@@ -34,14 +50,14 @@ export async function GET(request: Request) {
       ];
     }
 
-    // Single lead view
+    // 🔍 Single lead view
     if (id) {
       const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...filter });
       if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
       return NextResponse.json({ ...lead, id: lead._id.toString(), _id: undefined });
     }
 
-    // Apply filters
+    // 📋 Apply filters
     const transitLevel = searchParams.get('transitLevel');
     const clientType = searchParams.get('clientType');
     const leadStatus = searchParams.get('leadStatus');
@@ -77,19 +93,23 @@ export async function GET(request: Request) {
     const tenantMobile = searchParams.get('tenantMobile');
     const tenantDob = searchParams.get('tenantDob');
 
+    // ✅ FIX: visibleToTeams query for array field
     if (transitLevel && transitLevel !== 'ALL') {
       const upperTransit = transitLevel.toUpperCase();
       const normalizedTeam = upperTransit.endsWith('_TEAM') 
         ? upperTransit 
         : `${upperTransit}_TEAM`;
-      filter.visibleToTeams = normalizedTeam;
+      filter.visibleToTeams = { $in: [normalizedTeam] };
     }
     
     if (clientType) filter['client.clientType'] = clientType;
     if (leadStatus) filter.leadStatus = leadStatus;
     if (cityId) filter['city.id'] = cityId;
     if (areaId) filter['area.id'] = areaId;
-    if (assignedToUserId) filter.assignedToUserId = new ObjectId(assignedToUserId);
+    if (assignedToUserId) {
+      const objId = toObjectId(assignedToUserId);
+      if (objId) filter.assignedToUserId = objId;
+    }
 
     // Backend filters
     if (ownerName) filter['agreement.owner.firstName'] = { $regex: ownerName, $options: 'i' };
@@ -100,18 +120,24 @@ export async function GET(request: Request) {
     if (grnNo) filter['payment.grnNumber'] = { $regex: grnNo, $options: 'i' };
     if (dhcNo) filter['payment.dhcNumber'] = { $regex: dhcNo, $options: 'i' };
     if (commissionDate) filter['payment.commissionDate'] = commissionDate;
-    if (commissionAmount) filter['payment.commissionAmount'] = parseFloat(commissionAmount);
+    if (commissionAmount) {
+      const num = parseFloat(commissionAmount);
+      if (!isNaN(num)) filter['payment.commissionAmount'] = num;
+    }
 
-    // Accounting filters
+    // Accounting filters - ✅ Safe $or merge
     if (clientName) {
-      filter.$or = [
+      const nameConditions = [
         { 'client.firstName': { $regex: clientName, $options: 'i' } },
         { 'client.lastName': { $regex: clientName, $options: 'i' } },
-        ...(filter.$or || [])
       ];
+      mergeOrConditions(filter, nameConditions);
     }
     if (phone) filter['client.phoneNo'] = { $regex: phone, $options: 'i' };
-    if (amount) filter['payment.totalAmount'] = parseFloat(amount);
+    if (amount) {
+      const num = parseFloat(amount);
+      if (!isNaN(num)) filter['payment.totalAmount'] = num;
+    }
     if (status) filter['agreement.status'] = status;
     if (paymentDate) filter['payment.paymentDate'] = paymentDate;
 
@@ -124,7 +150,7 @@ export async function GET(request: Request) {
     if (tenantMobile) filter['agreement.tenant.phoneNo'] = { $regex: tenantMobile, $options: 'i' };
     if (tenantDob) filter['agreement.tenant.dateOfBirth'] = tenantDob;
 
-    // Search text
+    // 🔍 Search text - ✅ Safe $or merge
     if (searchText) {
       const searchConditions = [
         { 'client.firstName': { $regex: searchText, $options: 'i' } },
@@ -134,11 +160,7 @@ export async function GET(request: Request) {
         { 'agreement.owner.firstName': { $regex: searchText, $options: 'i' } },
         { 'agreement.tenant.firstName': { $regex: searchText, $options: 'i' } },
       ];
-      if (Array.isArray((filter as any).$or)) {
-        (filter as any).$or = [...(filter as any).$or, ...searchConditions];
-      } else {
-        (filter as any).$or = searchConditions;
-      }
+      mergeOrConditions(filter, searchConditions);
     }
 
     const page = parseInt(searchParams.get('page') || '0');
@@ -185,7 +207,7 @@ export async function POST(request: Request) {
       updatedByUserName: `${user.firstName} ${user.lastName}`,
       createdAt: new Date(),
       updatedAt: new Date(),
-      visibleToTeams: [transitLevel],
+      visibleToTeams: [transitLevel], // ✅ Store as array
     };
     
     const result = await db.collection('leads').insertOne(lead);
@@ -209,7 +231,6 @@ export async function PUT(request: Request) {
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
     
-    // Remove _id if present
     if (updateData._id) delete updateData._id;
     
     const result = await db.collection('leads').updateOne(

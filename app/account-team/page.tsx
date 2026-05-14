@@ -1,4 +1,3 @@
-// app/account-team/page.tsx
 'use client';
 
 import React from 'react';
@@ -47,7 +46,7 @@ const columns: Column[] = [
       const amount = lead.amount;
       if (amount == null || amount === '') return '-';
       const numericValue = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(numericValue) ? '-' : `₹${numericValue}`;
+      return isNaN(numericValue) ? '-' : `₹${numericValue.toLocaleString('en-IN')}`;
     }
   },
   { 
@@ -61,9 +60,9 @@ const columns: Column[] = [
     label: 'Date', 
     width: '100px', 
     render: (lead: Lead) => 
-      lead.createdDate ? new Date(lead.createdDate).toLocaleDateString() : '-' 
+      lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '-' 
   },
-  // ✅ Accounting-specific columns (added at end)
+  // ✅ Accounting-specific columns
   { 
     key: 'tokenNumber', 
     label: 'Token No.', 
@@ -133,7 +132,6 @@ export default function AccountTeamPage() {
           📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial & operational tracking.
         </div>
         <LeadsTable
-          // ✅ KEEP "ALL" - yehi aapke backend mein kaam karta hai
           transitLevel="ALL"
           title="All Leads Overview"
           columns={columns}

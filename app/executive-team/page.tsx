@@ -4,43 +4,43 @@ import React from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
-import type { Column } from '@/components/leads-table';
+import type { Column, Lead } from '@/components/leads-table';
 
 const columns: Column[] = [
   {
     key: 'name',
     label: 'Name',
     width: '160px',
-    render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
+    render: (lead: Lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-',
   },
   {
     key: 'phoneNo',
     label: 'Phone',
     width: '110px',
-    render: (lead) => lead.client?.phoneNo || '-',
+    render: (lead: Lead) => lead.client?.phoneNo || '-',
   },
   {
     key: 'visitAddress',
     label: 'Visit Address',
-    render: (lead) => lead.visitAddress || '-',
+    render: (lead: Lead) => lead.visitAddress || lead.area?.name || '-',
   },
   {
     key: 'clientType',
     label: 'Client Type',
     width: '100px',
-    render: (lead) => lead.client?.clientType || '-',
+    render: (lead: Lead) => lead.client?.clientType || '-',
   },
   {
     key: 'appointmentTime',
     label: 'Appointment',
     width: '140px',
-    render: (lead) => lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString() : '-',
+    render: (lead: Lead) => lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-',
   },
   {
     key: 'leadStatus',
     label: 'Status',
     width: '120px',
-    render: (lead) => {
+    render: (lead: Lead) => {
       const s = lead.leadStatus || '-';
       const cls = getStatusClass(s);
       return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{s}</span>;
@@ -50,12 +50,12 @@ const columns: Column[] = [
     key: 'createdBy',
     label: 'Created By',
     width: '110px',
-    render: (lead) => lead.createdByUserName || '-',
+    render: (lead: Lead) => lead.createdByUserName || '-',
   },
 ];
 
 function getStatusClass(status: string) {
-  const s = status.toUpperCase();
+  const s = status?.toUpperCase() || '';
   if (['ASSIGNED', 'APPROVED', 'CLOSED', 'COMPLETED'].includes(s)) return 'bg-emerald-50 text-emerald-700 border-emerald-200';
   if (['PENDING', 'POSTPONED', 'NEW'].includes(s)) return 'bg-amber-50 text-amber-700 border-amber-200';
   if (['CANCELLED', 'REJECTED'].includes(s)) return 'bg-red-50 text-red-700 border-red-200';

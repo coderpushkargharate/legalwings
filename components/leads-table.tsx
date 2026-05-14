@@ -641,7 +641,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const pageSize = 20;
   const today = new Date().toISOString().split('T')[0];
 
-  // State Variables (All retained)
+  // State Variables
   const [executiveSearch, setExecutiveSearch] = useState('');
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
@@ -693,12 +693,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
 
-  // ✅ SEPARATE FLAGS FOR EACH DASHBOARD TYPE
-  const isMarketingDashboard = transitLevel.includes('MARKETING');
-  const isExecutiveDashboard = transitLevel.includes('EXECUTIVE'); // ✅ Only EXECUTIVE
-  const isCallingDashboard = transitLevel.includes('CALLING'); // ✅ Only CALLING
-  const isBackendDashboard = transitLevel.includes('BACKEND');
-  const isAccountingDashboard = transitLevel.includes('ACCOUNTING');
+  // ✅ FIXED: Match actual transitLevel values from page components
+  const isMarketingDashboard = transitLevel === 'MARKETING' || transitLevel === 'MARKETING_TEAM';
+  const isExecutiveDashboard = transitLevel === 'EXECUTIVE' || transitLevel === 'EXECUTIVE_TEAM';
+  const isCallingDashboard = transitLevel === 'CALLING' || transitLevel === 'CALLING_TEAM';
+  const isBackendDashboard = transitLevel === 'BACKEND' || transitLevel === 'BACKEND_TEAM';
+  const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL'; // ✅ Account team uses "ALL"
 
   useEffect(() => {
     if (!user) return;
@@ -816,7 +816,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     try {
       const params = new URLSearchParams({ page: page.toString(), pageSize: pageSize.toString(), transitLevel });
       
-      // ✅ CALLING TEAM - All original filters
+      // ✅ CALLING TEAM
       if (isCallingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
@@ -844,7 +844,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         params.set('searchText', executiveSearch);
       }
       
-      // ✅ BACKEND TEAM - New filters only
+      // ✅ BACKEND TEAM
       if (isBackendDashboard) {
         if (ownerName) params.set('ownerName', ownerName);
         if (tenantName) params.set('tenantName', tenantName);
@@ -858,7 +858,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
       }
       
-      // ✅ ACCOUNTING TEAM
+      // ✅ ACCOUNTING TEAM (including "ALL")
       if (isAccountingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
@@ -965,7 +965,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     XLSX.writeFile(wb, `Lead_${lead.agreement?.tokenNo || lead.id}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // ==================== UPDATED RENDER FILTERS ====================
+  // ==================== FIXED RENDER FILTERS ====================
   const renderFilters = () => {
     // ✅ EXECUTIVE: Only Search Option
     if (isExecutiveDashboard) {
@@ -981,7 +981,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       );
     }
 
-    // ✅ CALLING TEAM: All Original Filters (As It Is)
+    // ✅ CALLING TEAM: All Original Filters
     if (isCallingDashboard) {
       return (
         <>
@@ -1023,7 +1023,32 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       );
     }
 
-    // ✅ BACKEND: New Filters Only (As Previously Updated)
+    // ✅ ACCOUNTING TEAM - FIXED: Now shows filters for "ALL" transitLevel
+    if (isAccountingDashboard) {
+      return (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Name</label><input type="text" placeholder="Search client" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Phone</label><input type="tel" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</label><input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+          </div>
+          <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+            <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
+            <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
+            {canExport && (<button onClick={handleExportExcel} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Download className="w-4 h-4" /> Export Excel</button>)}
+          </div>
+        </>
+      );
+    }
+
+    // ✅ BACKEND TEAM
     if (isBackendDashboard) {
       return (
         <>
@@ -1052,32 +1077,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       );
     }
 
-    // ✅ ACCOUNTING: As Previously Updated
-    if (isAccountingDashboard) {
-      return (
-        <>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Name</label><input type="text" placeholder="Search client" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Phone</label><input type="tel" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</label><input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-          </div>
-          <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
-            <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
-            <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
-            {canExport && (<button onClick={handleExportExcel} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Download className="w-4 h-4" /> Export Excel</button>)}
-          </div>
-        </>
-      );
-    }
-
-    // ✅ MARKETING: As Previously Updated
+    // ✅ MARKETING TEAM
     if (isMarketingDashboard) {
       return (
         <>
@@ -1107,7 +1107,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       );
     }
 
-    // Default Fallback
+    // Default Fallback - show nothing if no dashboard matches
     return null;
   };
 
@@ -1117,7 +1117,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         <div className="flex items-center gap-2 mb-4 text-slate-800 font-semibold"><Filter className="w-5 h-5 text-amber-500" /><h2 className="text-lg">Filters</h2></div>
         {renderFilters()}
       </div>
-      {showAddButton && transitLevel !== 'MARKETING' && (
+      {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
         </div>
