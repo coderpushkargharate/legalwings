@@ -1,6 +1,6 @@
 import { MongoClient, Db } from 'mongodb';
 
-const MONGODB_URI = process.env.DATABASE_URL || 'mongodb+srv://dibyanshassociates_db_user:ezyloan@cluster0.fu8pfj4.mongodb.net/mydatabase?retryWrites=true&w=majority';
+const MONGODB_URI = process.env.DATABASE_URL || 'mongodb+srv://pushkargharate7_db_user:xiJLA62jsjF1d2wW@cluster0.wxn2vix.mongodb.net/mydatabase?retryWrites=true&w=majority';
 const DB_NAME = 'legalwings_crm';
 
 let cachedClient: MongoClient | null = null;

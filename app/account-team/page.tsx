@@ -60,7 +60,7 @@ const columns: Column[] = [
     label: 'Date', 
     width: '100px', 
     render: (lead: Lead) => 
-      lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('en-IN') : '-' 
+      lead.createdDate ? new Date(lead.createdDate).toLocaleDateString('en-IN') : '-' 
   },
   // ✅ Accounting-specific columns
   { 

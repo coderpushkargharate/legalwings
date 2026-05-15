@@ -12,7 +12,7 @@ const columns: Column[] = [
     label: 'Lead Date',
     width: '100px',
     render: (lead: Lead) => {
-      const leadDate = (lead as Lead & { leadDate?: string }).leadDate || lead.createdAt;
+      const leadDate = (lead as Lead & { leadDate?: string }).leadDate || lead.createdDate;
       return leadDate ? new Date(leadDate).toLocaleDateString('en-IN') : '-';
     },
   },
