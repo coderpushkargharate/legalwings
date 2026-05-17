@@ -5,6 +5,22 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable, { type Column, type Lead } from '@/components/leads-table';
 
+// ✅ Helper: Format date consistently
+const formatDate = (dateString?: string | null): string => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+    return date.toLocaleDateString('en-IN', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric' 
+    });
+  } catch {
+    return '-';
+  }
+};
+
 const columns: Column[] = [
   { 
     key: 'createdBy', 
@@ -55,12 +71,21 @@ const columns: Column[] = [
     width: '140px', 
     render: (lead: Lead) => lead.leadStatus || '-' 
   },
+  // ✅ FIXED: Date column with fallback to multiple date fields
   { 
-    key: 'createdDate', 
+    key: 'date', 
     label: 'Date', 
-    width: '100px', 
-    render: (lead: Lead) => 
-      lead.createdDate ? new Date(lead.createdDate).toLocaleDateString('en-IN') : '-' 
+    width: '110px', 
+    render: (lead: Lead) => {
+      // Try multiple date sources in priority order
+      const paymentDate = lead.paymentDetails?.[0]?.paymentDate;
+      const commissionDate = lead.payment?.commissionDate;
+      const agreementDate = lead.agreement?.executeDate || lead.agreement?.agreementStartDate;
+      const createdDate = lead.createdDate;
+      
+      const displayDate = paymentDate || commissionDate || agreementDate || createdDate;
+      return formatDate(displayDate);
+    }
   },
   // ✅ Accounting-specific columns
   { 
@@ -70,17 +95,24 @@ const columns: Column[] = [
     render: (lead: Lead) => lead.agreement?.tokenNo || '-' 
   },
   { 
-    key: 'totalAmount', 
-    label: 'Total Amount', 
+    key: 'outstandingAmount', 
+    label: 'Outstanding', 
     width: '110px', 
-    render: (lead: Lead) => {
-      const amount = lead.payment?.totalAmount;
-      if (amount == null) return '₹ -';
-      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
-        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
-      }).format(num);
-    }
+  render: (lead: Lead) => {
+  const total = Number(lead.payment?.totalAmount) || 0;
+  const commission = Number(lead.payment?.commissionAmount) || 0;
+
+  const outstanding =
+    lead.payment?.outstandingAmount ?? (total + commission);
+
+  if (isNaN(outstanding)) return '₹ -';
+
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(outstanding);
+}
   },
   { 
     key: 'paidAmount', 

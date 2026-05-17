@@ -6,14 +6,26 @@ import {
   Eye, Trash2, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
   User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
   Users, IndianRupee, BadgeCheck, AlertCircle, CalendarClock, FileDown, Edit, Save,
+  ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
+  PhoneCall, MailOpen, Hash, CalendarRange, Timer, Tag, Link2, DollarSign, Percent,
+  ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
 // ==================== INTERFACES ====================
+interface PaymentDetail {
+  paymentDate: string;
+  paymentAmount: string;
+  modeOfPayment: string;
+  payerName: string;
+  transactionNumber?: string;
+}
+
 interface Lead {
   visitCount: number;
   id: string;
+  clientId?: string;
   client?: {
     firstName?: string;
     lastName?: string;
@@ -28,8 +40,26 @@ interface Lead {
     tokenNo?: string;
     status?: string;
     backOfficeStatus?: string;
-    owner?: { firstName?: string; lastName?: string; phoneNo?: string; dateOfBirth?: string; email?: string; aadharNumber?: string; panNumber?: string };
-    tenant?: { firstName?: string; lastName?: string; phoneNo?: string; dateOfBirth?: string; email?: string; aadharNumber?: string; panNumber?: string };
+    owner?: {
+      firstName?: string;
+      lastName?: string;
+      phoneNo?: string;
+      dateOfBirth?: string;
+      email?: string;
+      aadharNumber?: string;
+      panNumber?: string;
+      birthDate?: string;
+    };
+    tenant?: {
+      firstName?: string;
+      lastName?: string;
+      phoneNo?: string;
+      dateOfBirth?: string;
+      email?: string;
+      aadharNumber?: string;
+      panNumber?: string;
+      birthDate?: string;
+    };
     executeDate?: string;
     startDate?: string;
     endDate?: string;
@@ -37,6 +67,11 @@ interface Lead {
     addressLine2?: string;
     agreementStartDate?: string;
     agreementEndDate?: string;
+    mobileNo?: string;
+    pvName?: string;
+    pvAge?: string;
+    pvMobile?: string;
+    pvRelation?: string;
   };
   payment?: {
     grnNumber?: string;
@@ -58,8 +93,6 @@ interface Lead {
     govtGrnDate?: string;
     ourFees?: number;
     commission?: number;
-    ownerPayments?: Array<{ date?: string; amount?: number; mode?: string; partyName?: string; transactionNo?: string; paymentDate?: string; paymentAmount?: string; modeOfPayment?: string; payerName?: string }>;
-    tenantPayments?: Array<{ date?: string; amount?: number; mode?: string; partyName?: string; transactionNo?: string; paymentDate?: string; paymentAmount?: string; modeOfPayment?: string; payerName?: string }>;
   };
   leadStatus?: string;
   status?: string;
@@ -83,12 +116,16 @@ interface Lead {
   amount?: string;
   city?: { id?: string; name: string };
   area?: { id?: string; name: string };
+  cityId?: string;
+  areaId?: string;
+  leadDate?: string;
   paymentDetails?: Array<{
     clientType: 'OWNER' | 'TENANT';
     paymentDate?: string;
     paymentAmount?: string;
     modeOfPayment?: string;
     payerName?: string;
+    transactionNumber?: string;
   }>;
   visibleToTeams?: string[];
   forwardedHistory?: Array<{
@@ -101,6 +138,7 @@ interface Lead {
   }>;
   forwardReason?: string;
 }
+
 interface Employee {
   id: string;
   firstName: string;
@@ -108,6 +146,7 @@ interface Employee {
   email: string;
   team: string;
 }
+
 interface DropdownData {
   cities: { id: string; name: string }[];
   areas: { id: string; name: string; cityName?: string }[];
@@ -117,6 +156,7 @@ interface DropdownData {
   executives: { id: string; name: string; userId: string }[];
   clientTypes: { key: string; value: string }[];
 }
+
 interface Column {
   key: string;
   label: string;
@@ -142,11 +182,13 @@ const formatDate = (dateString?: string): string => {
   const date = new Date(dateString);
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
 const formatCurrency = (amount?: number | string): string => {
   if (!amount) return '₹ -';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(num || 0);
 };
+
 const getStatusBadge = (status?: string): React.ReactNode => {
   if (!status) return <span className="text-slate-400">-</span>;
   const colors: Record<string, string> = {
@@ -169,6 +211,7 @@ interface BaseModalProps {
   title?: string;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
+
 const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title, size = 'lg' }) => {
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -236,23 +279,29 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
   );
 };
 
-// ==================== EDIT LEAD MODAL ====================
+// ==================== EDIT LEAD MODAL (MATCHES LEAD FORM STRUCTURE) ====================
 interface EditLeadModalProps {
   isOpen: boolean;
   lead: Lead | null;
   onClose: () => void;
   onSave: (leadId: string, updatedData: Partial<Lead>) => Promise<void>;
 }
+
 const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave }) => {
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'client' | 'lead' | 'agreement' | 'payment'>('client');
+  const [activeTab, setActiveTab] = useState<'lead' | 'client' | 'payment'>('lead');
+
+  // Payment arrays for multiple entries
+  const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+  const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
 
   useEffect(() => {
     if (lead) {
       setFormData({
         id: lead.id,
+        clientId: lead.clientId,
         client: { ...lead.client },
         agreement: {
           ...lead.agreement,
@@ -275,7 +324,30 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         referenceNumber: lead.referenceNumber,
         amount: lead.amount,
         visitCount: lead.visitCount,
+        cityId: lead.cityId,
+        areaId: lead.areaId,
+        leadDate: lead.leadDate,
       });
+
+      // Initialize payment arrays from paymentDetails
+      if (lead.paymentDetails?.length) {
+        const ownerPmts = lead.paymentDetails.filter(p => p.clientType === 'OWNER').map(p => ({
+          paymentDate: p.paymentDate || '',
+          paymentAmount: p.paymentAmount || '',
+          modeOfPayment: p.modeOfPayment || '',
+          payerName: p.payerName || '',
+          transactionNumber: p.transactionNumber || '',
+        }));
+        const tenantPmts = lead.paymentDetails.filter(p => p.clientType === 'TENANT').map(p => ({
+          paymentDate: p.paymentDate || '',
+          paymentAmount: p.paymentAmount || '',
+          modeOfPayment: p.modeOfPayment || '',
+          payerName: p.payerName || '',
+          transactionNumber: p.transactionNumber || '',
+        }));
+        if (ownerPmts.length > 0) setOwnerPayments(ownerPmts);
+        if (tenantPmts.length > 0) setTenantPayments(tenantPmts);
+      }
     }
   }, [lead]);
 
@@ -304,13 +376,43 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     });
   };
 
+  const updateOwnerPayment = (index: number, field: keyof PaymentDetail, value: string) => {
+    setOwnerPayments(prev => {
+      const newArr = [...prev];
+      newArr[index] = { ...newArr[index], [field]: value };
+      return newArr;
+    });
+  };
+
+  const updateTenantPayment = (index: number, field: keyof PaymentDetail, value: string) => {
+    setTenantPayments(prev => {
+      const newArr = [...prev];
+      newArr[index] = { ...newArr[index], [field]: value };
+      return newArr;
+    });
+  };
+
+  const addOwnerPayment = () => {
+    setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+  };
+
+  const addTenantPayment = () => {
+    setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lead?.id) return;
     setLoading(true);
     setError(null);
     try {
-      await onSave(lead.id, formData);
+      // Combine payment arrays into paymentDetails
+      const paymentDetails = [
+        ...ownerPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'OWNER' as const })),
+        ...tenantPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'TENANT' as const })),
+      ];
+
+      await onSave(lead.id, { ...formData, paymentDetails });
       onClose();
     } catch (err) {
       setError('Failed to save changes. Please try again.');
@@ -333,78 +435,248 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
+
+        {/* Tabs */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-          {(['client', 'lead', 'agreement', 'payment'] as const).map(tab => (
+          {(['lead', 'client', 'payment'] as const).map(tab => (
             <button key={tab} type="button" onClick={() => setActiveTab(tab)} className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === tab ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
+              {tab === 'lead' ? 'Lead Details' : tab === 'client' ? 'Client & Agreement' : 'Payment Details'}
             </button>
           ))}
         </div>
-        {activeTab === 'client' && (
-          <div className={sectionClass}>
-            <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00A651]" /> Client Information</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Phone</label><input type="tel" value={formData.client?.phoneNo || ''} onChange={(e) => handleInputChange('client', 'phoneNo', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Email</label><input type="email" value={formData.client?.email || ''} onChange={(e) => handleInputChange('client', 'email', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Client Type</label><select value={formData.client?.clientType || ''} onChange={(e) => handleInputChange('client', 'clientType', e.target.value)} className={inputClass}><option value="">Select Type</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
-              <div><label className={labelClass}>City</label><input type="text" value={formData.client?.cityName || formData.city?.name || ''} onChange={(e) => handleInputChange('client', 'cityName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Area</label><input type="text" value={formData.client?.areaName || formData.area?.name || ''} onChange={(e) => handleInputChange('client', 'areaName', e.target.value)} className={inputClass} /></div>
-            </div>
-          </div>
-        )}
+
+        {/* LEAD TAB */}
         {activeTab === 'lead' && (
           <div className={sectionClass}>
             <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <div><label className={labelClass}>Lead Status</label><select value={formData.leadStatus || ''} onChange={(e) => handleInputChange('general', 'leadStatus', e.target.value)} className={inputClass}><option value="">Select Status</option><option value="NEW_LEAD">New Lead</option><option value="ACTIVE">Active</option><option value="FOLLOW_UP">Follow Up</option><option value="COMPLETED">Completed</option><option value="CANCELLED">Cancelled</option></select></div>
-              <div><label className={labelClass}>Next Follow Up</label><input type="date" value={formData.nextFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'nextFollowUpDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Last Follow Up</label><input type="date" value={formData.lastFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'lastFollowUpDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Appointment Time</label><input type="datetime-local" value={formData.appointmentTime?.slice(0, 16) || ''} onChange={(e) => handleInputChange('general', 'appointmentTime', e.target.value)} className={inputClass} /></div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Lead Date */}
+              <div>
+                <label className={labelClass}>Lead Date</label>
+                <input type="date" value={formData.leadDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'leadDate', e.target.value)} className={inputClass} />
+              </div>
+              <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={inputClass} /></div>
+              <div>
+                <label className={labelClass}>Client Type</label>
+                <select value={formData.client?.clientType || ''} onChange={(e) => handleInputChange('client', 'clientType', e.target.value)} className={inputClass}>
+                  <option value="">Select Type</option>
+                  <option value="OWNER">OWNER</option>
+                  <option value="TENANT">TENANT</option>
+                  <option value="AGENT">AGENT</option>
+                </select>
+              </div>
+              <div><label className={labelClass}>Contact Number</label><input type="tel" value={formData.client?.phoneNo || ''} onChange={(e) => handleInputChange('client', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+              <div><label className={labelClass}>Email</label><input type="email" value={formData.client?.email || ''} onChange={(e) => handleInputChange('client', 'email', e.target.value)} className={inputClass} /></div>
+              <div>
+                <label className={labelClass}>Lead Source</label>
+                <select value={formData.leadSource || ''} onChange={(e) => handleInputChange('general', 'leadSource', e.target.value)} className={inputClass}>
+                  <option value="">Select Source</option>
+                  <option value="ONLINE">ONLINE</option>
+                  <option value="CALL">CALL</option>
+                  <option value="EXCEL">EXCEL</option>
+                  <option value="REFERENCE">REFERENCE</option>
+                  <option value="SHOP">SHOP</option>
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Lead Status</label>
+                <select value={formData.leadStatus || ''} onChange={(e) => handleInputChange('general', 'leadStatus', e.target.value)} className={inputClass}>
+                  <option value="">Select Status</option>
+                  <option value="NEW_LEAD">NEW_LEAD</option>
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="FOLLOW_UP">FOLLOW_UP</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
               <div><label className={labelClass}>Tentative Agreement Date</label><input type="date" value={formData.tentativeAgreementDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'tentativeAgreementDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Lead Source</label><input type="text" value={formData.leadSource || ''} onChange={(e) => handleInputChange('general', 'leadSource', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Appointment Time</label><input type="datetime-local" value={formData.appointmentTime?.slice(0, 16) || ''} onChange={(e) => handleInputChange('general', 'appointmentTime', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Number</label><input type="text" value={formData.referenceNumber || ''} onChange={(e) => handleInputChange('general', 'referenceNumber', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Amount</label><input type="text" value={formData.amount || ''} onChange={(e) => handleInputChange('general', 'amount', e.target.value)} className={inputClass} /></div>
-              <div className="col-span-1 md:col-span-2 lg:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
+              <div><label className={labelClass}>City</label><input type="text" value={formData.client?.cityName || formData.city?.name || ''} onChange={(e) => handleInputChange('client', 'cityName', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Area</label><input type="text" value={formData.client?.areaName || formData.area?.name || ''} onChange={(e) => handleInputChange('client', 'areaName', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Last FollowUp Date</label><input type="date" value={formData.lastFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'lastFollowUpDate', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Next FollowUp Date</label><input type="date" value={formData.nextFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'nextFollowUpDate', e.target.value)} className={inputClass} /></div>
             </div>
           </div>
         )}
-        {activeTab === 'agreement' && (
-          <div className={sectionClass}>
-            <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div><label className={labelClass}>Token No</label><input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Status</label><input type="text" value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Back Office Status</label><input type="text" value={formData.agreement?.backOfficeStatus || ''} onChange={(e) => handleInputChange('agreement', 'backOfficeStatus', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Execute Date</label><input type="date" value={formData.agreement?.executeDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'executeDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Start Date</label><input type="date" value={formData.agreement?.agreementStartDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementStartDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>End Date</label><input type="date" value={formData.agreement?.agreementEndDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementEndDate', e.target.value)} className={inputClass} /></div>
-              <div className="lg:col-span-2"><label className={labelClass}>Address Line 1</label><input type="text" value={formData.agreement?.addressLine1 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine1', e.target.value)} className={inputClass} /></div>
-              <div className="lg:col-span-2"><label className={labelClass}>Address Line 2</label><input type="text" value={formData.agreement?.addressLine2 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine2', e.target.value)} className={inputClass} /></div>
+
+        {/* CLIENT & AGREEMENT TAB */}
+        {activeTab === 'client' && (
+          <div className="space-y-6">
+            {/* Owner Section */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.owner?.firstName || ''} onChange={(e) => handleInputChange('owner', 'firstName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.owner?.lastName || ''} onChange={(e) => handleInputChange('owner', 'lastName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.owner?.email || ''} onChange={(e) => handleInputChange('owner', 'email', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.owner?.phoneNo || ''} onChange={(e) => handleInputChange('owner', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.owner?.aadharNumber || ''} onChange={(e) => handleInputChange('owner', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
+                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Birth Date</label><input type="date" value={formData.agreement?.owner?.birthDate?.split('T')[0] || formData.agreement?.owner?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('owner', 'birthDate', e.target.value)} className={inputClass} /></div>
+              </div>
             </div>
-            <div className="border-t border-slate-200 pt-4 mb-4"><h5 className="font-semibold text-slate-700 mb-3">Owner Details</h5><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.owner?.firstName || ''} onChange={(e) => handleInputChange('owner', 'firstName', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.owner?.lastName || ''} onChange={(e) => handleInputChange('owner', 'lastName', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Phone</label><input type="tel" value={formData.agreement?.owner?.phoneNo || ''} onChange={(e) => handleInputChange('owner', 'phoneNo', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.owner?.email || ''} onChange={(e) => handleInputChange('owner', 'email', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>DOB</label><input type="date" value={formData.agreement?.owner?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('owner', 'dateOfBirth', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Aadhar</label><input type="text" value={formData.agreement?.owner?.aadharNumber || ''} onChange={(e) => handleInputChange('owner', 'aadharNumber', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>PAN</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value)} className={inputClass} /></div></div></div>
-            <div className="border-t border-slate-200 pt-4"><h5 className="font-semibold text-slate-700 mb-3">Tenant Details</h5><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.tenant?.firstName || ''} onChange={(e) => handleInputChange('tenant', 'firstName', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.tenant?.lastName || ''} onChange={(e) => handleInputChange('tenant', 'lastName', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Phone</label><input type="tel" value={formData.agreement?.tenant?.phoneNo || ''} onChange={(e) => handleInputChange('tenant', 'phoneNo', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.tenant?.email || ''} onChange={(e) => handleInputChange('tenant', 'email', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>DOB</label><input type="date" value={formData.agreement?.tenant?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('tenant', 'dateOfBirth', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Aadhar</label><input type="text" value={formData.agreement?.tenant?.aadharNumber || ''} onChange={(e) => handleInputChange('tenant', 'aadharNumber', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>PAN</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value)} className={inputClass} /></div></div></div>
+
+            {/* Tenant Section */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.tenant?.firstName || ''} onChange={(e) => handleInputChange('tenant', 'firstName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.tenant?.lastName || ''} onChange={(e) => handleInputChange('tenant', 'lastName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.tenant?.email || ''} onChange={(e) => handleInputChange('tenant', 'email', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.tenant?.phoneNo || ''} onChange={(e) => handleInputChange('tenant', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.tenant?.aadharNumber || ''} onChange={(e) => handleInputChange('tenant', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
+                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Birth Date</label><input type="date" value={formData.agreement?.tenant?.birthDate?.split('T')[0] || formData.agreement?.tenant?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('tenant', 'birthDate', e.target.value)} className={inputClass} /></div>
+              </div>
+            </div>
+
+            {/* Police Verification */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div><label className={labelClass}>Name</label><input type="text" value={formData.agreement?.pvName || ''} onChange={(e) => handleInputChange('agreement', 'pvName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Age</label><input type="number" value={formData.agreement?.pvAge || ''} onChange={(e) => handleInputChange('agreement', 'pvAge', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Mobile</label><input type="tel" value={formData.agreement?.pvMobile || ''} onChange={(e) => handleInputChange('agreement', 'pvMobile', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Relation</label><input type="text" value={formData.agreement?.pvRelation || ''} onChange={(e) => handleInputChange('agreement', 'pvRelation', e.target.value)} className={inputClass} /></div>
+              </div>
+            </div>
+
+            {/* Agreement Details */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div><label className={labelClass}>Token Number</label><input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement Start Date</label><input type="date" value={formData.agreement?.agreementStartDate?.split('T')[0] || formData.agreement?.startDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementStartDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement End Date</label><input type="date" value={formData.agreement?.agreementEndDate?.split('T')[0] || formData.agreement?.endDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementEndDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Execute Date</label><input type="date" value={formData.agreement?.executeDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'executeDate', e.target.value)} className={inputClass} /></div>
+                <div className="md:col-span-2"><label className={labelClass}>Address Line 1</label><input type="text" value={formData.agreement?.addressLine1 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine1', e.target.value)} className={inputClass} /></div>
+                <div className="md:col-span-2"><label className={labelClass}>Address Line 2</label><input type="text" value={formData.agreement?.addressLine2 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine2', e.target.value)} className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Agreement Status</label>
+                  <select value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass}>
+                    <option value="">Select Status</option>
+                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className={labelClass}>Back Office Status</label>
+                  <select value={formData.agreement?.backOfficeStatus || ''} onChange={(e) => handleInputChange('agreement', 'backOfficeStatus', e.target.value)} className={inputClass}>
+                    <option value="">Select Status</option>
+                    {['Govt. Approval pending', 'Govt. Quiery', 'Govt. Copy send clint', 'Govt. Other issue', 'Challan Pending', 'DHC Pending', 'ReShadule visit', 'Payment Pending', 'POA Pending', 'PVR Pending', 'Cummision Sending', 'Document Pending', 'Draft Confirmation Pending', 'Other State Bio. Pending', 'NRI Bio Pending', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* PAYMENT TAB */}
         {activeTab === 'payment' && (
-          <div className={sectionClass}>
-            <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00A651]" /> Payment Details</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <div><label className={labelClass}>Total Amount</label><input type="number" value={formData.payment?.totalAmount || ''} onChange={(e) => handleInputChange('payment', 'totalAmount', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Paid Amount</label><input type="number" value={formData.payment?.paidAmount || ''} onChange={(e) => handleInputChange('payment', 'paidAmount', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Outstanding</label><input type="number" value={formData.payment?.outstandingAmount || ''} onChange={(e) => handleInputChange('payment', 'outstandingAmount', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Our Fees</label><input type="number" value={formData.payment?.ourFees || ''} onChange={(e) => handleInputChange('payment', 'ourFees', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Commission</label><input type="number" value={formData.payment?.commission || ''} onChange={(e) => handleInputChange('payment', 'commission', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Commission Amount</label><input type="number" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', parseFloat(e.target.value))} className={inputClass} /></div>
-              <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Commission Date</label><input type="date" value={formData.payment?.commissionDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'commissionDate', e.target.value)} className={inputClass} /></div>
+          <div className="space-y-6">
+            {/* Summary */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00A651]" /> Payment Summary</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className={labelClass}>Total Agreement Amount</label>
+                  <input type="text" placeholder="e.g., 5000" value={formData.payment?.totalAmount || ''} onChange={(e) => handleInputChange('payment', 'totalAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Commission Amount</label>
+                  <input type="text" placeholder="e.g., 500" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Outstanding Amount</label>
+                  <input
+                    type="text"
+                    value={`₹ ${(
+                      (Number(formData.payment?.totalAmount) || 0) +
+                      (Number(formData.payment?.commissionAmount) || 0)
+                    ).toFixed(2)}`}
+                    readOnly
+                    className={`${inputClass} bg-slate-50 text-red-600 font-semibold cursor-not-allowed`}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
+                </div>
+              </div>
             </div>
-            <div className="border-t border-slate-200 pt-4 mb-4"><h5 className="font-semibold text-slate-700 mb-3">GRN / DHC</h5><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"><div><label className={labelClass}>GRN No</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>GRN Amount</label><input type="number" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', parseFloat(e.target.value))} className={inputClass} /></div><div><label className={labelClass}>GRN Date</label><input type="date" value={formData.payment?.grnDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'grnDate', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Govt GRN Date</label><input type="date" value={formData.payment?.govtGrnDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'govtGrnDate', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>DHC No</label><input type="text" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>DHC Amount</label><input type="number" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', parseFloat(e.target.value))} className={inputClass} /></div><div><label className={labelClass}>DHC Date</label><input type="date" value={formData.payment?.dhcDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'dhcDate', e.target.value)} className={inputClass} /></div><div><label className={labelClass}>Payment Description</label><input type="text" value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} className={inputClass} /></div></div></div>
+
+            {/* Owner Payments */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
+              {ownerPayments.map((p, i) => (
+                <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
+                  <div><label className={labelClass}>Payment Date</label><input type="date" value={p.paymentDate} onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                  <div>
+                    <label className={labelClass}>Mode</label>
+                    <select value={p.modeOfPayment} onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} className={inputClass}>
+                      <option value="">Select</option>
+                      <option value="CASH">Cash</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CHEQUE">Cheque</option>
+                    </select>
+                  </div>
+                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
+                </div>
+              ))}
+              <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
+                <Plus className="w-4 h-4" /> Add Owner Payment
+              </button>
+            </div>
+
+            {/* Tenant Payments */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
+              {tenantPayments.map((p, i) => (
+                <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
+                  <div><label className={labelClass}>Payment Date</label><input type="date" value={p.paymentDate} onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                  <div>
+                    <label className={labelClass}>Mode</label>
+                    <select value={p.modeOfPayment} onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} className={inputClass}>
+                      <option value="">Select</option>
+                      <option value="CASH">Cash</option>
+                      <option value="ONLINE">Online</option>
+                      <option value="CHEQUE">Cheque</option>
+                    </select>
+                  </div>
+                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
+                </div>
+              ))}
+              <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
+                <Plus className="w-4 h-4" /> Add Tenant Payment
+              </button>
+            </div>
+
+            {/* Back Work Account */}
+            <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div><label className={labelClass}>GRN Number</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                <div><label className={labelClass}>Govt GRN Date</label><input type="date" value={formData.payment?.govtGrnDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'govtGrnDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Number</label><input type="text" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Amount</label><input type="text" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Date</label><input type="date" value={formData.payment?.dhcDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'dhcDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Commission Date</label><input type="date" value={formData.payment?.commissionDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'commissionDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={inputClass} /></div>
+                <div className="md:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
+              </div>
+            </div>
           </div>
         )}
+
+        {/* Actions */}
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
           <button type="submit" disabled={loading} className="px-5 py-2.5 bg-[#00A651] text-white rounded-lg font-medium hover:bg-[#008f44] transition-colors disabled:opacity-50 flex items-center gap-2">
@@ -416,7 +688,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   );
 };
 
-// ==================== VIEW LEAD MODAL ====================
+// ==================== VIEW LEAD MODAL (MATCHES LEAD FORM STRUCTURE) ====================
 interface ViewLeadModalProps {
   isOpen: boolean;
   leadId: string;
@@ -424,12 +696,13 @@ interface ViewLeadModalProps {
   onEdit?: (lead: Lead) => void;
   isAdmin?: boolean;
 }
+
 const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, isAdmin = false }) => {
   const { apiFetch } = useApi();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'lead' | 'agreement' | 'payment'>('lead');
+  const [activeTab, setActiveTab] = useState<'lead' | 'client' | 'payment'>('lead');
   const [isEditing, setIsEditing] = useState(false);
   const prevLeadIdRef = useRef<string>('');
 
@@ -483,38 +756,231 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
           <>
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
               <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-                {[{ key: 'lead', label: 'Lead Details', icon: FileText }, { key: 'agreement', label: 'Agreement', icon: BadgeCheck }, { key: 'payment', label: 'Payment', icon: CreditCard }].map((tab) => (
+                {[{ key: 'lead', label: 'Lead Details', icon: FileText }, { key: 'client', label: 'Client & Agreement', icon: BadgeCheck }, { key: 'payment', label: 'Payment Details', icon: CreditCard }].map((tab) => (
                   <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-white text-[#00A651] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
                     <tab.icon className="w-4 h-4" /> {tab.label}
                   </button>
                 ))}
               </div>
               {isAdmin && onEdit && (
-                <button onClick={() => setIsEditing(true)} className="flex items-center gap-2 px-4 py-2 bg-[#00A651] text-white rounded-lg text-sm font-medium hover:bg-[#008f44] transition-colors">
+                <button onClick={() => { setIsEditing(true); setActiveTab('lead'); }} className="flex items-center gap-2 px-4 py-2 bg-[#00A651] text-white rounded-lg text-sm font-medium hover:bg-[#008f44] transition-colors">
                   <Edit className="w-4 h-4" /> Edit Lead
                 </button>
               )}
             </div>
+
+            {/* LEAD TAB */}
             {activeTab === 'lead' && (
               <div className="space-y-6">
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-[#00A651]" /> Client Information</h4><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><InfoItem label="Name" value={`${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-'} /><InfoItem label="Client Type" value={lead.client?.clientType || '-'} /><InfoItem label="Phone" value={lead.client?.phoneNo || '-'} icon={Phone} /><InfoItem label="Email" value={lead.client?.email || '-'} icon={Mail} /><InfoItem label="City" value={lead.client?.cityName || lead.city?.name || '-'} icon={MapPin} /><InfoItem label="Area" value={lead.client?.areaName || lead.area?.name || '-'} icon={Building} /></div></div>
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><InfoItem label="Lead Status" value={lead.leadStatus || '-'} badge /><InfoItem label="Lead Source" value={lead.leadSource || '-'} /><InfoItem label="Visit Address" value={lead.visitAddress || '-'} icon={MapPin} /><InfoItem label="Reference Name" value={lead.referenceName || '-'} /><InfoItem label="Reference Number" value={lead.referenceNumber || '-'} /><InfoItem label="Amount" value={lead.amount ? formatCurrency(lead.amount) : '-'} icon={IndianRupee} /><InfoItem label="Tentative Agreement Date" value={formatDate(lead.tentativeAgreementDate)} icon={CalendarDays} /><InfoItem label="Appointment Time" value={lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-'} icon={Clock} /><InfoItem label="Description" value={lead.description || '-'} multiline /><InfoItem label="Last FollowUp" value={formatDate(lead.lastFollowUpDate)} icon={CalendarDays} /><InfoItem label="Next FollowUp" value={formatDate(lead.nextFollowUpDate)} icon={CalendarDays} /><InfoItem label="Created By" value={lead.createdByUserName || '-'} /><InfoItem label="Created Date" value={formatDate(lead.createdDate)} icon={CalendarDays} /><InfoItem label="Assigned To" value={lead.assignedToUserName || 'Team Only'} icon={User} />{lead.visibleToTeams && lead.visibleToTeams.length > 0 && (<InfoItem label="Visible To Teams" value={lead.visibleToTeams.join(', ')} />)}</div></div>
-                {lead.forwardedHistory && lead.forwardedHistory.length > 0 && (<div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><CalendarClock className="w-5 h-5 text-[#00A651]" /> Forwarding History</h4><div className="space-y-3">{lead.forwardedHistory.map((history, index) => (<div key={index} className="p-3 bg-white rounded-lg border border-slate-200"><div className="flex items-center justify-between flex-wrap gap-2"><span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00A651]">{history.toTeam}</span></span><span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{history.forwardedAt ? new Date(history.forwardedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</span></div><p className="text-xs text-slate-600 mt-2"><User className="w-3 h-3 inline mr-1" /> Forwarded by: <span className="font-medium">{history.forwardedBy}</span></p>{history.reason && (<div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800"><AlertCircle className="w-3 h-3 inline mr-1" /><strong>Reason:</strong> {history.reason}</div>)}</div>))}</div></div>)}
-                {lead.forwardReason && !lead.forwardedHistory?.length && (<InfoItem label="Forward Reason" value={lead.forwardReason} multiline />)}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InfoItem label="Lead Date" value={formatDate(lead.leadDate)} icon={CalendarDays} />
+                    <InfoItem label="First Name" value={lead.client?.firstName || '-'} />
+                    <InfoItem label="Last Name" value={lead.client?.lastName || '-'} />
+                    <InfoItem label="Client Type" value={lead.client?.clientType || '-'} />
+                    <InfoItem label="Contact Number" value={lead.client?.phoneNo || '-'} icon={Phone} />
+                    <InfoItem label="Email" value={lead.client?.email || '-'} icon={Mail} />
+                    <InfoItem label="Lead Source" value={lead.leadSource || '-'} />
+                    <InfoItem label="Lead Status" value={lead.leadStatus || '-'} badge />
+                    <InfoItem label="Tentative Agreement Date" value={formatDate(lead.tentativeAgreementDate)} icon={CalendarDays} />
+                    <InfoItem label="Appointment Time" value={lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-'} icon={Clock} />
+                    <InfoItem label="Visit Address" value={lead.visitAddress || '-'} icon={MapPin} />
+                    <InfoItem label="Description" value={lead.description || '-'} multiline />
+                    <InfoItem label="Reference Name" value={lead.referenceName || '-'} />
+                    <InfoItem label="Reference Number" value={lead.referenceNumber || '-'} />
+                    <InfoItem label="Amount" value={lead.amount ? formatCurrency(lead.amount) : '-'} icon={IndianRupee} />
+                    <InfoItem label="City" value={lead.client?.cityName || lead.city?.name || '-'} icon={Building} />
+                    <InfoItem label="Area" value={lead.client?.areaName || lead.area?.name || '-'} icon={MapPinned} />
+                    <InfoItem label="Last FollowUp" value={formatDate(lead.lastFollowUpDate)} icon={CalendarDays} />
+                    <InfoItem label="Next FollowUp" value={formatDate(lead.nextFollowUpDate)} icon={CalendarDays} />
+                    <InfoItem label="Created By" value={lead.createdByUserName || '-'} />
+                    <InfoItem label="Created Date" value={formatDate(lead.createdDate)} icon={CalendarDays} />
+                    <InfoItem label="Assigned To" value={lead.assignedToUserName || 'Team Only'} icon={User} />
+                    {lead.visibleToTeams && lead.visibleToTeams.length > 0 && <InfoItem label="Visible To Teams" value={lead.visibleToTeams.join(', ')} />}
+                  </div>
+                </div>
+                {lead.forwardedHistory && lead.forwardedHistory.length > 0 && (
+                  <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                    <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><CalendarClock className="w-5 h-5 text-[#00A651]" /> Forwarding History</h4>
+                    <div className="space-y-3">
+                      {lead.forwardedHistory.map((history, index) => (
+                        <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00A651]">{history.toTeam}</span></span>
+                            <span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{history.forwardedAt ? new Date(history.forwardedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                          </div>
+                          <p className="text-xs text-slate-600 mt-2"><User className="w-3 h-3 inline mr-1" /> Forwarded by: <span className="font-medium">{history.forwardedBy}</span></p>
+                          {history.reason && <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800"><AlertCircle className="w-3 h-3 inline mr-1" /><strong>Reason:</strong> {history.reason}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {lead.forwardReason && !lead.forwardedHistory?.length && <InfoItem label="Forward Reason" value={lead.forwardReason} multiline />}
               </div>
             )}
-            {activeTab === 'agreement' && (
+
+            {/* CLIENT & AGREEMENT TAB */}
+            {activeTab === 'client' && (
               <div className="space-y-6">
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><InfoItem label="Name" value={`${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-'} /><InfoItem label="Phone" value={lead.agreement?.owner?.phoneNo || '-'} icon={Phone} /><InfoItem label="Email" value={lead.agreement?.owner?.email || '-'} icon={Mail} /><InfoItem label="Aadhar" value={lead.agreement?.owner?.aadharNumber || '-'} /><InfoItem label="PAN" value={lead.agreement?.owner?.panNumber || '-'} /><InfoItem label="DOB" value={formatDate(lead.agreement?.owner?.dateOfBirth)} icon={Calendar} /></div></div>
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><InfoItem label="Name" value={`${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-'} /><InfoItem label="Phone" value={lead.agreement?.tenant?.phoneNo || '-'} icon={Phone} /><InfoItem label="Email" value={lead.agreement?.tenant?.email || '-'} icon={Mail} /><InfoItem label="Aadhar" value={lead.agreement?.tenant?.aadharNumber || '-'} /><InfoItem label="PAN" value={lead.agreement?.tenant?.panNumber || '-'} /><InfoItem label="DOB" value={formatDate(lead.agreement?.tenant?.dateOfBirth)} icon={Calendar} /></div></div>
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"><InfoItem label="Token Number" value={lead.agreement?.tokenNo || '-'} /><InfoItem label="Agreement Status" value={lead.agreement?.status || '-'} badge /><InfoItem label="Back Office Status" value={lead.agreement?.backOfficeStatus || '-'} badge /><InfoItem label="Execute Date" value={formatDate(lead.agreement?.executeDate)} icon={CalendarDays} /><InfoItem label="Start Date" value={formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate)} icon={CalendarDays} /><InfoItem label="End Date" value={formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate)} icon={CalendarDays} /><InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline /><InfoItem label="Address Line 2" value={lead.agreement?.addressLine2 || '-'} multiline /></div></div>
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InfoItem label="First Name" value={lead.agreement?.owner?.firstName || '-'} />
+                    <InfoItem label="Last Name" value={lead.agreement?.owner?.lastName || '-'} />
+                    <InfoItem label="Email" value={lead.agreement?.owner?.email || '-'} icon={Mail} />
+                    <InfoItem label="Contact" value={lead.agreement?.owner?.phoneNo || '-'} icon={Phone} />
+                    <InfoItem label="Aadhar Number" value={lead.agreement?.owner?.aadharNumber || '-'} icon={Hash} />
+                    <InfoItem label="PAN Number" value={lead.agreement?.owner?.panNumber || '-'} icon={Hash} />
+                    <InfoItem label="Birth Date" value={formatDate(lead.agreement?.owner?.birthDate || lead.agreement?.owner?.dateOfBirth)} icon={Calendar} />
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InfoItem label="First Name" value={lead.agreement?.tenant?.firstName || '-'} />
+                    <InfoItem label="Last Name" value={lead.agreement?.tenant?.lastName || '-'} />
+                    <InfoItem label="Email" value={lead.agreement?.tenant?.email || '-'} icon={Mail} />
+                    <InfoItem label="Contact" value={lead.agreement?.tenant?.phoneNo || '-'} icon={Phone} />
+                    <InfoItem label="Aadhar Number" value={lead.agreement?.tenant?.aadharNumber || '-'} icon={Hash} />
+                    <InfoItem label="PAN Number" value={lead.agreement?.tenant?.panNumber || '-'} icon={Hash} />
+                    <InfoItem label="Birth Date" value={formatDate(lead.agreement?.tenant?.birthDate || lead.agreement?.tenant?.dateOfBirth)} icon={Calendar} />
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <InfoItem label="Name" value={lead.agreement?.pvName || '-'} />
+                    <InfoItem label="Age" value={lead.agreement?.pvAge || '-'} />
+                    <InfoItem label="Mobile" value={lead.agreement?.pvMobile || '-'} icon={Phone} />
+                    <InfoItem label="Relation" value={lead.agreement?.pvRelation || '-'} />
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InfoItem label="Token Number" value={lead.agreement?.tokenNo || '-'} />
+                    <InfoItem label="Agreement Status" value={lead.agreement?.status || '-'} badge />
+                    <InfoItem label="Back Office Status" value={lead.agreement?.backOfficeStatus || '-'} badge />
+                    <InfoItem label="Start Date" value={formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate)} icon={CalendarDays} />
+                    <InfoItem label="End Date" value={formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate)} icon={CalendarDays} />
+                    <InfoItem label="Execute Date" value={formatDate(lead.agreement?.executeDate)} icon={CalendarDays} />
+                    <InfoItem label="Mobile No" value={lead.agreement?.mobileNo || '-'} icon={Phone} />
+                    <InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline />
+                    <InfoItem label="Address Line 2" value={lead.agreement?.addressLine2 || '-'} multiline />
+                  </div>
+                </div>
               </div>
             )}
+
+            {/* PAYMENT TAB */}
             {activeTab === 'payment' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-[#00A651] to-[#008f44] rounded-xl p-5 text-white"><h4 className="text-base font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Payment Summary</h4><div className="grid grid-cols-1 md:grid-cols-3 gap-4"><SummaryCard label="Total Amount" value={formatCurrency(lead.payment?.totalAmount)} /><SummaryCard label="Commission" value={formatCurrency(lead.payment?.commissionAmount)} /><SummaryCard label="Outstanding" value={formatCurrency(lead.payment?.outstandingAmount)} highlight /></div></div>
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h4>{lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-slate-200"><th className="text-left py-2 px-3 font-medium text-slate-600">Date</th><th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th><th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th><th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th></tr></thead><tbody>{lead.paymentDetails?.filter(p => p.clientType === 'OWNER').map((p, i) => (<tr key={i} className="border-b border-slate-100 last:border-0"><td className="py-2 px-3">{formatDate(p.paymentDate)}</td><td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td><td className="py-2 px-3">{p.modeOfPayment || '-'}</td><td className="py-2 px-3">{p.payerName || '-'}</td></tr>))}</tbody></table></div>) : (<p className="text-slate-500 text-sm">No owner payments recorded</p>)}</div>
-                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200"><h4 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h4>{lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (<div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-slate-200"><th className="text-left py-2 px-3 font-medium text-slate-600">Date</th><th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th><th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th><th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th></tr></thead><tbody>{lead.paymentDetails?.filter(p => p.clientType === 'TENANT').map((p, i) => (<tr key={i} className="border-b border-slate-100 last:border-0"><td className="py-2 px-3">{formatDate(p.paymentDate)}</td><td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td><td className="py-2 px-3">{p.modeOfPayment || '-'}</td><td className="py-2 px-3">{p.payerName || '-'}</td></tr>))}</tbody></table></div>) : (<p className="text-slate-500 text-sm">No tenant payments recorded</p>)}</div>
+                <div className="bg-gradient-to-r from-[#00A651] to-[#008f44] rounded-xl p-5 text-white">
+                  <h4 className="text-base font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Payment Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <SummaryCard
+                      label="Total Amount"
+                      value={formatCurrency(lead.payment?.totalAmount)}
+                    />
+
+                    <SummaryCard
+                      label="Commission"
+                      value={formatCurrency(lead.payment?.commissionAmount)}
+                    />
+
+                    <SummaryCard
+                      label="Outstanding"
+                      value={formatCurrency(
+                        lead.payment?.outstandingAmount ??
+                        (
+                          (Number(lead.payment?.totalAmount) || 0) +
+                          (Number(lead.payment?.commissionAmount) || 0)
+                        )
+                      )}
+                      highlight
+                    />
+                  </div>
+                </div>
+
+                {/* Owner Payments */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
+                  {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200">
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Date</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Transaction No.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lead.paymentDetails?.filter(p => p.clientType === 'OWNER').map((p, i) => (
+                            <tr key={i} className="border-b border-slate-100 last:border-0">
+                              <td className="py-2 px-3">{formatDate(p.paymentDate)}</td>
+                              <td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td>
+                              <td className="py-2 px-3">{p.modeOfPayment || '-'}</td>
+                              <td className="py-2 px-3">{p.payerName || '-'}</td>
+                              <td className="py-2 px-3">{p.transactionNumber || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : <p className="text-slate-500 text-sm">No owner payments recorded</p>}
+                </div>
+
+                {/* Tenant Payments */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
+                  {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200">
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Date</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th>
+                            <th className="text-left py-2 px-3 font-medium text-slate-600">Transaction No.</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {lead.paymentDetails?.filter(p => p.clientType === 'TENANT').map((p, i) => (
+                            <tr key={i} className="border-b border-slate-100 last:border-0">
+                              <td className="py-2 px-3">{formatDate(p.paymentDate)}</td>
+                              <td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td>
+                              <td className="py-2 px-3">{p.modeOfPayment || '-'}</td>
+                              <td className="py-2 px-3">{p.payerName || '-'}</td>
+                              <td className="py-2 px-3">{p.transactionNumber || '-'}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : <p className="text-slate-500 text-sm">No tenant payments recorded</p>}
+                </div>
+
+                {/* Back Work Account */}
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <InfoItem label="GRN Number" value={lead.payment?.grnNumber || '-'} />
+                    <InfoItem label="GRN Amount" value={formatCurrency(lead.payment?.grnAmount)} />
+                    <InfoItem label="Govt GRN Date" value={formatDate(lead.payment?.govtGrnDate)} icon={CalendarDays} />
+                    <InfoItem label="DHC Number" value={lead.payment?.dhcNumber || '-'} />
+                    <InfoItem label="DHC Amount" value={formatCurrency(lead.payment?.dhcAmount)} />
+                    <InfoItem label="DHC Date" value={formatDate(lead.payment?.dhcDate)} icon={CalendarDays} />
+                    <InfoItem label="Commission Date" value={formatDate(lead.payment?.commissionDate)} icon={CalendarDays} />
+                    <InfoItem label="Commission Name" value={lead.payment?.commissionName || '-'} />
+                    <InfoItem label="Description" value={lead.payment?.description || '-'} multiline />
+                  </div>
+                </div>
               </div>
             )}
           </>
@@ -528,11 +994,24 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
 // ==================== HELPER COMPONENTS ====================
 interface InfoItemProps { label: string; value: string; icon?: React.ElementType; badge?: boolean; multiline?: boolean; }
 const InfoItem: React.FC<InfoItemProps> = ({ label, value, icon: Icon, badge, multiline }) => (
-  <div className="space-y-1"><label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">{Icon && <Icon className="w-3 h-3" />}{label}</label>{badge ? (<div>{getStatusBadge(value)}</div>) : (<p className={`text-sm text-slate-700 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>{value || '-'}</p>)}</div>
+  <div className="space-y-1">
+    <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+      {Icon && <Icon className="w-3 h-3" />}{label}
+    </label>
+    {badge ? (
+      <div>{getStatusBadge(value)}</div>
+    ) : (
+      <p className={`text-sm text-slate-700 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>{value || '-'}</p>
+    )}
+  </div>
 );
+
 interface SummaryCardProps { label: string; value: string; highlight?: boolean; }
 const SummaryCard: React.FC<SummaryCardProps> = ({ label, value, highlight }) => (
-  <div className={`p-4 rounded-lg ${highlight ? 'bg-white/20' : 'bg-white/10'}`}><p className="text-sm opacity-90">{label}</p><p className={`text-xl font-bold ${highlight ? 'text-amber-200' : 'text-white'}`}>{value}</p></div>
+  <div className={`p-4 rounded-lg ${highlight ? 'bg-white/20' : 'bg-white/10'}`}>
+    <p className="text-sm opacity-90">{label}</p>
+    <p className={`text-xl font-bold ${highlight ? 'text-amber-200' : 'text-white'}`}>{value}</p>
+  </div>
 );
 
 // ==================== CONFIRMATION MODAL ====================
@@ -682,7 +1161,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [ownerDob, setOwnerDob] = useState('');
   const [tenantMobile, setTenantMobile] = useState('');
   const [tenantDob, setTenantDob] = useState('');
-
   const [viewModal, setViewModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
@@ -693,12 +1171,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
 
-  // ✅ FIXED: Match actual transitLevel values from page components
   const isMarketingDashboard = transitLevel === 'MARKETING' || transitLevel === 'MARKETING_TEAM';
   const isExecutiveDashboard = transitLevel === 'EXECUTIVE' || transitLevel === 'EXECUTIVE_TEAM';
   const isCallingDashboard = transitLevel === 'CALLING' || transitLevel === 'CALLING_TEAM';
   const isBackendDashboard = transitLevel === 'BACKEND' || transitLevel === 'BACKEND_TEAM';
-  const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL'; // ✅ Account team uses "ALL"
+  const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL';
 
   useEffect(() => {
     if (!user) return;
@@ -726,7 +1203,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     if (customColumns) return customColumns;
     if (isCallingDashboard) {
       return [
-        { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.createdDate) },
+        { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.leadDate || lead.createdDate) },
         { key: 'name', label: 'Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
         { key: 'clientType', label: 'Client Type', width: '100px', render: (lead) => lead.client?.clientType || '-' },
         { key: 'contactNo', label: 'Contact No', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
@@ -739,7 +1216,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     }
     if (isExecutiveDashboard) {
       return [
-        { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.createdDate) },
+        { key: 'leadDate', label: 'Lead Date', width: '120px', render: (lead) => formatDate(lead.leadDate || lead.createdDate) },
         { key: 'name', label: 'Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
         { key: 'clientType', label: 'Client Type', width: '100px', render: (lead) => lead.client?.clientType || '-' },
         { key: 'contactNo', label: 'Contact No', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
@@ -772,12 +1249,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'totalAmount', label: 'Total Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.totalAmount) },
         { key: 'paidAmount', label: 'Paid Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.paidAmount) },
         { key: 'pendingAmount', label: 'Pending Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) },
-        { key: 'paymentDate', label: 'Date', width: '120px', render: (lead) => { const date = lead.payment?.ownerPayments?.[0]?.paymentDate || lead.payment?.tenantPayments?.[0]?.paymentDate; return formatDate(date); }},
+        { key: 'paymentDate', label: 'Date', width: '120px', render: (lead) => { const date = lead.paymentDetails?.[0]?.paymentDate; return formatDate(date); } },
         { key: 'status', label: 'Status', width: '120px', render: (lead) => getStatusBadge(lead.agreement?.status || lead.leadStatus) },
         { key: 'commissionAmount', label: 'Commission Amt', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
         { key: 'grnNo', label: 'GRN No.', width: '110px', render: (lead) => lead.payment?.grnNumber || '-' },
         { key: 'dhcNo', label: 'DHC No.', width: '110px', render: (lead) => lead.payment?.dhcNumber || '-' },
-        { key: 'actions', label: 'Actions', width: '100px', render: (lead) => isAdmin ? (<button onClick={(e) => { e.stopPropagation(); setEditLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"><Edit className="w-3.5 h-3.5" /> Edit</button>) : (<span className="text-xs text-slate-400 italic">Admin Only</span>)},
+        { key: 'actions', label: 'Actions', width: '100px', render: (lead) => isAdmin ? (<button onClick={(e) => { e.stopPropagation(); setEditLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"><Edit className="w-3.5 h-3.5" /> Edit</button>) : (<span className="text-xs text-slate-400 italic">Admin Only</span>) },
       ];
     }
     if (isMarketingDashboard) {
@@ -786,14 +1263,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'executeDate', label: 'Execute Date', width: '120px', render: (lead) => formatDate(lead.agreement?.executeDate) },
         { key: 'ownerName', label: 'Owner Name', width: '150px', render: (lead) => `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-' },
         { key: 'ownerMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.owner?.phoneNo || '-' },
-        { key: 'ownerDob', label: 'Birth Date Owner', width: '120px', render: (lead) => formatDate(lead.agreement?.owner?.dateOfBirth) },
+        { key: 'ownerDob', label: 'Birth Date Owner', width: '120px', render: (lead) => formatDate(lead.agreement?.owner?.birthDate || lead.agreement?.owner?.dateOfBirth) },
         { key: 'startDate', label: 'Starting Date', width: '120px', render: (lead) => formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate) },
         { key: 'endDate', label: 'Ending Date', width: '120px', render: (lead) => formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate) },
         { key: 'tenantName', label: 'Tenant Name', width: '150px', render: (lead) => `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-' },
         { key: 'tenantMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.tenant?.phoneNo || '-' },
-        { key: 'tenantDob', label: 'Birth Date Tenant', width: '130px', render: (lead) => formatDate(lead.agreement?.tenant?.dateOfBirth) },
-        { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (<button onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00A651] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"><Eye className="w-3.5 h-3.5" /> View Details</button>)},
-        { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => { return isAdmin ? (<button onClick={(e) => { e.stopPropagation(); handleExportSingleLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"><FileDown className="w-3.5 h-3.5" /> Download</button>) : (<span className="text-xs text-slate-400 italic">Admin Only</span>); }},
+        { key: 'tenantDob', label: 'Birth Date Tenant', width: '130px', render: (lead) => formatDate(lead.agreement?.tenant?.birthDate || lead.agreement?.tenant?.dateOfBirth) },
+        { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (<button onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00A651] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"><Eye className="w-3.5 h-3.5" /> View Details</button>) },
+        { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => { return isAdmin ? (<button onClick={(e) => { e.stopPropagation(); handleExportSingleLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"><FileDown className="w-3.5 h-3.5" /> Download</button>) : (<span className="text-xs text-slate-400 italic">Admin Only</span>); } },
       ];
     }
     return [
@@ -815,8 +1292,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: page.toString(), pageSize: pageSize.toString(), transitLevel });
-      
-      // ✅ CALLING TEAM
+
       if (isCallingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
@@ -838,13 +1314,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
         if (searchText) params.set('searchText', searchText);
       }
-      
-      // ✅ EXECUTIVE TEAM - Only search
       if (isExecutiveDashboard && executiveSearch) {
         params.set('searchText', executiveSearch);
       }
-      
-      // ✅ BACKEND TEAM
       if (isBackendDashboard) {
         if (ownerName) params.set('ownerName', ownerName);
         if (tenantName) params.set('tenantName', tenantName);
@@ -857,8 +1329,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (commissionAmount) params.set('commissionAmount', commissionAmount);
         if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
       }
-      
-      // ✅ ACCOUNTING TEAM (including "ALL")
       if (isAccountingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
@@ -870,8 +1340,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
         if (searchText) params.set('searchText', searchText);
       }
-      
-      // ✅ MARKETING TEAM
       if (isMarketingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
@@ -886,7 +1354,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tenantMobile) params.set('tenantMobile', tenantMobile);
         if (tenantDob) params.set('tenantDob', tenantDob);
       }
-      
+
       const res = await apiFetch(`/api/leads?${params.toString()}`);
       const data = await res.json();
       setLeads(data?.leadPage?.content || []);
@@ -942,12 +1410,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     const exportData: any[] = [];
     exportData.push({ 'Token Number': '', 'Our Fees': '', 'Commission': '', 'Total Amount': '', 'Payment Date': '', 'Payment Amount': '', 'Mode': '', 'Party Name': '', 'Transaction No.': '', 'Total Received': '', 'GRN Date': '', 'GRN Number': '', 'GRN Amount': '', 'DHC Date': '', 'DHC Number': '', 'DHC Amount': '', 'Commission Date': '', 'Commission Name': '', 'Commission Amount': '' });
     leads.forEach((lead) => {
-      const ownerPayments = lead.payment?.ownerPayments || [];
+      const ownerPayments = lead.paymentDetails?.filter(p => p.clientType === 'OWNER') || [];
       if (ownerPayments.length > 0) {
-        ownerPayments.forEach((p, idx) => { exportData.push({ 'Token Number': idx === 0 ? (lead.agreement?.tokenNo || '-') : '', 'Our Fees': idx === 0 ? formatCurrency(lead.payment?.ourFees) : '', 'Commission': idx === 0 ? formatCurrency(lead.payment?.commission) : '', 'Total Amount': idx === 0 ? formatCurrency(lead.payment?.totalAmount) : '', 'Payment Date': formatDate(p.paymentDate || p.date), 'Payment Amount': formatCurrency(p.paymentAmount || p.amount), 'Mode': p.modeOfPayment || p.mode || '-', 'Party Name': p.payerName || p.partyName || '-', 'Transaction No.': p.transactionNo || '-', 'Total Received': idx === 0 ? formatCurrency(lead.payment?.totalReceivedAmount) : '', 'GRN Date': idx === 0 ? formatDate(lead.payment?.govtGrnDate || lead.payment?.grnDate) : '', 'GRN Number': idx === 0 ? (lead.payment?.grnNumber || '-') : '', 'GRN Amount': idx === 0 ? formatCurrency(lead.payment?.grnAmount) : '', 'DHC Date': idx === 0 ? formatDate(lead.payment?.dhcDate) : '', 'DHC Number': idx === 0 ? (lead.payment?.dhcNumber || '-') : '', 'DHC Amount': idx === 0 ? formatCurrency(lead.payment?.dhcAmount) : '', 'Commission Date': idx === 0 ? formatDate(lead.payment?.commissionDate) : '', 'Commission Name': idx === 0 ? (lead.payment?.commissionName || '-') : '', 'Commission Amount': idx === 0 ? formatCurrency(lead.payment?.commissionAmount) : '' }); });
-      } else { exportData.push({ 'Token Number': lead.agreement?.tokenNo || '-', 'Our Fees': formatCurrency(lead.payment?.ourFees), 'Commission': formatCurrency(lead.payment?.commission), 'Total Amount': formatCurrency(lead.payment?.totalAmount), 'Payment Date': '-', 'Payment Amount': '-', 'Mode': '-', 'Party Name': '-', 'Transaction No.': '-', 'Total Received': formatCurrency(lead.payment?.totalReceivedAmount), 'GRN Date': formatDate(lead.payment?.govtGrnDate || lead.payment?.grnDate), 'GRN Number': lead.payment?.grnNumber || '-', 'GRN Amount': formatCurrency(lead.payment?.grnAmount), 'DHC Date': formatDate(lead.payment?.dhcDate), 'DHC Number': lead.payment?.dhcNumber || '-', 'DHC Amount': formatCurrency(lead.payment?.dhcAmount), 'Commission Date': formatDate(lead.payment?.commissionDate), 'Commission Name': lead.payment?.commissionName || '-', 'Commission Amount': formatCurrency(lead.payment?.commissionAmount) }); }
-      const tenantPayments = lead.payment?.tenantPayments || [];
-      if (tenantPayments.length > 0) { tenantPayments.forEach((p) => { exportData.push({ 'Token Number': '', 'Our Fees': '', 'Commission': '', 'Total Amount': '', 'Payment Date': formatDate(p.paymentDate || p.date), 'Payment Amount': formatCurrency(p.paymentAmount || p.amount), 'Mode': p.modeOfPayment || p.mode || '-', 'Party Name': p.payerName || p.partyName || '-', 'Transaction No.': p.transactionNo || '-', 'Total Received': '', 'GRN Date': '', 'GRN Number': '', 'GRN Amount': '', 'DHC Date': '', 'DHC Number': '', 'DHC Amount': '', 'Commission Date': '', 'Commission Name': '', 'Commission Amount': '' }); }); }
+        ownerPayments.forEach((p, idx) => { exportData.push({ 'Token Number': idx === 0 ? (lead.agreement?.tokenNo || '-') : '', 'Our Fees': idx === 0 ? formatCurrency(lead.payment?.ourFees) : '', 'Commission': idx === 0 ? formatCurrency(lead.payment?.commission) : '', 'Total Amount': idx === 0 ? formatCurrency(lead.payment?.totalAmount) : '', 'Payment Date': formatDate(p.paymentDate), 'Payment Amount': formatCurrency(p.paymentAmount), 'Mode': p.modeOfPayment || '-', 'Party Name': p.payerName || '-', 'Transaction No.': p.transactionNumber || '-', 'Total Received': idx === 0 ? formatCurrency(lead.payment?.totalReceivedAmount) : '', 'GRN Date': idx === 0 ? formatDate(lead.payment?.govtGrnDate) : '', 'GRN Number': idx === 0 ? (lead.payment?.grnNumber || '-') : '', 'GRN Amount': idx === 0 ? formatCurrency(lead.payment?.grnAmount) : '', 'DHC Date': idx === 0 ? formatDate(lead.payment?.dhcDate) : '', 'DHC Number': idx === 0 ? (lead.payment?.dhcNumber || '-') : '', 'DHC Amount': idx === 0 ? formatCurrency(lead.payment?.dhcAmount) : '', 'Commission Date': idx === 0 ? formatDate(lead.payment?.commissionDate) : '', 'Commission Name': idx === 0 ? (lead.payment?.commissionName || '-') : '', 'Commission Amount': idx === 0 ? formatCurrency(lead.payment?.commissionAmount) : '' }); });
+      } else { exportData.push({ 'Token Number': lead.agreement?.tokenNo || '-', 'Our Fees': formatCurrency(lead.payment?.ourFees), 'Commission': formatCurrency(lead.payment?.commission), 'Total Amount': formatCurrency(lead.payment?.totalAmount), 'Payment Date': '-', 'Payment Amount': '-', 'Mode': '-', 'Party Name': '-', 'Transaction No.': '-', 'Total Received': formatCurrency(lead.payment?.totalReceivedAmount), 'GRN Date': formatDate(lead.payment?.govtGrnDate), 'GRN Number': lead.payment?.grnNumber || '-', 'GRN Amount': formatCurrency(lead.payment?.grnAmount), 'DHC Date': formatDate(lead.payment?.dhcDate), 'DHC Number': lead.payment?.dhcNumber || '-', 'DHC Amount': formatCurrency(lead.payment?.dhcAmount), 'Commission Date': formatDate(lead.payment?.commissionDate), 'Commission Name': lead.payment?.commissionName || '-', 'Commission Amount': formatCurrency(lead.payment?.commissionAmount) }); }
+      const tenantPayments = lead.paymentDetails?.filter(p => p.clientType === 'TENANT') || [];
+      if (tenantPayments.length > 0) { tenantPayments.forEach((p) => { exportData.push({ 'Token Number': '', 'Our Fees': '', 'Commission': '', 'Total Amount': '', 'Payment Date': formatDate(p.paymentDate), 'Payment Amount': formatCurrency(p.paymentAmount), 'Mode': p.modeOfPayment || '-', 'Party Name': p.payerName || '-', 'Transaction No.': p.transactionNumber || '-', 'Total Received': '', 'GRN Date': '', 'GRN Number': '', 'GRN Amount': '', 'DHC Date': '', 'DHC Number': '', 'DHC Amount': '', 'Commission Date': '', 'Commission Name': '', 'Commission Amount': '' }); }); }
       exportData.push({});
     });
     const ws = XLSX.utils.json_to_sheet(exportData);
@@ -958,16 +1426,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   };
 
   const handleExportSingleLead = (lead: Lead) => {
-    const exportData = { 'Token Number': lead.agreement?.tokenNo || '-', 'Owner Name': `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-', 'Owner Phone': lead.agreement?.owner?.phoneNo || '-', 'Owner DOB': formatDate(lead.agreement?.owner?.dateOfBirth), 'Owner Email': lead.agreement?.owner?.email || '-', 'Owner Aadhar': lead.agreement?.owner?.aadharNumber || '-', 'Owner PAN': lead.agreement?.owner?.panNumber || '-', 'Tenant Name': `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-', 'Tenant Phone': lead.agreement?.tenant?.phoneNo || '-', 'Tenant DOB': formatDate(lead.agreement?.tenant?.dateOfBirth), 'Tenant Email': lead.agreement?.tenant?.email || '-', 'Execute Date': formatDate(lead.agreement?.executeDate), 'Agreement Start': formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate), 'Agreement End': formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate), 'Address Line 1': lead.agreement?.addressLine1 || '-', 'Address Line 2': lead.agreement?.addressLine2 || '-', 'Agreement Status': lead.agreement?.status || '-', 'Back Office Status': lead.agreement?.backOfficeStatus || '-', 'GRN Number': lead.payment?.grnNumber || '-', 'GRN Amount': formatCurrency(lead.payment?.grnAmount), 'DHC Number': lead.payment?.dhcNumber || '-', 'DHC Amount': formatCurrency(lead.payment?.dhcAmount), 'Commission Name': lead.payment?.commissionName || '-', 'Commission Amount': formatCurrency(lead.payment?.commissionAmount), 'Commission Date': formatDate(lead.payment?.commissionDate), 'Total Amount': formatCurrency(lead.payment?.totalAmount), 'Paid Amount': formatCurrency(lead.payment?.paidAmount), 'Pending Amount': formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) };
+    const exportData = { 'Token Number': lead.agreement?.tokenNo || '-', 'Owner Name': `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-', 'Owner Phone': lead.agreement?.owner?.phoneNo || '-', 'Owner DOB': formatDate(lead.agreement?.owner?.birthDate || lead.agreement?.owner?.dateOfBirth), 'Owner Email': lead.agreement?.owner?.email || '-', 'Owner Aadhar': lead.agreement?.owner?.aadharNumber || '-', 'Owner PAN': lead.agreement?.owner?.panNumber || '-', 'Tenant Name': `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-', 'Tenant Phone': lead.agreement?.tenant?.phoneNo || '-', 'Tenant DOB': formatDate(lead.agreement?.tenant?.birthDate || lead.agreement?.tenant?.dateOfBirth), 'Tenant Email': lead.agreement?.tenant?.email || '-', 'Execute Date': formatDate(lead.agreement?.executeDate), 'Agreement Start': formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate), 'Agreement End': formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate), 'Address Line 1': lead.agreement?.addressLine1 || '-', 'Address Line 2': lead.agreement?.addressLine2 || '-', 'Agreement Status': lead.agreement?.status || '-', 'Back Office Status': lead.agreement?.backOfficeStatus || '-', 'GRN Number': lead.payment?.grnNumber || '-', 'GRN Amount': formatCurrency(lead.payment?.grnAmount), 'DHC Number': lead.payment?.dhcNumber || '-', 'DHC Amount': formatCurrency(lead.payment?.dhcAmount), 'Commission Name': lead.payment?.commissionName || '-', 'Commission Amount': formatCurrency(lead.payment?.commissionAmount), 'Commission Date': formatDate(lead.payment?.commissionDate), 'Total Amount': formatCurrency(lead.payment?.totalAmount), 'Paid Amount': formatCurrency(lead.payment?.paidAmount), 'Pending Amount': formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) };
     const ws = XLSX.utils.json_to_sheet([exportData]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Lead Details');
     XLSX.writeFile(wb, `Lead_${lead.agreement?.tokenNo || lead.id}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
-  // ==================== FIXED RENDER FILTERS ====================
   const renderFilters = () => {
-    // ✅ EXECUTIVE: Only Search Option
     if (isExecutiveDashboard) {
       return (
         <div className="flex flex-col sm:flex-row gap-3 items-end">
@@ -980,8 +1446,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </div>
       );
     }
-
-    // ✅ CALLING TEAM: All Original Filters
     if (isCallingDashboard) {
       return (
         <>
@@ -1022,8 +1486,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </>
       );
     }
-
-    // ✅ ACCOUNTING TEAM - FIXED: Now shows filters for "ALL" transitLevel
     if (isAccountingDashboard) {
       return (
         <>
@@ -1047,8 +1509,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </>
       );
     }
-
-    // ✅ BACKEND TEAM
     if (isBackendDashboard) {
       return (
         <>
@@ -1076,8 +1536,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </>
       );
     }
-
-    // ✅ MARKETING TEAM
     if (isMarketingDashboard) {
       return (
         <>
@@ -1106,8 +1564,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </>
       );
     }
-
-    // Default Fallback - show nothing if no dashboard matches
     return null;
   };
 
@@ -1178,4 +1634,5 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     </div>
   );
 }
-export type { Lead, DropdownData, Column, Employee };
+
+export type { Lead, DropdownData, Column, Employee, PaymentDetail };
