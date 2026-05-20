@@ -218,6 +218,7 @@ export async function POST(request: Request) {
   }
 }
 
+// ✅ FIXED PUT HANDLER - Protects critical access fields
 export async function PUT(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -226,6 +227,29 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
+    
+    // 🔐 PROTECT CRITICAL FIELDS from non-admin modification
+    const protectedFields = [
+      'visibleToTeams', 
+      'assignedToUserId', 
+      'assignedToUserName', 
+      'transitLevel', 
+      'createdByUserId', 
+      'createdByUserName', 
+      'createdAt',
+      'forwardedHistory'
+    ];
+    
+    const isAdmin = user.roles?.includes('ADMIN') || user.roles?.includes('admin');
+    
+    if (!isAdmin) {
+      // Remove protected fields from update payload for non-admins
+      protectedFields.forEach(field => {
+        if (updateData[field] !== undefined) {
+          delete updateData[field];
+        }
+      });
+    }
     
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
