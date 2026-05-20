@@ -71,19 +71,21 @@ const columns: Column[] = [
     width: '140px', 
     render: (lead: Lead) => lead.leadStatus || '-' 
   },
-  // ✅ FIXED: Date column with fallback to multiple date fields
+  // ✅ FIXED: Date column with leadDate added to fallback chain
   { 
     key: 'date', 
     label: 'Date', 
     width: '110px', 
     render: (lead: Lead) => {
-      // Try multiple date sources in priority order
+      // Try multiple date sources in priority order (leadDate added!)
       const paymentDate = lead.paymentDetails?.[0]?.paymentDate;
       const commissionDate = lead.payment?.commissionDate;
-      const agreementDate = lead.agreement?.executeDate || lead.agreement?.agreementStartDate;
+      const agreementExecuteDate = lead.agreement?.executeDate;
+      const agreementStartDate = lead.agreement?.agreementStartDate;
+      const leadDate = lead.leadDate; // ✅ NEW: Added leadDate
       const createdDate = lead.createdDate;
       
-      const displayDate = paymentDate || commissionDate || agreementDate || createdDate;
+      const displayDate = paymentDate || commissionDate || agreementExecuteDate || agreementStartDate || leadDate || createdDate;
       return formatDate(displayDate);
     }
   },
@@ -94,25 +96,41 @@ const columns: Column[] = [
     width: '120px', 
     render: (lead: Lead) => lead.agreement?.tokenNo || '-' 
   },
+  // ✅ Amount Received Column (sums all paymentDetails)
+  { 
+    key: 'amountReceived', 
+    label: 'Amount Received', 
+    width: '130px', 
+    render: (lead: Lead) => {
+      const received = lead.paymentDetails?.reduce((sum, p) => {
+        const amount = typeof p.paymentAmount === 'string' 
+          ? parseFloat(p.paymentAmount) 
+          : p.paymentAmount || 0;
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0) || 0;
+
+      if (received === 0) return '₹ -';
+      
+      return new Intl.NumberFormat('en-IN', { 
+        style: 'currency', 
+        currency: 'INR', 
+        maximumFractionDigits: 0 
+      }).format(received);
+    }
+  },
   { 
     key: 'outstandingAmount', 
     label: 'Outstanding', 
-    width: '110px', 
-  render: (lead: Lead) => {
-  const total = Number(lead.payment?.totalAmount) || 0;
-  const commission = Number(lead.payment?.commissionAmount) || 0;
-
-  const outstanding =
-    lead.payment?.outstandingAmount ?? (total + commission);
-
-  if (isNaN(outstanding)) return '₹ -';
-
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(outstanding);
-}
+    width: '110px',
+    render: (lead: Lead) => {
+      const total = Number(lead.payment?.totalAmount) || 0;
+      const commission = Number(lead.payment?.commissionAmount) || 0;
+      const outstanding = lead.payment?.outstandingAmount ?? (total + commission);
+      if (isNaN(outstanding)) return '₹ -';
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency', currency: 'INR', maximumFractionDigits: 0,
+      }).format(outstanding);
+    }
   },
   { 
     key: 'paidAmount', 
