@@ -3,15 +3,16 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import {
-Eye, Trash2, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
-User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
-Users, IndianRupee, BadgeCheck, AlertCircle, CalendarClock, FileDown, Edit, Save,
-ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
-PhoneCall, MailOpen, Hash, CalendarRange, Timer, Tag, Link2, DollarSign, Percent,
-ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp
+  Eye, Trash2, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
+  User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
+  Users, IndianRupee, BadgeCheck, AlertCircle, CalendarClock, FileDown, Edit, Save,
+  ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
+  PhoneCall, MailOpen, Hash, CalendarRange, Timer, Tag, Link2, DollarSign, Percent,
+  ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
+
 // ==================== INTERFACES ====================
 interface PaymentDetail {
   paymentDate: string;
@@ -100,8 +101,8 @@ interface Lead {
   nextFollowUpDate?: string;
   createdDate?: string;
   createdByUserName?: string;
-  createdByUserId?: string; // ✅ FIX: Added missing property
-  createdAt?: string;       // ✅ FIX: Added missing property
+  createdByUserId?: string;
+  createdAt?: string;
   updatedByUserName?: string;
   tentativeAgreementDate?: string;
   cancellationReason?: string;
@@ -160,6 +161,7 @@ interface Column {
   width?: string;
   render?: (lead: Lead) => React.ReactNode;
 }
+
 // ==================== THEME COLORS ====================
 const THEME = {
   primary: '#00A651',
@@ -171,17 +173,21 @@ const THEME = {
   border: '#e2e8f0',
   background: '#ffffff',
 };
+
 // ==================== UTILITY FUNCTIONS ====================
 const formatDate = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
+
 const formatCurrency = (amount?: number | string): string => {
-  if (!amount) return '₹ -';
+  if (!amount) return '₹ 0';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(num || 0);
+  if (isNaN(num)) return '₹ 0';
+  return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(num);
 };
+
 const getStatusBadge = (status?: string): React.ReactNode => {
   if (!status) return <span className="text-slate-400">-</span>;
   const colors: Record<string, string> = {
@@ -195,6 +201,7 @@ const getStatusBadge = (status?: string): React.ReactNode => {
   const color = colors[status.toUpperCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
   return <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${color}`}>{status}</span>;
 };
+
 // ==================== BASE MODAL ====================
 interface BaseModalProps {
   isOpen: boolean;
@@ -207,6 +214,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
   const [isVisible, setIsVisible] = useState(isOpen);
   const [isAnimating, setIsAnimating] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (isOpen) {
       setIsVisible(true);
@@ -221,6 +229,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
   useEffect(() => {
     if (!isOpen) return;
     const handleEscape = (e: KeyboardEvent) => {
@@ -229,7 +238,9 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
     document.addEventListener('keydown', handleEscape);
     return () => document.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
+
   if (!isVisible) return null;
+
   const sizeClasses = {
     sm: 'max-w-md',
     md: 'max-w-2xl',
@@ -237,6 +248,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
     xl: 'max-w-6xl',
     full: 'max-w-[95vw] h-[95vh]',
   };
+
   return (
     <div
       className={`fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 transition-opacity duration-200 ${isAnimating ? 'opacity-100' : 'opacity-0'}`}
@@ -257,14 +269,13 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
             </button>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto p-6">
-          {children}
-        </div>
+        <div className="flex-1 overflow-y-auto p-6">{children}</div>
       </div>
     </div>
   );
 };
-// ==================== EDIT LEAD MODAL - FIXED ====================
+
+// ==================== EDIT LEAD MODAL (FIXED) ====================
 interface EditLeadModalProps {
   isOpen: boolean;
   lead: Lead | null;
@@ -276,10 +287,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'lead' | 'client' | 'payment'>('lead');
-  // Payment arrays for multiple entries
-  const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
-  const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
-  // ✅ FIX: Initialize ALL critical fields including access-control fields
+  const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([
+    { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }
+  ]);
+  const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([
+    { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }
+  ]);
+
+  // Initialize form data when lead changes
   useEffect(() => {
     if (lead) {
       setFormData({
@@ -288,6 +303,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         client: { ...lead.client },
         agreement: {
           ...lead.agreement,
+          tokenNo: lead.agreement?.tokenNo || '',
           owner: { ...lead.agreement?.owner },
           tenant: { ...lead.agreement?.tenant }
         },
@@ -310,7 +326,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         cityId: lead.cityId,
         areaId: lead.areaId,
         leadDate: lead.leadDate,
-        // 🔐 CRITICAL: Preserve access-control fields
         visibleToTeams: lead.visibleToTeams,
         transitLevel: lead.transitLevel,
         createdByUserId: lead.createdByUserId,
@@ -318,27 +333,34 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         createdAt: lead.createdAt,
         forwardedHistory: lead.forwardedHistory,
       });
-      // Initialize payment arrays from paymentDetails
+
+      // Initialize payment arrays
       if (lead.paymentDetails?.length) {
-        const ownerPmts = lead.paymentDetails.filter(p => p.clientType === 'OWNER').map(p => ({
-          paymentDate: p.paymentDate || '',
-          paymentAmount: p.paymentAmount || '',
-          modeOfPayment: p.modeOfPayment || '',
-          payerName: p.payerName || '',
-          transactionNumber: p.transactionNumber || '',
-        }));
-        const tenantPmts = lead.paymentDetails.filter(p => p.clientType === 'TENANT').map(p => ({
-          paymentDate: p.paymentDate || '',
-          paymentAmount: p.paymentAmount || '',
-          modeOfPayment: p.modeOfPayment || '',
-          payerName: p.payerName || '',
-          transactionNumber: p.transactionNumber || '',
-        }));
-        if (ownerPmts.length > 0) setOwnerPayments(ownerPmts);
-        if (tenantPmts.length > 0) setTenantPayments(tenantPmts);
+        const ownerPmts = lead.paymentDetails
+          .filter(p => p.clientType === 'OWNER')
+          .map(p => ({
+            paymentDate: p.paymentDate || '',
+            paymentAmount: p.paymentAmount || '',
+            modeOfPayment: p.modeOfPayment || '',
+            payerName: p.payerName || '',
+            transactionNumber: p.transactionNumber || '',
+          }));
+        const tenantPmts = lead.paymentDetails
+          .filter(p => p.clientType === 'TENANT')
+          .map(p => ({
+            paymentDate: p.paymentDate || '',
+            paymentAmount: p.paymentAmount || '',
+            modeOfPayment: p.modeOfPayment || '',
+            payerName: p.payerName || '',
+            transactionNumber: p.transactionNumber || '',
+          }));
+        if (ownerPmts.length) setOwnerPayments(ownerPmts);
+        if (tenantPmts.length) setTenantPayments(tenantPmts);
       }
     }
   }, [lead]);
+
+  // Generic change handler
   const handleInputChange = (section: 'client' | 'agreement' | 'payment' | 'general' | 'owner' | 'tenant', field: string, value: any) => {
     setFormData(prev => {
       if (section === 'general') return { ...prev, [field]: value };
@@ -363,6 +385,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       };
     });
   };
+
   const updateOwnerPayment = (index: number, field: keyof PaymentDetail, value: string) => {
     setOwnerPayments(prev => {
       const newArr = [...prev];
@@ -370,6 +393,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       return newArr;
     });
   };
+
   const updateTenantPayment = (index: number, field: keyof PaymentDetail, value: string) => {
     setTenantPayments(prev => {
       const newArr = [...prev];
@@ -377,29 +401,30 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       return newArr;
     });
   };
+
   const addOwnerPayment = () => {
-    setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+    setOwnerPayments(prev => [...prev, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
   };
+
   const addTenantPayment = () => {
-    setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
+    setTenantPayments(prev => [...prev, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
   };
-  // ✅ FIX: handleSubmit preserves critical access-control fields
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lead?.id) return;
     setLoading(true);
     setError(null);
     try {
-      // Combine payment arrays into paymentDetails
       const paymentDetails = [
         ...ownerPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'OWNER' as const })),
         ...tenantPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'TENANT' as const })),
       ];
-      // 🔐 Preserve critical visibility/assignment fields from original lead
+
+      // Preserve critical fields from original lead
       const updateData = {
         ...formData,
         paymentDetails,
-        // These fields control which team/employee can see the lead - MUST be preserved
         visibleToTeams: lead.visibleToTeams,
         assignedToUserId: lead.assignedToUserId,
         assignedToUserName: lead.assignedToUserName,
@@ -407,7 +432,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         createdByUserId: lead.createdByUserId,
         createdByUserName: lead.createdByUserName,
         createdAt: lead.createdAt,
-        ...(lead.forwardedHistory && { forwardedHistory: lead.forwardedHistory }),
+        forwardedHistory: lead.forwardedHistory,
       };
       await onSave(lead.id, updateData);
       onClose();
@@ -418,11 +443,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       setLoading(false);
     }
   };
+
   if (!isOpen || !lead) return null;
-  const inputClass = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651]";
+
+  const inputClass = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all";
   const labelClass = "block text-xs font-medium text-slate-500 mb-1";
   const sectionClass = "bg-slate-50 rounded-xl p-5 border border-slate-200 mb-6";
   const sectionHeaderClass = "text-base font-semibold text-slate-800 mb-4 flex items-center gap-2";
+
+  // Calculate outstanding amount
+  const totalAmount = parseFloat(formData.payment?.totalAmount?.toString() || '0');
+  const commissionAmount = parseFloat(formData.payment?.commissionAmount?.toString() || '0');
+  const outstandingAmount = totalAmount + commissionAmount;
+
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} title="Edit Lead Details" size="xl">
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -431,6 +464,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <AlertCircle className="w-4 h-4" /> {error}
           </div>
         )}
+
         {/* Tabs */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(['lead', 'client', 'payment'] as const).map(tab => (
@@ -438,23 +472,21 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               key={tab}
               type="button"
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${activeTab === tab ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                }`}
+              className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
+                activeTab === tab ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
             >
               {tab === 'lead' ? 'Lead Details' : tab === 'client' ? 'Client & Agreement' : 'Payment Details'}
             </button>
           ))}
         </div>
+
         {/* LEAD TAB */}
         {activeTab === 'lead' && (
           <div className={sectionClass}>
             <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Lead Date */}
-              <div>
-                <label className={labelClass}>Lead Date</label>
-                <input type="date" value={formData.leadDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'leadDate', e.target.value)} className={inputClass} />
-              </div>
+              <div><label className={labelClass}>Lead Date</label><input type="date" value={formData.leadDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'leadDate', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={inputClass} /></div>
               <div>
@@ -497,13 +529,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Number</label><input type="text" value={formData.referenceNumber || ''} onChange={(e) => handleInputChange('general', 'referenceNumber', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Amount</label><input type="text" value={formData.amount || ''} onChange={(e) => handleInputChange('general', 'amount', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>City</label><input type="text" value={formData.client?.cityName || formData.city?.name || ''} onChange={(e) => handleInputChange('client', 'cityName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Area</label><input type="text" value={formData.client?.areaName || formData.area?.name || ''} onChange={(e) => handleInputChange('client', 'areaName', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>City</label><input type="text" value={formData.client?.cityName || formData.city?.name || ''} className={inputClass} readOnly disabled /></div>
+              <div><label className={labelClass}>Area</label><input type="text" value={formData.client?.areaName || formData.area?.name || ''} className={inputClass} readOnly disabled /></div>
               <div><label className={labelClass}>Last FollowUp Date</label><input type="date" value={formData.lastFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'lastFollowUpDate', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Next FollowUp Date</label><input type="date" value={formData.nextFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'nextFollowUpDate', e.target.value)} className={inputClass} /></div>
             </div>
           </div>
         )}
+
         {/* CLIENT & AGREEMENT TAB */}
         {activeTab === 'client' && (
           <div className="space-y-6">
@@ -517,9 +550,13 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.owner?.phoneNo || ''} onChange={(e) => handleInputChange('owner', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.owner?.aadharNumber || ''} onChange={(e) => handleInputChange('owner', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
                 <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Birth Date</label><input type="date" value={formData.agreement?.owner?.birthDate?.split('T')[0] || formData.agreement?.owner?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('owner', 'birthDate', e.target.value)} className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Birth Date</label>
+                  <input type="date" value={formData.agreement?.owner?.birthDate?.split('T')[0] || formData.agreement?.owner?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('owner', 'birthDate', e.target.value)} className={inputClass} />
+                </div>
               </div>
             </div>
+
             {/* Tenant Section */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
@@ -530,9 +567,13 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.tenant?.phoneNo || ''} onChange={(e) => handleInputChange('tenant', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.tenant?.aadharNumber || ''} onChange={(e) => handleInputChange('tenant', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
                 <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Birth Date</label><input type="date" value={formData.agreement?.tenant?.birthDate?.split('T')[0] || formData.agreement?.tenant?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('tenant', 'birthDate', e.target.value)} className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Birth Date</label>
+                  <input type="date" value={formData.agreement?.tenant?.birthDate?.split('T')[0] || formData.agreement?.tenant?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('tenant', 'birthDate', e.target.value)} className={inputClass} />
+                </div>
               </div>
             </div>
+
             {/* Police Verification */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
@@ -543,11 +584,16 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>Relation</label><input type="text" value={formData.agreement?.pvRelation || ''} onChange={(e) => handleInputChange('agreement', 'pvRelation', e.target.value)} className={inputClass} /></div>
               </div>
             </div>
+
             {/* Agreement Details */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className={labelClass}>Token Number</label><input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} /></div>
+                {/* Token Number - CRITICAL FIX */}
+                <div>
+                  <label className={labelClass}>Token Number</label>
+                  <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
+                </div>
                 <div><label className={labelClass}>Agreement Start Date</label><input type="date" value={formData.agreement?.agreementStartDate?.split('T')[0] || formData.agreement?.startDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementStartDate', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement End Date</label><input type="date" value={formData.agreement?.agreementEndDate?.split('T')[0] || formData.agreement?.endDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementEndDate', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
@@ -572,12 +618,18 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
           </div>
         )}
+
         {/* PAYMENT TAB */}
         {activeTab === 'payment' && (
           <div className="space-y-6">
             {/* Summary */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00A651]" /> Payment Summary</h4>
+              {/* Token Number also shown here for convenience */}
+              <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
+                <label className={labelClass}>Token Number</label>
+                <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>Total Agreement Amount</label>
@@ -589,19 +641,12 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </div>
                 <div>
                   <label className={labelClass}>Outstanding Amount</label>
-                  <input
-                    type="text"
-                    value={`₹ ${(
-                      (Number(formData.payment?.totalAmount) || 0) +
-                      (Number(formData.payment?.commissionAmount) || 0)
-                    ).toFixed(2)}`}
-                    readOnly
-                    className={`${inputClass} bg-slate-50 text-red-600 font-semibold cursor-not-allowed`}
-                  />
+                  <input type="text" value={`₹ ${outstandingAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-red-600 font-semibold cursor-not-allowed`} />
                   <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
                 </div>
               </div>
             </div>
+
             {/* Owner Payments */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
@@ -626,6 +671,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <Plus className="w-4 h-4" /> Add Owner Payment
               </button>
             </div>
+
             {/* Tenant Payments */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
@@ -650,6 +696,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <Plus className="w-4 h-4" /> Add Tenant Payment
               </button>
             </div>
+
             {/* Back Work Account */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
@@ -667,6 +714,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
           </div>
         )}
+
         {/* Actions */}
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
@@ -678,7 +726,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     </BaseModal>
   );
 };
-// ==================== VIEW LEAD MODAL - FIXED ====================
+
+// ==================== VIEW LEAD MODAL (FIXED) ====================
 interface ViewLeadModalProps {
   isOpen: boolean;
   leadId: string;
@@ -694,6 +743,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
   const [activeTab, setActiveTab] = useState<'lead' | 'client' | 'payment'>('lead');
   const [isEditing, setIsEditing] = useState(false);
   const prevLeadIdRef = useRef<string>('');
+
   useEffect(() => {
     if (!isOpen || !leadId || prevLeadIdRef.current === leadId) return;
     prevLeadIdRef.current = leadId;
@@ -711,6 +761,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
     };
     fetchLead();
   }, [isOpen, leadId, apiFetch]);
+
   useEffect(() => {
     if (!isOpen) {
       const timer = setTimeout(() => {
@@ -719,6 +770,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
       return () => clearTimeout(timer);
     }
   }, [isOpen]);
+
   const handleSaveEdit = async (updatedLeadId: string, updatedData: Partial<Lead>) => {
     const res = await apiFetch(`/api/leads`, { method: 'PUT', body: JSON.stringify({ id: updatedLeadId, ...updatedData }) });
     if (!res.ok) throw new Error('Save failed');
@@ -726,33 +778,39 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
     const data = await refreshed.json();
     setLead(data);
   };
+
   if (!isOpen) return null;
+
   return (
     <>
       <BaseModal isOpen={isOpen} onClose={onClose} title="Lead Details" size="xl">
         {loading ? (
-          <div className="flex items-center justify-center py-12"><div className="flex flex-col items-center gap-3"><Loader2 className="w-8 h-8 text-[#00A651] animate-spin" /><p className="text-slate-600">Loading lead details...</p></div></div>
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 text-[#00A651] animate-spin" /><p className="ml-2">Loading lead details...</p></div>
         ) : error ? (
-          <div className="flex items-center justify-center py-12"><div className="text-center"><AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" /><p className="text-red-600 font-medium">{error}</p><button onClick={onClose} className="mt-4 px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 transition-colors">Close</button></div></div>
+          <div className="text-center py-12"><AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" /><p className="text-red-600">{error}</p><button onClick={onClose} className="mt-4 px-4 py-2 bg-slate-100 rounded-lg">Close</button></div>
         ) : !lead ? (
           <div className="text-center py-12 text-slate-500">No lead data available</div>
         ) : (
           <>
             <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
               <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
-                {[{ key: 'lead', label: 'Lead Details', icon: FileText }, { key: 'client', label: 'Client & Agreement', icon: BadgeCheck }, { key: 'payment', label: 'Payment Details', icon: CreditCard }].map((tab) => (
+                {[
+                  { key: 'lead', label: 'Lead Details', icon: FileText },
+                  { key: 'client', label: 'Client & Agreement', icon: BadgeCheck },
+                  { key: 'payment', label: 'Payment Details', icon: CreditCard }
+                ].map(tab => (
                   <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-white text-[#00A651] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
                     <tab.icon className="w-4 h-4" /> {tab.label}
                   </button>
                 ))}
               </div>
-              {/* ✅ FIX: Removed isAdmin && condition - Edit button now shows for all users with onEdit callback */}
               {onEdit && (
                 <button onClick={() => { setIsEditing(true); setActiveTab('lead'); }} className="flex items-center gap-2 px-4 py-2 bg-[#00A651] text-white rounded-lg text-sm font-medium hover:bg-[#008f44] transition-colors">
                   <Edit className="w-4 h-4" /> Edit Lead
                 </button>
               )}
             </div>
+
             {/* LEAD TAB */}
             {activeTab === 'lead' && (
               <div className="space-y-6">
@@ -804,6 +862,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                 {lead.forwardReason && !lead.forwardedHistory?.length && <InfoItem label="Forward Reason" value={lead.forwardReason} multiline />}
               </div>
             )}
+
             {/* CLIENT & AGREEMENT TAB */}
             {activeTab === 'client' && (
               <div className="space-y-6">
@@ -856,6 +915,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                 </div>
               </div>
             )}
+
             {/* PAYMENT TAB */}
             {activeTab === 'payment' && (
               <div className="space-y-6">
@@ -864,7 +924,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SummaryCard label="Total Amount" value={formatCurrency(lead.payment?.totalAmount)} />
                     <SummaryCard label="Commission" value={formatCurrency(lead.payment?.commissionAmount)} />
-                    <SummaryCard label="Outstanding" value={formatCurrency(lead.payment?.outstandingAmount ?? ((Number(lead.payment?.totalAmount) || 0) + (Number(lead.payment?.commissionAmount) || 0)))} highlight />
+                    <SummaryCard label="Outstanding" value={formatCurrency((lead.payment?.outstandingAmount ?? (Number(lead.payment?.totalAmount) + Number(lead.payment?.commissionAmount))))} highlight />
                   </div>
                 </div>
                 {/* Owner Payments */}
@@ -873,15 +933,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-200">
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Date</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Transaction No.</th>
-                          </tr>
-                        </thead>
+                        <thead><tr className="border-b border-slate-200"><th className="text-left py-2 px-3">Date</th><th className="text-left py-2 px-3">Amount</th><th className="text-left py-2 px-3">Mode</th><th className="text-left py-2 px-3">Payer</th><th className="text-left py-2 px-3">Transaction No.</th></tr></thead>
                         <tbody>
                           {lead.paymentDetails?.filter(p => p.clientType === 'OWNER').map((p, i) => (
                             <tr key={i} className="border-b border-slate-100 last:border-0">
@@ -903,15 +955,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
-                        <thead>
-                          <tr className="border-b border-slate-200">
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Date</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Amount</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Mode</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Payer</th>
-                            <th className="text-left py-2 px-3 font-medium text-slate-600">Transaction No.</th>
-                          </tr>
-                        </thead>
+                        <thead><tr className="border-b border-slate-200"><th className="text-left py-2 px-3">Date</th><th className="text-left py-2 px-3">Amount</th><th className="text-left py-2 px-3">Mode</th><th className="text-left py-2 px-3">Payer</th><th className="text-left py-2 px-3">Transaction No.</th></tr></thead>
                         <tbody>
                           {lead.paymentDetails?.filter(p => p.clientType === 'TENANT').map((p, i) => (
                             <tr key={i} className="border-b border-slate-100 last:border-0">
@@ -951,6 +995,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
     </>
   );
 };
+
 // ==================== HELPER COMPONENTS ====================
 interface InfoItemProps { label: string; value: string; icon?: React.ElementType; badge?: boolean; multiline?: boolean; }
 const InfoItem: React.FC<InfoItemProps> = ({ label, value, icon: Icon, badge, multiline }) => (
@@ -958,13 +1003,10 @@ const InfoItem: React.FC<InfoItemProps> = ({ label, value, icon: Icon, badge, mu
     <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
       {Icon && <Icon className="w-3 h-3" />}{label}
     </label>
-    {badge ? (
-      <div>{getStatusBadge(value)}</div>
-    ) : (
-      <p className={`text-sm text-slate-700 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>{value || '-'}</p>
-    )}
+    {badge ? getStatusBadge(value) : <p className={`text-sm text-slate-700 ${multiline ? 'whitespace-pre-wrap' : 'truncate'}`}>{value || '-'}</p>}
   </div>
 );
+
 interface SummaryCardProps { label: string; value: string; highlight?: boolean; }
 const SummaryCard: React.FC<SummaryCardProps> = ({ label, value, highlight }) => (
   <div className={`p-4 rounded-lg ${highlight ? 'bg-white/20' : 'bg-white/10'}`}>
@@ -972,12 +1014,25 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ label, value, highlight }) =>
     <p className={`text-xl font-bold ${highlight ? 'text-amber-200' : 'text-white'}`}>{value}</p>
   </div>
 );
+
 // ==================== CONFIRMATION MODAL ====================
 interface ConfirmationModalProps { isOpen: boolean; title: string; message: string; confirmText?: string; cancelText?: string; onConfirm: () => void; onCancel: () => void; variant?: 'default' | 'danger' | 'success'; }
 const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, message, confirmText = 'Yes', cancelText = 'No', onConfirm, onCancel, variant = 'default' }) => {
   const btnClass = variant === 'danger' ? 'bg-red-500 hover:bg-red-600' : variant === 'success' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-amber-500 hover:bg-amber-600';
-  return (<BaseModal isOpen={isOpen} onClose={onCancel}><div className="p-6 text-center"><h3 className="text-lg font-semibold text-slate-800 mb-2">{title}</h3><p className="text-slate-600 mb-6">{message}</p><div className="flex gap-3 justify-center"><button onClick={onCancel} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">{cancelText}</button><button onClick={onConfirm} className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${btnClass}`}>{confirmText}</button></div></div></BaseModal>);
+  return (
+    <BaseModal isOpen={isOpen} onClose={onCancel}>
+      <div className="p-6 text-center">
+        <h3 className="text-lg font-semibold text-slate-800 mb-2">{title}</h3>
+        <p className="text-slate-600 mb-6">{message}</p>
+        <div className="flex gap-3 justify-center">
+          <button onClick={onCancel} className="px-6 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">{cancelText}</button>
+          <button onClick={onConfirm} className={`px-6 py-2 text-white rounded-lg font-medium transition-colors ${btnClass}`}>{confirmText}</button>
+        </div>
+      </div>
+    </BaseModal>
+  );
 };
+
 // ==================== TEAM SELECTION MODAL ====================
 interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; }
 const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose }) => {
@@ -1009,6 +1064,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     { key: 'ACCOUNTING', label: 'Accounts Team', icon: '💰', color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700' },
     { key: 'MARKETING', label: 'Marketing Team', icon: '📢', color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700' },
   ];
+
   useEffect(() => {
     if (!isOpen) return;
     if (prevTeamRef.current === selectedTeam) return;
@@ -1027,11 +1083,14 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     };
     fetchEmployees();
   }, [selectedTeam, isOpen, apiFetch]);
+
   useEffect(() => { if (!isOpen) prevTeamRef.current = ''; }, [isOpen]);
+
   const handleSend = () => {
     const employeeId = assignToEmployee ? selectedEmployee : null;
     onSend(leadId, selectedTeam, employeeId, forwardReason);
   };
+
   return (
     <BaseModal isOpen={isOpen} onClose={onClose}>
       <div className="p-6">
@@ -1044,10 +1103,10 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
             </button>
           ))}
         </div>
-        <div className="mb-4"><label className="block text-sm font-medium text-slate-600 mb-2">Forward Reason *</label><select value={forwardReason} onChange={(e) => setForwardReason(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all" required>{reasonOptions.map((opt) => (<option key={opt.value} value={opt.value}>{opt.label}</option>))}</select></div>
+        <div className="mb-4"><label className="block text-sm font-medium text-slate-600 mb-2">Forward Reason *</label><select value={forwardReason} onChange={(e) => setForwardReason(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500 focus:border-transparent transition-all" required>{reasonOptions.map(opt => <option key={opt.value} value={opt.value}>{opt.label}</option>)}</select></div>
         <div className="flex items-center gap-2 mb-3 p-3 bg-slate-50 rounded-lg"><input type="checkbox" id="assignEmployee" checked={assignToEmployee} onChange={(e) => { setAssignToEmployee(e.target.checked); setSelectedEmployee(null); }} className="w-4 h-4 text-amber-500 rounded border-slate-300 focus:ring-amber-500" /><label htmlFor="assignEmployee" className="text-sm font-medium text-slate-700 flex items-center gap-2"><User className="w-4 h-4" /> Assign to specific employee</label></div>
         {assignToEmployee && (
-          <div className="mb-4"><label className="block text-sm font-medium text-slate-600 mb-2">Select Employee:</label>{loadingEmployees ? (<div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Loading employees...</div>) : employees.length === 0 ? (<p className="text-sm text-slate-400 italic">No employees found in {selectedTeam} team</p>) : (<select value={selectedEmployee || ''} onChange={(e) => setSelectedEmployee(e.target.value || null)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"><option value="">-- Select Employee --</option>{employees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.email})</option>))}</select>)}</div>
+          <div className="mb-4"><label className="block text-sm font-medium text-slate-600 mb-2">Select Employee:</label>{loadingEmployees ? (<div className="flex items-center gap-2 text-slate-500 text-sm"><Loader2 className="w-4 h-4 animate-spin" /> Loading employees...</div>) : employees.length === 0 ? (<p className="text-sm text-slate-400 italic">No employees found in {selectedTeam} team</p>) : (<select value={selectedEmployee || ''} onChange={(e) => setSelectedEmployee(e.target.value || null)} className="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"><option value="">-- Select Employee --</option>{employees.map(emp => <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} ({emp.email})</option>)}</select>)}</div>
         )}
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button onClick={onClose} className="px-5 py-2 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
@@ -1057,11 +1116,14 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     </BaseModal>
   );
 };
-// ==================== MAIN COMPONENT - FIXED ====================
+
+// ==================== MAIN LEADS TABLE COMPONENT (FIXED FILTERS) ====================
 interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; }
-export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true, }: LeadsTableProps) {
+export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
+
+  // State for leads and pagination
   const [leads, setLeads] = useState<Lead[]>([]);
   const [dropdowns, setDropdowns] = useState<DropdownData>({ cities: [], areas: [], leadStatuses: [], agreementStatuses: [], backOfficeStatuses: [], executives: [], clientTypes: [] });
   const [loading, setLoading] = useState(false);
@@ -1069,7 +1131,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [totalPages, setTotalPages] = useState(1);
   const pageSize = 20;
   const today = new Date().toISOString().split('T')[0];
-  // State Variables
+
+  // Filter states
   const [executiveSearch, setExecutiveSearch] = useState('');
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
@@ -1110,12 +1173,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [ownerDob, setOwnerDob] = useState('');
   const [tenantMobile, setTenantMobile] = useState('');
   const [tenantDob, setTenantDob] = useState('');
+
+  // Modal states
   const [viewModal, setViewModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelReason, setCancelReason] = useState('');
   const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
   const [editLead, setEditLead] = useState<Lead | null>(null);
+
+  // Role flags
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
   const isMarketingDashboard = transitLevel === 'MARKETING' || transitLevel === 'MARKETING_TEAM';
@@ -1123,6 +1190,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const isCallingDashboard = transitLevel === 'CALLING' || transitLevel === 'CALLING_TEAM';
   const isBackendDashboard = transitLevel === 'BACKEND' || transitLevel === 'BACKEND_TEAM';
   const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL';
+
+  // Fetch dropdowns and employees
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -1133,6 +1202,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       } catch (error) { console.error('Failed to fetch employees for filter:', error); }
     })();
   }, [user, apiFetch]);
+
   useEffect(() => {
     if (authLoading || !user) return;
     (async () => {
@@ -1143,6 +1213,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       } catch { console.error('Failed to fetch dropdowns'); }
     })();
   }, [authLoading, user]);
+
+  // Column definitions
   const getColumnsForDashboard = (): Column[] => {
     if (customColumns) return customColumns;
     if (isCallingDashboard) {
@@ -1198,7 +1270,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'commissionAmount', label: 'Commission Amt', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
         { key: 'grnNo', label: 'GRN No.', width: '110px', render: (lead) => lead.payment?.grnNumber || '-' },
         { key: 'dhcNo', label: 'DHC No.', width: '110px', render: (lead) => lead.payment?.dhcNumber || '-' },
-        // ✅ FIX: Edit button now available for all roles (not just admin)
         { key: 'actions', label: 'Actions', width: '100px', render: (lead) => (
           <button onClick={(e) => { e.stopPropagation(); setEditLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors">
             <Edit className="w-3.5 h-3.5" /> Edit
@@ -1234,6 +1305,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     ];
   };
   const columns = getColumnsForDashboard();
+
+  // Fetch leads with all filters - FIXED dependencies
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
     setLoading(true);
@@ -1260,9 +1333,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
         if (searchText) params.set('searchText', searchText);
       }
-      if (isExecutiveDashboard && executiveSearch) {
-        params.set('searchText', executiveSearch);
-      }
+      if (isExecutiveDashboard && executiveSearch) params.set('searchText', executiveSearch);
       if (isBackendDashboard) {
         if (ownerName) params.set('ownerName', ownerName);
         if (tenantName) params.set('tenantName', tenantName);
@@ -1304,31 +1375,62 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       const data = await res.json();
       setLeads(data?.leadPage?.content || []);
       setTotalPages(data?.leadPage?.totalPages || 1);
-    } catch {
+    } catch (error) {
+      console.error('Fetch leads error:', error);
       setLeads([]);
       setTotalPages(1);
     } finally {
       setLoading(false);
     }
   }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard]);
+
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
   const handleApplyFilters = () => setPage(0);
   const handleClearFilters = () => {
-    setFromDate(today); setToDate(today); setFilterOn('Created Date');
-    setAppointmentFromDate(''); setAppointmentToDate(''); setAppointmentLocation('');
-    setClientType(''); setAssignedEmployeeFilter(''); setSelectedStatus('');
-    setNextFollowUpFromDate(''); setNextFollowUpToDate('');
-    setLastFollowUpFromDate(''); setLastFollowUpToDate(''); setVisitCount('');
-    setSelectedCity(''); setSelectedArea(''); setAreaText('');
-    setTokenNumber(''); setSearchText(''); setExecutiveSearch('');
-    setOwnerName(''); setTenantName(''); setAgreementStatus('');
-    setBackOfficeStatus(''); setGrnNo(''); setDhcNo('');
-    setCommissionDate(''); setCommissionAmount('');
-    setClientName(''); setPhone(''); setAmount(''); setStatus(''); setPaymentDate('');
-    setExecuteDate(''); setStartDate(''); setEndDate('');
-    setOwnerMobile(''); setOwnerDob(''); setTenantMobile(''); setTenantDob('');
+    setFromDate(today);
+    setToDate(today);
+    setFilterOn('Created Date');
+    setAppointmentFromDate('');
+    setAppointmentToDate('');
+    setAppointmentLocation('');
+    setClientType('');
+    setAssignedEmployeeFilter('');
+    setSelectedStatus('');
+    setNextFollowUpFromDate('');
+    setNextFollowUpToDate('');
+    setLastFollowUpFromDate('');
+    setLastFollowUpToDate('');
+    setVisitCount('');
+    setSelectedCity('');
+    setSelectedArea('');
+    setAreaText('');
+    setTokenNumber('');
+    setSearchText('');
+    setExecutiveSearch('');
+    setOwnerName('');
+    setTenantName('');
+    setAgreementStatus('');
+    setBackOfficeStatus('');
+    setGrnNo('');
+    setDhcNo('');
+    setCommissionDate('');
+    setCommissionAmount('');
+    setClientName('');
+    setPhone('');
+    setAmount('');
+    setStatus('');
+    setPaymentDate('');
+    setExecuteDate('');
+    setStartDate('');
+    setEndDate('');
+    setOwnerMobile('');
+    setOwnerDob('');
+    setTenantMobile('');
+    setTenantDob('');
     setPage(0);
   };
+
   const handleSendToTeam = async (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => {
     try {
       await apiFetch(`/api/leads/${leadId}/assign-team`, { method: 'POST', body: JSON.stringify({ team, assignedToUserId, reason, keepVisibleToSource: true }) });
@@ -1336,6 +1438,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       fetchLeads();
     } catch { alert('Failed to forward lead. Please try again.'); } finally { setSendModal({ isOpen: false, leadId: '' }); }
   };
+
   const handleCancelLead = async () => {
     if (!cancelReason.trim()) { alert('Please provide a cancellation reason.'); return; }
     try {
@@ -1344,11 +1447,13 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       fetchLeads();
     } catch { alert('Failed to cancel lead.'); } finally { setCancelModal({ isOpen: false, leadId: '' }); setCancelReason(''); }
   };
+
   const handleSaveLeadEdit = async (leadId: string, updatedData: Partial<Lead>) => {
     const res = await apiFetch('/api/leads', { method: 'PUT', body: JSON.stringify({ id: leadId, ...updatedData }) });
     if (!res.ok) throw new Error('Save failed');
     fetchLeads();
   };
+
   const handleExportExcel = () => {
     if (leads.length === 0) return alert('No data to export.');
     const exportData: any[] = [];
@@ -1368,6 +1473,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     XLSX.utils.book_append_sheet(wb, ws, 'Accounting Report');
     XLSX.writeFile(wb, `Accounting_Report_${transitLevel}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
+
   const handleExportSingleLead = (lead: Lead) => {
     const exportData = { 'Token Number': lead.agreement?.tokenNo || '-', 'Owner Name': `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-', 'Owner Phone': lead.agreement?.owner?.phoneNo || '-', 'Owner DOB': formatDate(lead.agreement?.owner?.birthDate || lead.agreement?.owner?.dateOfBirth), 'Owner Email': lead.agreement?.owner?.email || '-', 'Owner Aadhar': lead.agreement?.owner?.aadharNumber || '-', 'Owner PAN': lead.agreement?.owner?.panNumber || '-', 'Tenant Name': `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-', 'Tenant Phone': lead.agreement?.tenant?.phoneNo || '-', 'Tenant DOB': formatDate(lead.agreement?.tenant?.birthDate || lead.agreement?.tenant?.dateOfBirth), 'Tenant Email': lead.agreement?.tenant?.email || '-', 'Execute Date': formatDate(lead.agreement?.executeDate), 'Agreement Start': formatDate(lead.agreement?.agreementStartDate || lead.agreement?.startDate), 'Agreement End': formatDate(lead.agreement?.agreementEndDate || lead.agreement?.endDate), 'Address Line 1': lead.agreement?.addressLine1 || '-', 'Address Line 2': lead.agreement?.addressLine2 || '-', 'Agreement Status': lead.agreement?.status || '-', 'Back Office Status': lead.agreement?.backOfficeStatus || '-', 'GRN Number': lead.payment?.grnNumber || '-', 'GRN Amount': formatCurrency(lead.payment?.grnAmount), 'DHC Number': lead.payment?.dhcNumber || '-', 'DHC Amount': formatCurrency(lead.payment?.dhcAmount), 'Commission Name': lead.payment?.commissionName || '-', 'Commission Amount': formatCurrency(lead.payment?.commissionAmount), 'Commission Date': formatDate(lead.payment?.commissionDate), 'Total Amount': formatCurrency(lead.payment?.totalAmount), 'Paid Amount': formatCurrency(lead.payment?.paidAmount), 'Pending Amount': formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) };
     const ws = XLSX.utils.json_to_sheet([exportData]);
@@ -1375,13 +1481,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     XLSX.utils.book_append_sheet(wb, ws, 'Lead Details');
     XLSX.writeFile(wb, `Lead_${lead.agreement?.tokenNo || lead.id}_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
+
   const renderFilters = () => {
     if (isExecutiveDashboard) {
       return (
         <div className="flex flex-col sm:flex-row gap-3 items-end">
           <div className="relative flex-1 max-w-xs">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-            <input type="text" placeholder="Search by name, phone, token..." value={executiveSearch} onChange={(e) => setExecutiveSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input type="text" placeholder="Search by name, phone, token..." value={executiveSearch} onChange={(e) => setExecutiveSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500" />
           </div>
           <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Search</button>
           <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
@@ -1392,33 +1499,34 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><div className="relative"><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" /></div></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><div className="relative"><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" /></div></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Filter On</label><select value={filterOn} onChange={(e) => setFilterOn(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option>Created Date</option><option>Updated Date</option><option>Appointment Date</option><option>Agreement Date</option></select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All Employees</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><div className="relative"><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /></div></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><div className="relative"><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /></div></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Filter On</label><select value={filterOn} onChange={(e) => setFilterOn(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option>Created Date</option><option>Updated Date</option><option>Appointment Date</option><option>Agreement Date</option></select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Employees</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment From</label><input type="date" value={appointmentFromDate} onChange={(e) => setAppointmentFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment To</label><input type="date" value={appointmentToDate} onChange={(e) => setAppointmentToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Location (Appointment)</label><input type="text" placeholder="e.g. Pune, Mumbai" value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment From</label><input type="date" value={appointmentFromDate} onChange={(e) => setAppointmentFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment To</label><input type="date" value={appointmentToDate} onChange={(e) => setAppointmentToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Location (Appointment)</label><input type="text" placeholder="e.g. Pune, Mumbai" value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label><input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label><input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label><input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp To</label><input type="date" value={nextFollowUpToDate} onChange={(e) => setNextFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp From</label><input type="date" value={lastFollowUpFromDate} onChange={(e) => setLastFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp To</label><input type="date" value={lastFollowUpToDate} onChange={(e) => setLastFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label><input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp To</label><input type="date" value={nextFollowUpToDate} onChange={(e) => setNextFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp From</label><input type="date" value={lastFollowUpFromDate} onChange={(e) => setLastFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp To</label><input type="date" value={lastFollowUpToDate} onChange={(e) => setLastFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            {[{ label: 'City', value: selectedCity, set: setSelectedCity, options: dropdowns.cities }, { label: 'Area', value: selectedArea, set: setSelectedArea, options: dropdowns.areas }].map((f) => (<div key={f.label} className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">{f.label}</label><select value={f.value} onChange={(e) => f.set(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">Select {f.label}</option>{f.options.map((opt) => <option key={opt.id} value={opt.id}>{opt.name}</option>)}</select></div>))}
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label><input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">City</label><select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select City</option>{dropdowns.cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area</label><select value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select Area</option>{dropdowns.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label><input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
-            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" /><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setPage(0)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setPage(0)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={handleApplyFilters} className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
               <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
@@ -1432,16 +1540,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Name</label><input type="text" placeholder="Search client" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Phone</label><input type="tel" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Name</label><input type="text" placeholder="Search client" value={clientName} onChange={(e) => setClientName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Phone</label><input type="tel" placeholder="Phone number" value={phone} onChange={(e) => setPhone(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</label><input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Amount</label><input type="number" placeholder="Amount" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
@@ -1455,20 +1563,20 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Search owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Search tenant" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Agreement Status</label><select value={agreementStatus} onChange={(e) => setAgreementStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Search owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Search tenant" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Agreement Status</label><select value={agreementStatus} onChange={(e) => setAgreementStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Back Office Status</label><select value={backOfficeStatus} onChange={(e) => setBackOfficeStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{dropdowns.backOfficeStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">GRN No.</label><input type="text" placeholder="GRN number" value={grnNo} onChange={(e) => setGrnNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">DHC No.</label><input type="text" placeholder="DHC number" value={dhcNo} onChange={(e) => setDhcNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Date</label><input type="date" value={commissionDate} onChange={(e) => setCommissionDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Back Office Status</label><select value={backOfficeStatus} onChange={(e) => setBackOfficeStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.backOfficeStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">GRN No.</label><input type="text" placeholder="GRN number" value={grnNo} onChange={(e) => setGrnNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">DHC No.</label><input type="text" placeholder="DHC number" value={dhcNo} onChange={(e) => setDhcNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Date</label><input type="date" value={commissionDate} onChange={(e) => setCommissionDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Amt</label><input type="number" placeholder="Amount" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"><option value="">All</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Amt</label><input type="number" placeholder="Amount" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
             <div className="col-span-1 md:col-span-2"></div>
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
@@ -1482,22 +1590,22 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token Number</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Execute Date</label><input type="date" value={executeDate} onChange={(e) => setExecuteDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token Number</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Execute Date</label><input type="date" value={executeDate} onChange={(e) => setExecuteDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Starting Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Ending Date</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number (Owner)</label><input type="tel" placeholder="Mobile number" value={ownerMobile} onChange={(e) => setOwnerMobile(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Starting Date</label><input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Ending Date</label><input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Owner name" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number (Owner)</label><input type="tel" placeholder="Mobile number" value={ownerMobile} onChange={(e) => setOwnerMobile(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Birth Date Owner</label><input type="date" value={ownerDob} onChange={(e) => setOwnerDob(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Tenant name" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number (Tenant)</label><input type="tel" placeholder="Mobile number" value={tenantMobile} onChange={(e) => setTenantMobile(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Birth Date Tenant</label><input type="date" value={tenantDob} onChange={(e) => setTenantDob(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Birth Date Owner</label><input type="date" value={ownerDob} onChange={(e) => setOwnerDob(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Tenant name" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number (Tenant)</label><input type="tel" placeholder="Mobile number" value={tenantMobile} onChange={(e) => setTenantMobile(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Birth Date Tenant</label><input type="date" value={tenantDob} onChange={(e) => setTenantDob(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
@@ -1508,17 +1616,20 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     }
     return null;
   };
+
   return (
     <div className="space-y-6 font-sans text-slate-700">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
         <div className="flex items-center gap-2 mb-4 text-slate-800 font-semibold"><Filter className="w-5 h-5 text-amber-500" /><h2 className="text-lg">Filters</h2></div>
         {renderFilters()}
       </div>
+
       {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
         </div>
       )}
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -1527,21 +1638,19 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                 {columns.map((col) => (<th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>{col.label}</th>))}
                 {!isMarketingDashboard && (<th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>)}
                 {!isMarketingDashboard && (<th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28">Actions</th>)}
-              </tr>
+               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {loading ? (<tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>) : leads.length === 0 ? (<tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>) : (
+              {loading ? (
+                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
+              ) : leads.length === 0 ? (
+                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
+              ) : (
                 leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
                     {columns.map((col) => (<td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>{col.render ? col.render(lead) : '-'}</td>))}
                     {!isMarketingDashboard && (<td className="px-4 py-3 text-slate-600 whitespace-nowrap align-middle">{lead.assignedToUserName ? (<span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200"><User className="w-3 h-3" /> {lead.assignedToUserName}</span>) : (<span className="text-slate-400 text-xs">Team Only</span>)}</td>)}
-                    {!isMarketingDashboard && (<td className="px-4 py-3 align-middle">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details"><Eye className="w-4 h-4" /></button>
-                        <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee"><Send className="w-4 h-4" /></button>
-                        <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel"><Trash2 className="w-4 h-4" /></button>
-                      </div>
-                    </td>)}
+                    {!isMarketingDashboard && (<td className="px-4 py-3 align-middle"><div className="flex items-center gap-1"><button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details"><Eye className="w-4 h-4" /></button><button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee"><Send className="w-4 h-4" /></button><button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel"><Trash2 className="w-4 h-4" /></button></div></td>)}
                   </tr>
                 ))
               )}
@@ -1558,14 +1667,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           </div>
         )}
       </div>
-      {/* ✅ FIX: Pass onEdit to all users (not just admin) */}
-      <ViewLeadModal
-        isOpen={viewModal.isOpen}
-        leadId={viewModal.leadId}
-        onClose={() => setViewModal({ isOpen: false, leadId: '' })}
-        onEdit={setEditLead}
-        isAdmin={isAdmin}
-      />
+
+      <ViewLeadModal isOpen={viewModal.isOpen} leadId={viewModal.leadId} onClose={() => setViewModal({ isOpen: false, leadId: '' })} onEdit={setEditLead} isAdmin={isAdmin} />
       <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} />
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
