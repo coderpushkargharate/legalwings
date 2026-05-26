@@ -275,7 +275,7 @@ const BaseModal: React.FC<BaseModalProps> = ({ isOpen, onClose, children, title,
   );
 };
 
-// ==================== EDIT LEAD MODAL (FIXED) ====================
+// ==================== EDIT LEAD MODAL ====================
 interface EditLeadModalProps {
   isOpen: boolean;
   lead: Lead | null;
@@ -294,7 +294,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }
   ]);
 
-  // Initialize form data when lead changes
   useEffect(() => {
     if (lead) {
       setFormData({
@@ -334,7 +333,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         forwardedHistory: lead.forwardedHistory,
       });
 
-      // Initialize payment arrays
       if (lead.paymentDetails?.length) {
         const ownerPmts = lead.paymentDetails
           .filter(p => p.clientType === 'OWNER')
@@ -360,7 +358,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     }
   }, [lead]);
 
-  // Generic change handler
   const handleInputChange = (section: 'client' | 'agreement' | 'payment' | 'general' | 'owner' | 'tenant', field: string, value: any) => {
     setFormData(prev => {
       if (section === 'general') return { ...prev, [field]: value };
@@ -421,7 +418,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         ...tenantPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'TENANT' as const })),
       ];
 
-      // Preserve critical fields from original lead
       const updateData = {
         ...formData,
         paymentDetails,
@@ -451,7 +447,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const sectionClass = "bg-slate-50 rounded-xl p-5 border border-slate-200 mb-6";
   const sectionHeaderClass = "text-base font-semibold text-slate-800 mb-4 flex items-center gap-2";
 
-  // Calculate outstanding amount
   const totalAmount = parseFloat(formData.payment?.totalAmount?.toString() || '0');
   const commissionAmount = parseFloat(formData.payment?.commissionAmount?.toString() || '0');
   const outstandingAmount = totalAmount + commissionAmount;
@@ -465,7 +460,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           </div>
         )}
 
-        {/* Tabs */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1">
           {(['lead', 'client', 'payment'] as const).map(tab => (
             <button
@@ -481,7 +475,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           ))}
         </div>
 
-        {/* LEAD TAB */}
         {activeTab === 'lead' && (
           <div className={sectionClass}>
             <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
@@ -537,10 +530,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           </div>
         )}
 
-        {/* CLIENT & AGREEMENT TAB */}
         {activeTab === 'client' && (
           <div className="space-y-6">
-            {/* Owner Section */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -557,7 +548,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
             </div>
 
-            {/* Tenant Section */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -574,7 +564,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
             </div>
 
-            {/* Police Verification */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -585,11 +574,9 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
             </div>
 
-            {/* Agreement Details */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Token Number - CRITICAL FIX */}
                 <div>
                   <label className={labelClass}>Token Number</label>
                   <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
@@ -619,13 +606,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           </div>
         )}
 
-        {/* PAYMENT TAB */}
         {activeTab === 'payment' && (
           <div className="space-y-6">
-            {/* Summary */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00A651]" /> Payment Summary</h4>
-              {/* Token Number also shown here for convenience */}
               <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
                 <label className={labelClass}>Token Number</label>
                 <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
@@ -647,7 +631,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
             </div>
 
-            {/* Owner Payments */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
               {ownerPayments.map((p, i) => (
@@ -672,7 +655,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </button>
             </div>
 
-            {/* Tenant Payments */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
               {tenantPayments.map((p, i) => (
@@ -697,7 +679,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </button>
             </div>
 
-            {/* Back Work Account */}
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -715,7 +696,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           </div>
         )}
 
-        {/* Actions */}
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
           <button type="submit" disabled={loading} className="px-5 py-2.5 bg-[#00A651] text-white rounded-lg font-medium hover:bg-[#008f44] transition-colors disabled:opacity-50 flex items-center gap-2">
@@ -727,7 +707,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   );
 };
 
-// ==================== VIEW LEAD MODAL (FIXED) ====================
+// ==================== VIEW LEAD MODAL ====================
 interface ViewLeadModalProps {
   isOpen: boolean;
   leadId: string;
@@ -811,7 +791,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
               )}
             </div>
 
-            {/* LEAD TAB */}
             {activeTab === 'lead' && (
               <div className="space-y-6">
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
@@ -863,7 +842,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
               </div>
             )}
 
-            {/* CLIENT & AGREEMENT TAB */}
             {activeTab === 'client' && (
               <div className="space-y-6">
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
@@ -916,7 +894,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
               </div>
             )}
 
-            {/* PAYMENT TAB */}
             {activeTab === 'payment' && (
               <div className="space-y-6">
                 <div className="bg-gradient-to-r from-[#00A651] to-[#008f44] rounded-xl p-5 text-white">
@@ -927,7 +904,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <SummaryCard label="Outstanding" value={formatCurrency((lead.payment?.outstandingAmount ?? (Number(lead.payment?.totalAmount) + Number(lead.payment?.commissionAmount))))} highlight />
                   </div>
                 </div>
-                {/* Owner Payments */}
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
                   {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
@@ -949,7 +925,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     </div>
                   ) : <p className="text-slate-500 text-sm">No owner payments recorded</p>}
                 </div>
-                {/* Tenant Payments */}
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
                   {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
@@ -971,7 +946,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     </div>
                   ) : <p className="text-slate-500 text-sm">No tenant payments recorded</p>}
                 </div>
-                {/* Back Work Account */}
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1117,13 +1091,12 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
   );
 };
 
-// ==================== MAIN LEADS TABLE COMPONENT (FIXED FILTERS) ====================
+// ==================== MAIN LEADS TABLE COMPONENT (WITH STICKY ACTIONS & FIXED FILTERS) ====================
 interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; }
 export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
 
-  // State for leads and pagination
   const [leads, setLeads] = useState<Lead[]>([]);
   const [dropdowns, setDropdowns] = useState<DropdownData>({ cities: [], areas: [], leadStatuses: [], agreementStatuses: [], backOfficeStatuses: [], executives: [], clientTypes: [] });
   const [loading, setLoading] = useState(false);
@@ -1174,7 +1147,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [tenantMobile, setTenantMobile] = useState('');
   const [tenantDob, setTenantDob] = useState('');
 
-  // Modal states
   const [viewModal, setViewModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [sendModal, setSendModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; leadId: string }>({ isOpen: false, leadId: '' });
@@ -1182,7 +1154,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
   const [editLead, setEditLead] = useState<Lead | null>(null);
 
-  // Role flags
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
   const isMarketingDashboard = transitLevel === 'MARKETING' || transitLevel === 'MARKETING_TEAM';
@@ -1191,7 +1162,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const isBackendDashboard = transitLevel === 'BACKEND' || transitLevel === 'BACKEND_TEAM';
   const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL';
 
-  // Fetch dropdowns and employees
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -1214,7 +1184,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     })();
   }, [authLoading, user]);
 
-  // Column definitions
   const getColumnsForDashboard = (): Column[] => {
     if (customColumns) return customColumns;
     if (isCallingDashboard) {
@@ -1306,7 +1275,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   };
   const columns = getColumnsForDashboard();
 
-  // Fetch leads with all filters - FIXED dependencies
+  // Fetch leads with all filters – including the missing filterOn parameter
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
     setLoading(true);
@@ -1315,7 +1284,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       if (isCallingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
-        if (filterOn) params.set('filterOn', filterOn);
+        if (filterOn) params.set('filterOn', filterOn);          // <-- FIXED: was missing
         if (appointmentFromDate) params.set('appointmentFromDate', appointmentFromDate);
         if (appointmentToDate) params.set('appointmentToDate', appointmentToDate);
         if (appointmentLocation) params.set('appointmentLocation', appointmentLocation);
@@ -1617,6 +1586,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     return null;
   };
 
+  const shouldShowExtraColumns = !isMarketingDashboard;
+
   return (
     <div className="space-y-6 font-sans text-slate-700">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -1631,26 +1602,62 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       )}
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto relative">
           <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                {columns.map((col) => (<th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>{col.label}</th>))}
-                {!isMarketingDashboard && (<th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>)}
-                {!isMarketingDashboard && (<th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28">Actions</th>)}
-               </tr>
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                {columns.map((col) => (
+                  <th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>
+                    {col.label}
+                  </th>
+                ))}
+                {shouldShowExtraColumns && (
+                  <>
+                    <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>
+                    <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28 sticky right-0 bg-slate-50 z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">Actions</th>
+                  </>
+                )}
+              </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
+                <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
               ) : leads.length === 0 ? (
-                <tr><td colSpan={columns.length + (isMarketingDashboard ? 0 : 2)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
+                <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
                 leads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
-                    {columns.map((col) => (<td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>{col.render ? col.render(lead) : '-'}</td>))}
-                    {!isMarketingDashboard && (<td className="px-4 py-3 text-slate-600 whitespace-nowrap align-middle">{lead.assignedToUserName ? (<span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200"><User className="w-3 h-3" /> {lead.assignedToUserName}</span>) : (<span className="text-slate-400 text-xs">Team Only</span>)}</td>)}
-                    {!isMarketingDashboard && (<td className="px-4 py-3 align-middle"><div className="flex items-center gap-1"><button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details"><Eye className="w-4 h-4" /></button><button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee"><Send className="w-4 h-4" /></button><button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel"><Trash2 className="w-4 h-4" /></button></div></td>)}
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
+                        {col.render ? col.render(lead) : '-'}
+                      </td>
+                    ))}
+                    {shouldShowExtraColumns && (
+                      <>
+                        <td className="px-4 py-3 text-slate-600 whitespace-nowrap align-middle">
+                          {lead.assignedToUserName ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded-full text-xs border border-blue-200">
+                              <User className="w-3 h-3" /> {lead.assignedToUserName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">Team Only</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 align-middle whitespace-nowrap sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details">
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee">
+                              <Send className="w-4 h-4" />
+                            </button>
+                            <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel">
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </>
+                    )}
                   </tr>
                 ))
               )}
