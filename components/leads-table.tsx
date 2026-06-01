@@ -690,6 +690,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>DHC Date</label><input type="date" value={formData.payment?.dhcDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'dhcDate', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Date</label><input type="date" value={formData.payment?.commissionDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'commissionDate', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Commission Amount</label><input type="text" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                 <div className="md:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
               </div>
             </div>
@@ -957,6 +958,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="DHC Date" value={formatDate(lead.payment?.dhcDate)} icon={CalendarDays} />
                     <InfoItem label="Commission Date" value={formatDate(lead.payment?.commissionDate)} icon={CalendarDays} />
                     <InfoItem label="Commission Name" value={lead.payment?.commissionName || '-'} />
+                    <InfoItem label="Commission Amount" value={formatCurrency(lead.payment?.commissionAmount)} />
                     <InfoItem label="Description" value={lead.payment?.description || '-'} multiline />
                   </div>
                 </div>
