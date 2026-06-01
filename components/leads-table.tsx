@@ -714,9 +714,10 @@ interface ViewLeadModalProps {
   leadId: string;
   onClose: () => void;
   onEdit?: (lead: Lead) => void;
+  onLeadUpdated?: (updatedLead: Lead) => void;
   isAdmin?: boolean;
 }
-const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, isAdmin = false }) => {
+const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, onLeadUpdated, isAdmin = false }) => {
   const { apiFetch } = useApi();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -752,12 +753,15 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
     }
   }, [isOpen]);
 
+  // ✅ FIX: After saving from ViewLeadModal, update local state AND notify parent
   const handleSaveEdit = async (updatedLeadId: string, updatedData: Partial<Lead>) => {
     const res = await apiFetch(`/api/leads`, { method: 'PUT', body: JSON.stringify({ id: updatedLeadId, ...updatedData }) });
     if (!res.ok) throw new Error('Save failed');
     const refreshed = await apiFetch(`/api/leads?id=${updatedLeadId}`);
     const data = await refreshed.json();
     setLead(data);
+    // Notify parent to update its local leads array
+    if (onLeadUpdated) onLeadUpdated(data);
   };
 
   if (!isOpen) return null;
@@ -1093,7 +1097,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
   );
 };
 
-// ==================== MAIN LEADS TABLE COMPONENT (WITH STICKY ACTIONS & FIXED FILTERS) ====================
+// ==================== MAIN LEADS TABLE COMPONENT ====================
 interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; }
 export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true }: LeadsTableProps) {
   const { apiFetch } = useApi();
@@ -1277,7 +1281,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   };
   const columns = getColumnsForDashboard();
 
-  // Fetch leads with all filters – including the missing filterOn parameter
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
     setLoading(true);
@@ -1286,7 +1289,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       if (isCallingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
         if (toDate) params.set('toDate', toDate);
-        if (filterOn) params.set('filterOn', filterOn);          // <-- FIXED: was missing
+        if (filterOn) params.set('filterOn', filterOn);
         if (appointmentFromDate) params.set('appointmentFromDate', appointmentFromDate);
         if (appointmentToDate) params.set('appointmentToDate', appointmentToDate);
         if (appointmentLocation) params.set('appointmentLocation', appointmentLocation);
@@ -1419,10 +1422,26 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } catch { alert('Failed to cancel lead.'); } finally { setCancelModal({ isOpen: false, leadId: '' }); setCancelReason(''); }
   };
 
+  // ✅ KEY FIX: Update lead in local state instead of refetching the entire list.
+  // This prevents leads from disappearing when date filters are active and a lead's
+  // date doesn't match the current filter range after saving.
   const handleSaveLeadEdit = async (leadId: string, updatedData: Partial<Lead>) => {
     const res = await apiFetch('/api/leads', { method: 'PUT', body: JSON.stringify({ id: leadId, ...updatedData }) });
     if (!res.ok) throw new Error('Save failed');
-    fetchLeads();
+    // Fetch only the updated lead and patch it into local state
+    const refreshed = await apiFetch(`/api/leads?id=${leadId}`);
+    if (refreshed.ok) {
+      const updatedLead = await refreshed.json();
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...updatedLead, id: leadId } : l));
+    } else {
+      // Fallback: patch with what we sent if re-fetch fails
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, ...updatedData } : l));
+    }
+  };
+
+  // ✅ Handler for when ViewLeadModal's internal edit saves successfully
+  const handleLeadUpdatedFromView = (updatedLead: Lead) => {
+    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
   };
 
   const handleExportExcel = () => {
@@ -1677,7 +1696,15 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         )}
       </div>
 
-      <ViewLeadModal isOpen={viewModal.isOpen} leadId={viewModal.leadId} onClose={() => setViewModal({ isOpen: false, leadId: '' })} onEdit={setEditLead} isAdmin={isAdmin} />
+      {/* View modal now receives onLeadUpdated to patch local state */}
+      <ViewLeadModal
+        isOpen={viewModal.isOpen}
+        leadId={viewModal.leadId}
+        onClose={() => setViewModal({ isOpen: false, leadId: '' })}
+        onEdit={setEditLead}
+        onLeadUpdated={handleLeadUpdatedFromView}
+        isAdmin={isAdmin}
+      />
       <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} />
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
@@ -1690,7 +1717,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           </div>
         </div>
       </BaseModal>
-      {editLead && (<EditLeadModal isOpen={!!editLead} lead={editLead} onClose={() => setEditLead(null)} onSave={handleSaveLeadEdit} />)}
+
+      {/* Direct edit from accounting dashboard rows */}
+      {editLead && (
+        <EditLeadModal
+          isOpen={!!editLead}
+          lead={editLead}
+          onClose={() => setEditLead(null)}
+          onSave={handleSaveLeadEdit}
+        />
+      )}
     </div>
   );
 }
