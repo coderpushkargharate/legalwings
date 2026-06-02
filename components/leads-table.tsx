@@ -1669,6 +1669,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                             <button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details">
                               <Eye className="w-4 h-4" />
                             </button>
+                            <button onClick={() => setEditLead(lead)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Edit Lead">
+                              <Edit className="w-4 h-4" />
+                            </button>
                             <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee">
                               <Send className="w-4 h-4" />
                             </button>

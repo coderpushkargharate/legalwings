@@ -1,0 +1,132 @@
+- generic [active] [ref=e1]:
+  - alert [ref=e2]
+  - generic [ref=e799]:
+    - generic [ref=e800]:
+      - generic [ref=e801]:
+        - generic [ref=e802]:
+          - img "LegalWings Logo" [ref=e803]
+          - generic [ref=e804]:
+            - heading "LegalWing" [level=2] [ref=e805]
+            - paragraph [ref=e806]: CRM System
+        - navigation [ref=e807]:
+          - link "Dashboard" [ref=e808] [cursor=pointer]:
+            - /url: /
+            - img [ref=e809]
+            - generic [ref=e814]: Dashboard
+          - link "Calling Team" [ref=e815] [cursor=pointer]:
+            - /url: /calling-team
+            - img [ref=e816]
+            - generic [ref=e818]: Calling Team
+          - link "Executive Team" [ref=e819] [cursor=pointer]:
+            - /url: /executive-team
+            - img [ref=e820]
+            - generic [ref=e824]: Executive Team
+          - link "Backend Team" [ref=e825] [cursor=pointer]:
+            - /url: /backend-team
+            - img [ref=e826]
+            - generic [ref=e829]: Backend Team
+          - link "Account Team" [ref=e830] [cursor=pointer]:
+            - /url: /account-team
+            - img [ref=e831]
+            - generic [ref=e833]: Account Team
+          - link "Marketing Team" [ref=e834] [cursor=pointer]:
+            - /url: /marketing-team
+            - img [ref=e835]
+            - generic [ref=e838]: Marketing Team
+          - link "Employees" [ref=e839] [cursor=pointer]:
+            - /url: /employees
+            - img [ref=e840]
+            - generic [ref=e845]: Employees
+          - generic [ref=e846]:
+            - paragraph [ref=e848]: Management
+            - button "Data Management" [ref=e849] [cursor=pointer]:
+              - img [ref=e850]
+              - generic [ref=e854]: Data Management
+              - img [ref=e855]
+        - generic [ref=e857]:
+          - generic [ref=e858]:
+            - generic [ref=e859]: PG
+            - generic [ref=e860]:
+              - paragraph [ref=e861]: Pushkar Gharate
+              - paragraph [ref=e862]: pushkargharate3011@gmail.com
+          - button "Logout" [ref=e863] [cursor=pointer]:
+            - generic [ref=e864]: Logout
+      - button "Collapse sidebar" [ref=e865] [cursor=pointer]:
+        - img [ref=e866]
+    - main [ref=e868]:
+      - generic [ref=e869]:
+        - generic [ref=e870]:
+          - heading "Dashboard" [level=1] [ref=e872]
+          - generic [ref=e873]:
+            - generic [ref=e874]:
+              - img [ref=e875]
+              - textbox "Search..." [ref=e878]
+            - button [ref=e879] [cursor=pointer]:
+              - img [ref=e880]
+            - generic [ref=e884]:
+              - button "PG" [ref=e885] [cursor=pointer]
+              - generic [ref=e886]:
+                - paragraph [ref=e887]: Pushkar Gharate
+                - paragraph [ref=e888]: admin
+        - generic [ref=e889]:
+          - generic [ref=e890]:
+            - heading "Welcome back, Pushkar" [level=2] [ref=e891]
+            - paragraph [ref=e892]: Here is what is happening with your CRM today.
+          - generic [ref=e893]:
+            - generic [ref=e894]:
+              - generic [ref=e895]:
+                - generic [ref=e896]: Total Leads
+                - img [ref=e898]
+              - paragraph [ref=e901]: "56"
+            - generic [ref=e902]:
+              - generic [ref=e903]:
+                - generic [ref=e904]: Total Clients
+                - img [ref=e906]
+              - paragraph [ref=e911]: "1"
+            - generic [ref=e912]:
+              - generic [ref=e913]:
+                - generic [ref=e914]: Agreements
+                - img [ref=e916]
+              - paragraph [ref=e919]: "0"
+            - generic [ref=e920]:
+              - generic [ref=e921]:
+                - generic [ref=e922]: New Today
+                - img [ref=e924]
+              - paragraph [ref=e927]: "0"
+          - heading "Your Teams" [level=3] [ref=e928]
+          - generic [ref=e929]:
+            - link "Calling Team Manage incoming leads and calls" [ref=e930] [cursor=pointer]:
+              - /url: /calling-team
+              - generic [ref=e931]:
+                - img [ref=e933]
+                - img [ref=e935]
+              - heading "Calling Team" [level=4] [ref=e938]
+              - paragraph [ref=e939]: Manage incoming leads and calls
+            - link "Executive Team Handle executive appointments" [ref=e940] [cursor=pointer]:
+              - /url: /executive-team
+              - generic [ref=e941]:
+                - img [ref=e943]
+                - img [ref=e947]
+              - heading "Executive Team" [level=4] [ref=e950]
+              - paragraph [ref=e951]: Handle executive appointments
+            - link "Backend Team Process agreements and documents" [ref=e952] [cursor=pointer]:
+              - /url: /backend-team
+              - generic [ref=e953]:
+                - img [ref=e955]
+                - img [ref=e958]
+              - heading "Backend Team" [level=4] [ref=e961]
+              - paragraph [ref=e962]: Process agreements and documents
+            - link "Account Team Track payments and commissions" [ref=e963] [cursor=pointer]:
+              - /url: /account-team
+              - generic [ref=e964]:
+                - img [ref=e966]
+                - img [ref=e968]
+              - heading "Account Team" [level=4] [ref=e971]
+              - paragraph [ref=e972]: Track payments and commissions
+            - link "Marketing Team Marketing campaigns and analytics" [ref=e973] [cursor=pointer]:
+              - /url: /marketing-team
+              - generic [ref=e974]:
+                - img [ref=e976]
+                - img [ref=e979]
+              - heading "Marketing Team" [level=4] [ref=e982]
+              - paragraph [ref=e983]: Marketing campaigns and analytics

@@ -1,0 +1,728 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e6]:
+      - generic [ref=e7]:
+        - generic [ref=e8]:
+          - img "LegalWings Logo" [ref=e9]
+          - generic [ref=e10]:
+            - heading "LegalWing" [level=2] [ref=e11]
+            - paragraph [ref=e12]: CRM System
+        - navigation [ref=e13]:
+          - link "Dashboard" [ref=e14] [cursor=pointer]:
+            - /url: /
+            - img [ref=e15]
+            - generic [ref=e20]: Dashboard
+          - link "Calling Team" [ref=e21] [cursor=pointer]:
+            - /url: /calling-team
+            - img [ref=e22]
+            - generic [ref=e24]: Calling Team
+          - link "Executive Team" [ref=e25] [cursor=pointer]:
+            - /url: /executive-team
+            - img [ref=e26]
+            - generic [ref=e30]: Executive Team
+          - link "Backend Team" [ref=e31] [cursor=pointer]:
+            - /url: /backend-team
+            - img [ref=e32]
+            - generic [ref=e35]: Backend Team
+          - link "Account Team" [ref=e36] [cursor=pointer]:
+            - /url: /account-team
+            - img [ref=e37]
+            - generic [ref=e39]: Account Team
+          - link "Marketing Team" [ref=e40] [cursor=pointer]:
+            - /url: /marketing-team
+            - img [ref=e41]
+            - generic [ref=e44]: Marketing Team
+          - link "Employees" [ref=e45] [cursor=pointer]:
+            - /url: /employees
+            - img [ref=e46]
+            - generic [ref=e51]: Employees
+          - generic [ref=e52]:
+            - paragraph [ref=e54]: Management
+            - button "Data Management" [ref=e55] [cursor=pointer]:
+              - img [ref=e56]
+              - generic [ref=e60]: Data Management
+              - img [ref=e61]
+        - generic [ref=e63]:
+          - generic [ref=e64]:
+            - generic [ref=e65]: PG
+            - generic [ref=e66]:
+              - paragraph [ref=e67]: Pushkar Gharate
+              - paragraph [ref=e68]: pushkargharate3011@gmail.com
+          - button "Logout" [ref=e69] [cursor=pointer]:
+            - generic [ref=e70]: Logout
+      - button "Collapse sidebar" [ref=e71] [cursor=pointer]:
+        - img [ref=e72]
+    - main [ref=e74]:
+      - generic [ref=e75]:
+        - generic [ref=e76]:
+          - heading "Calling Team" [level=1] [ref=e78]
+          - generic [ref=e79]:
+            - generic [ref=e80]:
+              - img [ref=e81]
+              - textbox "Search..." [ref=e84]
+            - button [ref=e85] [cursor=pointer]:
+              - img [ref=e86]
+            - generic [ref=e90]:
+              - button "PG" [ref=e91] [cursor=pointer]
+              - generic [ref=e92]:
+                - paragraph [ref=e93]: Pushkar Gharate
+                - paragraph [ref=e94]: admin
+        - generic [ref=e96]:
+          - generic [ref=e97]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - heading "Filters" [level=2] [ref=e101]
+            - generic [ref=e102]:
+              - generic [ref=e103]:
+                - generic [ref=e104]: From Date
+                - generic [ref=e105]:
+                  - textbox [ref=e106]: 2026-06-02
+                  - img [ref=e107]
+              - generic [ref=e109]:
+                - generic [ref=e110]: To Date
+                - generic [ref=e111]:
+                  - textbox [ref=e112]: 2026-06-02
+                  - img [ref=e113]
+              - generic [ref=e115]:
+                - generic [ref=e116]: Filter On
+                - combobox [ref=e117]:
+                  - option "Created Date" [selected]
+                  - option "Updated Date"
+                  - option "Appointment Date"
+                  - option "Agreement Date"
+              - generic [ref=e118]:
+                - generic [ref=e119]: Assigned To
+                - combobox [ref=e120]:
+                  - option "All Employees" [selected]
+                  - option "Aniket Atole"
+                  - option "Legalwing Yogita"
+                  - option "Mayur Maval"
+                  - option "Pushkar Gharate"
+                  - option "Shubham Kale"
+                  - option "Tejas Adhav"
+                  - option "Vaibhavi Konde"
+                  - option "Yash Dhanve"
+            - generic [ref=e121]:
+              - generic [ref=e122]:
+                - generic [ref=e123]: Appointment From
+                - textbox [ref=e124]
+              - generic [ref=e125]:
+                - generic [ref=e126]: Appointment To
+                - textbox [ref=e127]
+              - generic [ref=e128]:
+                - generic [ref=e129]: Location (Appointment)
+                - textbox "e.g. Pune, Mumbai" [ref=e130]
+            - generic [ref=e131]:
+              - generic [ref=e132]:
+                - generic [ref=e133]: Client Type
+                - combobox [ref=e134]:
+                  - option "All" [selected]
+                  - option "Owner"
+                  - option "Tenant"
+                  - option "Agent"
+              - generic [ref=e135]:
+                - generic [ref=e136]: Lead Status
+                - combobox [ref=e137]:
+                  - option "All Status" [selected]
+                  - option "New Lead"
+                  - option "Interested"
+                  - option "Not Interested"
+                  - option "Call Not Received"
+                  - option "1st Follow-up"
+                  - option "2nd Follow Up"
+                  - option "3rd Follow Up"
+                  - option "Documents Received"
+                  - option "Create Draft"
+                  - option "Draft Confirm Pending"
+                  - option "Draft Confirm"
+                  - option "Booking Appointment"
+                  - option "Assigned Appointment"
+                  - option "Cancel Appointment"
+                  - option "Postpone Appointment"
+                  - option "Lost"
+              - generic [ref=e138]:
+                - generic [ref=e139]: Visit Count
+                - spinbutton [ref=e140]
+            - generic [ref=e141]:
+              - generic [ref=e142]:
+                - generic [ref=e143]: Next FollowUp From
+                - textbox [ref=e144]
+              - generic [ref=e145]:
+                - generic [ref=e146]: Next FollowUp To
+                - textbox [ref=e147]
+              - generic [ref=e148]:
+                - generic [ref=e149]: Last FollowUp From
+                - textbox [ref=e150]
+              - generic [ref=e151]:
+                - generic [ref=e152]: Last FollowUp To
+                - textbox [ref=e153]
+            - generic [ref=e154]:
+              - generic [ref=e155]:
+                - generic [ref=e156]: City
+                - combobox [ref=e157]:
+                  - option "Select City" [selected]
+                  - option "Bangalore"
+                  - option "Delhi"
+                  - option "Hyderabad"
+                  - option "Mumbai"
+                  - option "Pune"
+              - generic [ref=e158]:
+                - generic [ref=e159]: Area
+                - combobox [ref=e160]:
+                  - option "Select Area" [selected]
+                  - option "Andheri"
+                  - option "Bandra"
+                  - option "Baner"
+                  - option "Borivali"
+                  - option "Dadar"
+                  - option "Hinjewadi"
+                  - option "Kothrud"
+                  - option "Shivajinagar"
+              - generic [ref=e161]:
+                - generic [ref=e162]: Area (Text)
+                - textbox "e.g. Sector 45" [ref=e163]
+            - generic [ref=e164]:
+              - generic [ref=e165]:
+                - img [ref=e166]
+                - textbox "Search by name, phone, token..." [ref=e169]
+              - generic [ref=e170]:
+                - button "Apply Filters" [ref=e171] [cursor=pointer]
+                - button "Clear" [active] [ref=e172] [cursor=pointer]
+                - button "Export" [ref=e173] [cursor=pointer]:
+                  - img [ref=e174]
+                  - text: Export
+          - link "Add New Lead" [ref=e178] [cursor=pointer]:
+            - /url: /leads/new?transitLevel=CALLING_TEAM
+            - img [ref=e179]
+            - text: Add New Lead
+          - generic [ref=e180]:
+            - table [ref=e182]:
+              - rowgroup [ref=e183]:
+                - row "Lead Date Name Phone Last Follow Up Next Follow Up Status Appointment Visit Location Client Type Visit Count Created By Assigned To Assigned To Actions" [ref=e184]:
+                  - columnheader "Lead Date" [ref=e185]
+                  - columnheader "Name" [ref=e186]
+                  - columnheader "Phone" [ref=e187]
+                  - columnheader "Last Follow Up" [ref=e188]
+                  - columnheader "Next Follow Up" [ref=e189]
+                  - columnheader "Status" [ref=e190]
+                  - columnheader "Appointment" [ref=e191]
+                  - columnheader "Visit Location" [ref=e192]
+                  - columnheader "Client Type" [ref=e193]
+                  - columnheader "Visit Count" [ref=e194]
+                  - columnheader "Created By" [ref=e195]
+                  - columnheader "Assigned To" [ref=e196]
+                  - columnheader "Assigned To" [ref=e197]
+                  - columnheader "Actions" [ref=e198]
+              - rowgroup [ref=e199]:
+                - row "26/5/2026 Purva Phadke (RE Kiran Chavan) 9730027607 - - BOOKING_APPOINTMENT 27/5/2026, 12:00:00 am Gloria, Bavdhan AGENT 0 Akshay Gonate Legalwing Yogita Legalwing Yogita" [ref=e206]:
+                  - cell "26/5/2026" [ref=e207]
+                  - cell "Purva Phadke (RE Kiran Chavan)" [ref=e208]
+                  - cell "9730027607" [ref=e209]
+                  - cell "-" [ref=e210]
+                  - cell "-" [ref=e211]
+                  - cell "BOOKING_APPOINTMENT" [ref=e212]
+                  - cell "27/5/2026, 12:00:00 am" [ref=e213]
+                  - cell "Gloria, Bavdhan" [ref=e214]
+                  - cell "AGENT" [ref=e215]
+                  - cell "0" [ref=e216]
+                  - cell "Akshay Gonate" [ref=e217]
+                  - cell "Legalwing Yogita" [ref=e218]
+                  - cell "Legalwing Yogita" [ref=e219]:
+                    - generic [ref=e220]:
+                      - img [ref=e221]
+                      - text: Legalwing Yogita
+                  - cell [ref=e224]:
+                    - generic [ref=e225]:
+                      - button "View Complete Lead Details" [ref=e226] [cursor=pointer]:
+                        - img [ref=e227]
+                      - button "Edit Lead" [ref=e230] [cursor=pointer]:
+                        - img [ref=e231]
+                      - button "Forward to Team/Employee" [ref=e234] [cursor=pointer]:
+                        - img [ref=e235]
+                      - button "Cancel" [ref=e238] [cursor=pointer]:
+                        - img [ref=e239]
+                - row "26/5/2026 RE Amit Lavar 9657058520 - - BOOKING_APPOINTMENT 27/5/2026, 12:00:00 am Kothrud AGENT 0 Akshay Gonate Tejas Adhav Tejas Adhav" [ref=e242]:
+                  - cell "26/5/2026" [ref=e243]
+                  - cell "RE Amit Lavar" [ref=e244]
+                  - cell "9657058520" [ref=e245]
+                  - cell "-" [ref=e246]
+                  - cell "-" [ref=e247]
+                  - cell "BOOKING_APPOINTMENT" [ref=e248]
+                  - cell "27/5/2026, 12:00:00 am" [ref=e249]
+                  - cell "Kothrud" [ref=e250]
+                  - cell "AGENT" [ref=e251]
+                  - cell "0" [ref=e252]
+                  - cell "Akshay Gonate" [ref=e253]
+                  - cell "Tejas Adhav" [ref=e254]
+                  - cell "Tejas Adhav" [ref=e255]:
+                    - generic [ref=e256]:
+                      - img [ref=e257]
+                      - text: Tejas Adhav
+                  - cell [ref=e260]:
+                    - generic [ref=e261]:
+                      - button "View Complete Lead Details" [ref=e262] [cursor=pointer]:
+                        - img [ref=e263]
+                      - button "Edit Lead" [ref=e266] [cursor=pointer]:
+                        - img [ref=e267]
+                      - button "Forward to Team/Employee" [ref=e270] [cursor=pointer]:
+                        - img [ref=e271]
+                      - button "Cancel" [ref=e274] [cursor=pointer]:
+                        - img [ref=e275]
+                - row "26/5/2026 RE Rahul Khade 9822331949 - - BOOKING_APPOINTMENT 27/5/2026, 11:30:00 am Balaji Properties, Kothrud AGENT 0 Akshay Gonate Vaibhavi Konde Vaibhavi Konde" [ref=e278]:
+                  - cell "26/5/2026" [ref=e279]
+                  - cell "RE Rahul Khade" [ref=e280]
+                  - cell "9822331949" [ref=e281]
+                  - cell "-" [ref=e282]
+                  - cell "-" [ref=e283]
+                  - cell "BOOKING_APPOINTMENT" [ref=e284]
+                  - cell "27/5/2026, 11:30:00 am" [ref=e285]
+                  - cell "Balaji Properties, Kothrud" [ref=e286]
+                  - cell "AGENT" [ref=e287]
+                  - cell "0" [ref=e288]
+                  - cell "Akshay Gonate" [ref=e289]
+                  - cell "Vaibhavi Konde" [ref=e290]
+                  - cell "Vaibhavi Konde" [ref=e291]:
+                    - generic [ref=e292]:
+                      - img [ref=e293]
+                      - text: Vaibhavi Konde
+                  - cell [ref=e296]:
+                    - generic [ref=e297]:
+                      - button "View Complete Lead Details" [ref=e298] [cursor=pointer]:
+                        - img [ref=e299]
+                      - button "Edit Lead" [ref=e302] [cursor=pointer]:
+                        - img [ref=e303]
+                      - button "Forward to Team/Employee" [ref=e306] [cursor=pointer]:
+                        - img [ref=e307]
+                      - button "Cancel" [ref=e310] [cursor=pointer]:
+                        - img [ref=e311]
+                - row "26/5/2026 ASP 24k Signature Online Services 9689814093 - - BOOKING_APPOINTMENT 27/5/2026, 11:00:00 am 503, elite galaxy Ramnagar colony Bavdhan AGENT 0 Akshay Gonate Mayur Maval Mayur Maval" [ref=e314]:
+                  - cell "26/5/2026" [ref=e315]
+                  - cell "ASP 24k Signature Online Services" [ref=e316]
+                  - cell "9689814093" [ref=e317]
+                  - cell "-" [ref=e318]
+                  - cell "-" [ref=e319]
+                  - cell "BOOKING_APPOINTMENT" [ref=e320]
+                  - cell "27/5/2026, 11:00:00 am" [ref=e321]
+                  - cell "503, elite galaxy Ramnagar colony Bavdhan" [ref=e322]
+                  - cell "AGENT" [ref=e323]
+                  - cell "0" [ref=e324]
+                  - cell "Akshay Gonate" [ref=e325]
+                  - cell "Mayur Maval" [ref=e326]
+                  - cell "Mayur Maval" [ref=e327]:
+                    - generic [ref=e328]:
+                      - img [ref=e329]
+                      - text: Mayur Maval
+                  - cell [ref=e332]:
+                    - generic [ref=e333]:
+                      - button "View Complete Lead Details" [ref=e334] [cursor=pointer]:
+                        - img [ref=e335]
+                      - button "Edit Lead" [ref=e338] [cursor=pointer]:
+                        - img [ref=e339]
+                      - button "Forward to Team/Employee" [ref=e342] [cursor=pointer]:
+                        - img [ref=e343]
+                      - button "Cancel" [ref=e346] [cursor=pointer]:
+                        - img [ref=e347]
+                - row "26/5/2026 RE Vikas Shinde 7843011471 - - BOOKING_APPOINTMENT 27/5/2026, 11:00:00 am VTP, Mahalunge AGENT 0 Akshay Gonate Legalwing Yogita Legalwing Yogita" [ref=e350]:
+                  - cell "26/5/2026" [ref=e351]
+                  - cell "RE Vikas Shinde" [ref=e352]
+                  - cell "7843011471" [ref=e353]
+                  - cell "-" [ref=e354]
+                  - cell "-" [ref=e355]
+                  - cell "BOOKING_APPOINTMENT" [ref=e356]
+                  - cell "27/5/2026, 11:00:00 am" [ref=e357]
+                  - cell "VTP, Mahalunge" [ref=e358]
+                  - cell "AGENT" [ref=e359]
+                  - cell "0" [ref=e360]
+                  - cell "Akshay Gonate" [ref=e361]
+                  - cell "Legalwing Yogita" [ref=e362]
+                  - cell "Legalwing Yogita" [ref=e363]:
+                    - generic [ref=e364]:
+                      - img [ref=e365]
+                      - text: Legalwing Yogita
+                  - cell [ref=e368]:
+                    - generic [ref=e369]:
+                      - button "View Complete Lead Details" [ref=e370] [cursor=pointer]:
+                        - img [ref=e371]
+                      - button "Edit Lead" [ref=e374] [cursor=pointer]:
+                        - img [ref=e375]
+                      - button "Forward to Team/Employee" [ref=e378] [cursor=pointer]:
+                        - img [ref=e379]
+                      - button "Cancel" [ref=e382] [cursor=pointer]:
+                        - img [ref=e383]
+                - row "26/5/2026 RE Ashvin Bhumkar 9881711104 - - BOOKING_APPOINTMENT 27/5/2026, 10:00:00 am Ganga Utopia, Bavdhan AGENT 0 Akshay Gonate Tejas Adhav Tejas Adhav" [ref=e386]:
+                  - cell "26/5/2026" [ref=e387]
+                  - cell "RE Ashvin Bhumkar" [ref=e388]
+                  - cell "9881711104" [ref=e389]
+                  - cell "-" [ref=e390]
+                  - cell "-" [ref=e391]
+                  - cell "BOOKING_APPOINTMENT" [ref=e392]
+                  - cell "27/5/2026, 10:00:00 am" [ref=e393]
+                  - cell "Ganga Utopia, Bavdhan" [ref=e394]
+                  - cell "AGENT" [ref=e395]
+                  - cell "0" [ref=e396]
+                  - cell "Akshay Gonate" [ref=e397]
+                  - cell "Tejas Adhav" [ref=e398]
+                  - cell "Tejas Adhav" [ref=e399]:
+                    - generic [ref=e400]:
+                      - img [ref=e401]
+                      - text: Tejas Adhav
+                  - cell [ref=e404]:
+                    - generic [ref=e405]:
+                      - button "View Complete Lead Details" [ref=e406] [cursor=pointer]:
+                        - img [ref=e407]
+                      - button "Edit Lead" [ref=e410] [cursor=pointer]:
+                        - img [ref=e411]
+                      - button "Forward to Team/Employee" [ref=e414] [cursor=pointer]:
+                        - img [ref=e415]
+                      - button "Cancel" [ref=e418] [cursor=pointer]:
+                        - img [ref=e419]
+                - row "21/5/2026 Chaitanya Moze 8446033789 21/5/2026 24/5/2026 NEW_LEAD - Lohagaon OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e422]:
+                  - cell "21/5/2026" [ref=e423]
+                  - cell "Chaitanya Moze" [ref=e424]
+                  - cell "8446033789" [ref=e425]
+                  - cell "21/5/2026" [ref=e426]
+                  - cell "24/5/2026" [ref=e427]
+                  - cell "NEW_LEAD" [ref=e428]
+                  - cell "-" [ref=e429]
+                  - cell "Lohagaon" [ref=e430]
+                  - cell "OWNER" [ref=e431]
+                  - cell "0" [ref=e432]
+                  - cell "Legalwing Yogita" [ref=e433]
+                  - cell "Team Only" [ref=e434]
+                  - cell "Team Only" [ref=e435]
+                  - cell [ref=e436]:
+                    - generic [ref=e437]:
+                      - button "View Complete Lead Details" [ref=e438] [cursor=pointer]:
+                        - img [ref=e439]
+                      - button "Edit Lead" [ref=e442] [cursor=pointer]:
+                        - img [ref=e443]
+                      - button "Forward to Team/Employee" [ref=e446] [cursor=pointer]:
+                        - img [ref=e447]
+                      - button "Cancel" [ref=e450] [cursor=pointer]:
+                        - img [ref=e451]
+                - row "21/5/2026 Chetan Mahore 9763996677 21/5/2026 25/5/2026 NEW_LEAD - Swarget OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e454]:
+                  - cell "21/5/2026" [ref=e455]
+                  - cell "Chetan Mahore" [ref=e456]
+                  - cell "9763996677" [ref=e457]
+                  - cell "21/5/2026" [ref=e458]
+                  - cell "25/5/2026" [ref=e459]
+                  - cell "NEW_LEAD" [ref=e460]
+                  - cell "-" [ref=e461]
+                  - cell "Swarget" [ref=e462]
+                  - cell "OWNER" [ref=e463]
+                  - cell "0" [ref=e464]
+                  - cell "Legalwing Yogita" [ref=e465]
+                  - cell "Team Only" [ref=e466]
+                  - cell "Team Only" [ref=e467]
+                  - cell [ref=e468]:
+                    - generic [ref=e469]:
+                      - button "View Complete Lead Details" [ref=e470] [cursor=pointer]:
+                        - img [ref=e471]
+                      - button "Edit Lead" [ref=e474] [cursor=pointer]:
+                        - img [ref=e475]
+                      - button "Forward to Team/Employee" [ref=e478] [cursor=pointer]:
+                        - img [ref=e479]
+                      - button "Cancel" [ref=e482] [cursor=pointer]:
+                        - img [ref=e483]
+                - row "21/5/2026 Ashish Bodke 9130703307 21/5/2026 24/5/2026 NEW_LEAD - - OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e486]:
+                  - cell "21/5/2026" [ref=e487]
+                  - cell "Ashish Bodke" [ref=e488]
+                  - cell "9130703307" [ref=e489]
+                  - cell "21/5/2026" [ref=e490]
+                  - cell "24/5/2026" [ref=e491]
+                  - cell "NEW_LEAD" [ref=e492]
+                  - cell "-" [ref=e493]
+                  - cell "-" [ref=e494]
+                  - cell "OWNER" [ref=e495]
+                  - cell "0" [ref=e496]
+                  - cell "Legalwing Yogita" [ref=e497]
+                  - cell "Team Only" [ref=e498]
+                  - cell "Team Only" [ref=e499]
+                  - cell [ref=e500]:
+                    - generic [ref=e501]:
+                      - button "View Complete Lead Details" [ref=e502] [cursor=pointer]:
+                        - img [ref=e503]
+                      - button "Edit Lead" [ref=e506] [cursor=pointer]:
+                        - img [ref=e507]
+                      - button "Forward to Team/Employee" [ref=e510] [cursor=pointer]:
+                        - img [ref=e511]
+                      - button "Cancel" [ref=e514] [cursor=pointer]:
+                        - img [ref=e515]
+                - row "21/5/2026 Adinath Yelgate 7507571211 21/5/2026 25/5/2026 NEW_LEAD - Chakan OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e518]:
+                  - cell "21/5/2026" [ref=e519]
+                  - cell "Adinath Yelgate" [ref=e520]
+                  - cell "7507571211" [ref=e521]
+                  - cell "21/5/2026" [ref=e522]
+                  - cell "25/5/2026" [ref=e523]
+                  - cell "NEW_LEAD" [ref=e524]
+                  - cell "-" [ref=e525]
+                  - cell "Chakan" [ref=e526]
+                  - cell "OWNER" [ref=e527]
+                  - cell "0" [ref=e528]
+                  - cell "Legalwing Yogita" [ref=e529]
+                  - cell "Team Only" [ref=e530]
+                  - cell "Team Only" [ref=e531]
+                  - cell [ref=e532]:
+                    - generic [ref=e533]:
+                      - button "View Complete Lead Details" [ref=e534] [cursor=pointer]:
+                        - img [ref=e535]
+                      - button "Edit Lead" [ref=e538] [cursor=pointer]:
+                        - img [ref=e539]
+                      - button "Forward to Team/Employee" [ref=e542] [cursor=pointer]:
+                        - img [ref=e543]
+                      - button "Cancel" [ref=e546] [cursor=pointer]:
+                        - img [ref=e547]
+                - row "21/5/2026 Ankit Bhandari 9762246585 21/5/2026 24/5/2026 FIRST_FOLLOWUP - - OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e550]:
+                  - cell "21/5/2026" [ref=e551]
+                  - cell "Ankit Bhandari" [ref=e552]
+                  - cell "9762246585" [ref=e553]
+                  - cell "21/5/2026" [ref=e554]
+                  - cell "24/5/2026" [ref=e555]
+                  - cell "FIRST_FOLLOWUP" [ref=e556]
+                  - cell "-" [ref=e557]
+                  - cell "-" [ref=e558]
+                  - cell "OWNER" [ref=e559]
+                  - cell "0" [ref=e560]
+                  - cell "Legalwing Yogita" [ref=e561]
+                  - cell "Team Only" [ref=e562]
+                  - cell "Team Only" [ref=e563]
+                  - cell [ref=e564]:
+                    - generic [ref=e565]:
+                      - button "View Complete Lead Details" [ref=e566] [cursor=pointer]:
+                        - img [ref=e567]
+                      - button "Edit Lead" [ref=e570] [cursor=pointer]:
+                        - img [ref=e571]
+                      - button "Forward to Team/Employee" [ref=e574] [cursor=pointer]:
+                        - img [ref=e575]
+                      - button "Cancel" [ref=e578] [cursor=pointer]:
+                        - img [ref=e579]
+                - row "21/5/2026 - 8329319349 21/5/2026 24/1/2026 FIRST_FOLLOWUP - - OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e582]:
+                  - cell "21/5/2026" [ref=e583]
+                  - cell "-" [ref=e584]
+                  - cell "8329319349" [ref=e585]
+                  - cell "21/5/2026" [ref=e586]
+                  - cell "24/1/2026" [ref=e587]
+                  - cell "FIRST_FOLLOWUP" [ref=e588]
+                  - cell "-" [ref=e589]
+                  - cell "-" [ref=e590]
+                  - cell "OWNER" [ref=e591]
+                  - cell "0" [ref=e592]
+                  - cell "Legalwing Yogita" [ref=e593]
+                  - cell "Team Only" [ref=e594]
+                  - cell "Team Only" [ref=e595]
+                  - cell [ref=e596]:
+                    - generic [ref=e597]:
+                      - button "View Complete Lead Details" [ref=e598] [cursor=pointer]:
+                        - img [ref=e599]
+                      - button "Edit Lead" [ref=e602] [cursor=pointer]:
+                        - img [ref=e603]
+                      - button "Forward to Team/Employee" [ref=e606] [cursor=pointer]:
+                        - img [ref=e607]
+                      - button "Cancel" [ref=e610] [cursor=pointer]:
+                        - img [ref=e611]
+                - row "21/5/2026 S O 9028802059 21/5/2026 31/5/2026 SECOND_FOLLOWUP - - TENANT 0 Legalwing Yogita Team Only Team Only" [ref=e614]:
+                  - cell "21/5/2026" [ref=e615]
+                  - cell "S O" [ref=e616]
+                  - cell "9028802059" [ref=e617]
+                  - cell "21/5/2026" [ref=e618]
+                  - cell "31/5/2026" [ref=e619]
+                  - cell "SECOND_FOLLOWUP" [ref=e620]
+                  - cell "-" [ref=e621]
+                  - cell "-" [ref=e622]
+                  - cell "TENANT" [ref=e623]
+                  - cell "0" [ref=e624]
+                  - cell "Legalwing Yogita" [ref=e625]
+                  - cell "Team Only" [ref=e626]
+                  - cell "Team Only" [ref=e627]
+                  - cell [ref=e628]:
+                    - generic [ref=e629]:
+                      - button "View Complete Lead Details" [ref=e630] [cursor=pointer]:
+                        - img [ref=e631]
+                      - button "Edit Lead" [ref=e634] [cursor=pointer]:
+                        - img [ref=e635]
+                      - button "Forward to Team/Employee" [ref=e638] [cursor=pointer]:
+                        - img [ref=e639]
+                      - button "Cancel" [ref=e642] [cursor=pointer]:
+                        - img [ref=e643]
+                - row "21/5/2026 Shakila Pathan 8976002453 21/5/2026 - - - Kondhwa OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e646]:
+                  - cell "21/5/2026" [ref=e647]
+                  - cell "Shakila Pathan" [ref=e648]
+                  - cell "8976002453" [ref=e649]
+                  - cell "21/5/2026" [ref=e650]
+                  - cell "-" [ref=e651]
+                  - cell "-" [ref=e652]
+                  - cell "-" [ref=e653]
+                  - cell "Kondhwa" [ref=e654]
+                  - cell "OWNER" [ref=e655]
+                  - cell "0" [ref=e656]
+                  - cell "Legalwing Yogita" [ref=e657]
+                  - cell "Team Only" [ref=e658]
+                  - cell "Team Only" [ref=e659]
+                  - cell [ref=e660]:
+                    - generic [ref=e661]:
+                      - button "View Complete Lead Details" [ref=e662] [cursor=pointer]:
+                        - img [ref=e663]
+                      - button "Edit Lead" [ref=e666] [cursor=pointer]:
+                        - img [ref=e667]
+                      - button "Forward to Team/Employee" [ref=e670] [cursor=pointer]:
+                        - img [ref=e671]
+                      - button "Cancel" [ref=e674] [cursor=pointer]:
+                        - img [ref=e675]
+                - row "21/5/2026 - 9881515234 21/5/2026 24/5/2026 NEW_LEAD - - OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e678]:
+                  - cell "21/5/2026" [ref=e679]
+                  - cell "-" [ref=e680]
+                  - cell "9881515234" [ref=e681]
+                  - cell "21/5/2026" [ref=e682]
+                  - cell "24/5/2026" [ref=e683]
+                  - cell "NEW_LEAD" [ref=e684]
+                  - cell "-" [ref=e685]
+                  - cell "-" [ref=e686]
+                  - cell "OWNER" [ref=e687]
+                  - cell "0" [ref=e688]
+                  - cell "Legalwing Yogita" [ref=e689]
+                  - cell "Team Only" [ref=e690]
+                  - cell "Team Only" [ref=e691]
+                  - cell [ref=e692]:
+                    - generic [ref=e693]:
+                      - button "View Complete Lead Details" [ref=e694] [cursor=pointer]:
+                        - img [ref=e695]
+                      - button "Edit Lead" [ref=e698] [cursor=pointer]:
+                        - img [ref=e699]
+                      - button "Forward to Team/Employee" [ref=e702] [cursor=pointer]:
+                        - img [ref=e703]
+                      - button "Cancel" [ref=e706] [cursor=pointer]:
+                        - img [ref=e707]
+                - row "21/5/2026 Kaplesh Sohani 9503242446 21/5/2026 24/5/2026 CANCELLED - Mumbai/Moshi OWNER 0 Legalwing Yogita Vaibhavi Konde Vaibhavi Konde" [ref=e710]:
+                  - cell "21/5/2026" [ref=e711]
+                  - cell "Kaplesh Sohani" [ref=e712]
+                  - cell "9503242446" [ref=e713]
+                  - cell "21/5/2026" [ref=e714]
+                  - cell "24/5/2026" [ref=e715]
+                  - cell "CANCELLED" [ref=e716]
+                  - cell "-" [ref=e717]
+                  - cell "Mumbai/Moshi" [ref=e718]
+                  - cell "OWNER" [ref=e719]
+                  - cell "0" [ref=e720]
+                  - cell "Legalwing Yogita" [ref=e721]
+                  - cell "Vaibhavi Konde" [ref=e722]
+                  - cell "Vaibhavi Konde" [ref=e723]:
+                    - generic [ref=e724]:
+                      - img [ref=e725]
+                      - text: Vaibhavi Konde
+                  - cell [ref=e728]:
+                    - generic [ref=e729]:
+                      - button "View Complete Lead Details" [ref=e730] [cursor=pointer]:
+                        - img [ref=e731]
+                      - button "Edit Lead" [ref=e734] [cursor=pointer]:
+                        - img [ref=e735]
+                      - button "Forward to Team/Employee" [ref=e738] [cursor=pointer]:
+                        - img [ref=e739]
+                      - button "Cancel" [ref=e742] [cursor=pointer]:
+                        - img [ref=e743]
+                - row "21/5/2026 Shweta Deolekar 8983105295 21/5/2026 - INTERESTED - Dhayari Phata AGENT 0 Legalwing Yogita Team Only Team Only" [ref=e746]:
+                  - cell "21/5/2026" [ref=e747]
+                  - cell "Shweta Deolekar" [ref=e748]
+                  - cell "8983105295" [ref=e749]
+                  - cell "21/5/2026" [ref=e750]
+                  - cell "-" [ref=e751]
+                  - cell "INTERESTED" [ref=e752]
+                  - cell "-" [ref=e753]
+                  - cell "Dhayari Phata" [ref=e754]
+                  - cell "AGENT" [ref=e755]
+                  - cell "0" [ref=e756]
+                  - cell "Legalwing Yogita" [ref=e757]
+                  - cell "Team Only" [ref=e758]
+                  - cell "Team Only" [ref=e759]
+                  - cell [ref=e760]:
+                    - generic [ref=e761]:
+                      - button "View Complete Lead Details" [ref=e762] [cursor=pointer]:
+                        - img [ref=e763]
+                      - button "Edit Lead" [ref=e766] [cursor=pointer]:
+                        - img [ref=e767]
+                      - button "Forward to Team/Employee" [ref=e770] [cursor=pointer]:
+                        - img [ref=e771]
+                      - button "Cancel" [ref=e774] [cursor=pointer]:
+                        - img [ref=e775]
+                - row "21/5/2026 C C 7507710818 21/5/2026 24/5/2026 FOLLOW_UP - - OWNER 0 Legalwing Yogita Tejas Adhav Tejas Adhav" [ref=e778]:
+                  - cell "21/5/2026" [ref=e779]
+                  - cell "C C" [ref=e780]
+                  - cell "7507710818" [ref=e781]
+                  - cell "21/5/2026" [ref=e782]
+                  - cell "24/5/2026" [ref=e783]
+                  - cell "FOLLOW_UP" [ref=e784]
+                  - cell "-" [ref=e785]
+                  - cell "-" [ref=e786]
+                  - cell "OWNER" [ref=e787]
+                  - cell "0" [ref=e788]
+                  - cell "Legalwing Yogita" [ref=e789]
+                  - cell "Tejas Adhav" [ref=e790]
+                  - cell "Tejas Adhav" [ref=e791]:
+                    - generic [ref=e792]:
+                      - img [ref=e793]
+                      - text: Tejas Adhav
+                  - cell [ref=e796]:
+                    - generic [ref=e797]:
+                      - button "View Complete Lead Details" [ref=e798] [cursor=pointer]:
+                        - img [ref=e799]
+                      - button "Edit Lead" [ref=e802] [cursor=pointer]:
+                        - img [ref=e803]
+                      - button "Forward to Team/Employee" [ref=e806] [cursor=pointer]:
+                        - img [ref=e807]
+                      - button "Cancel" [ref=e810] [cursor=pointer]:
+                        - img [ref=e811]
+                - row "21/5/2026 Ganesh Shinde 8975606200 21/5/2026 24/5/2026 SECOND_FOLLOWUP - Kalewadi Pimpri OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e814]:
+                  - cell "21/5/2026" [ref=e815]
+                  - cell "Ganesh Shinde" [ref=e816]
+                  - cell "8975606200" [ref=e817]
+                  - cell "21/5/2026" [ref=e818]
+                  - cell "24/5/2026" [ref=e819]
+                  - cell "SECOND_FOLLOWUP" [ref=e820]
+                  - cell "-" [ref=e821]
+                  - cell "Kalewadi Pimpri" [ref=e822]
+                  - cell "OWNER" [ref=e823]
+                  - cell "0" [ref=e824]
+                  - cell "Legalwing Yogita" [ref=e825]
+                  - cell "Team Only" [ref=e826]
+                  - cell "Team Only" [ref=e827]
+                  - cell [ref=e828]:
+                    - generic [ref=e829]:
+                      - button "View Complete Lead Details" [ref=e830] [cursor=pointer]:
+                        - img [ref=e831]
+                      - button "Edit Lead" [ref=e834] [cursor=pointer]:
+                        - img [ref=e835]
+                      - button "Forward to Team/Employee" [ref=e838] [cursor=pointer]:
+                        - img [ref=e839]
+                      - button "Cancel" [ref=e842] [cursor=pointer]:
+                        - img [ref=e843]
+                - row "21/5/2026 - 9270151559 21/5/2026 24/5/2026 FOLLOW_UP - New Sangavi OWNER 0 Legalwing Yogita Team Only Team Only" [ref=e846]:
+                  - cell "21/5/2026" [ref=e847]
+                  - cell "-" [ref=e848]
+                  - cell "9270151559" [ref=e849]
+                  - cell "21/5/2026" [ref=e850]
+                  - cell "24/5/2026" [ref=e851]
+                  - cell "FOLLOW_UP" [ref=e852]
+                  - cell "-" [ref=e853]
+                  - cell "New Sangavi" [ref=e854]
+                  - cell "OWNER" [ref=e855]
+                  - cell "0" [ref=e856]
+                  - cell "Legalwing Yogita" [ref=e857]
+                  - cell "Team Only" [ref=e858]
+                  - cell "Team Only" [ref=e859]
+                  - cell [ref=e860]:
+                    - generic [ref=e861]:
+                      - button "View Complete Lead Details" [ref=e862] [cursor=pointer]:
+                        - img [ref=e863]
+                      - button "Edit Lead" [ref=e866] [cursor=pointer]:
+                        - img [ref=e867]
+                      - button "Forward to Team/Employee" [ref=e870] [cursor=pointer]:
+                        - img [ref=e871]
+                      - button "Cancel" [ref=e874] [cursor=pointer]:
+                        - img [ref=e875]
+            - generic [ref=e878]:
+              - paragraph [ref=e879]: Showing page 1 of 3
+              - generic [ref=e880]:
+                - button [disabled] [ref=e881]:
+                  - img [ref=e882]
+                - button [ref=e884] [cursor=pointer]:
+                  - img [ref=e885]
+  - alert [ref=e205]

@@ -228,28 +228,32 @@ export async function PUT(request: Request) {
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
     
-    // 🔐 PROTECT CRITICAL FIELDS from non-admin modification
+    // 🔐 PROTECT CRITICAL FIELDS from modification via the generic edit.
+    // Team visibility / assignment / audit fields are owned exclusively by the
+    // dedicated assign-team route (which stores assignedToUserId as a real
+    // ObjectId and maintains visibleToTeams correctly). The edit modal has no UI
+    // to change these, and letting them through here — even for admins — rewrites
+    // assignedToUserId as a plain string and clobbers visibleToTeams/transitLevel,
+    // which makes the lead drop out of the team-page list query on refresh.
+    // So strip them for EVERYONE, not just non-admins.
     const protectedFields = [
-      'visibleToTeams', 
-      'assignedToUserId', 
-      'assignedToUserName', 
-      'transitLevel', 
-      'createdByUserId', 
-      'createdByUserName', 
+      'visibleToTeams',
+      'assignedToUserId',
+      'assignedToUserName',
+      'assignedAt',
+      'transitLevel',
+      'createdByUserId',
+      'createdByUserName',
       'createdAt',
       'forwardedHistory'
     ];
-    
-    const isAdmin = user.roles?.includes('ADMIN') || user.roles?.includes('admin');
-    
-    if (!isAdmin) {
-      // Remove protected fields from update payload for non-admins
-      protectedFields.forEach(field => {
-        if (updateData[field] !== undefined) {
-          delete updateData[field];
-        }
-      });
-    }
+
+    // Remove protected fields from the update payload regardless of role.
+    protectedFields.forEach(field => {
+      if (updateData[field] !== undefined) {
+        delete updateData[field];
+      }
+    });
     
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
