@@ -9,13 +9,12 @@ function getAuth(request: Request): JWTPayload | null {
   return verifyToken(token);
 }
 
-// ✅ Helper: Safely merge $or conditions
-function mergeOrConditions(filter: Record<string, unknown>, newConditions: Record<string, unknown>[]) {
-  if (!filter.$or) {
-    filter.$or = newConditions;
-  } else if (Array.isArray(filter.$or)) {
-    filter.$or = [...(filter.$or as Record<string, unknown>[]), ...newConditions];
-  }
+// ✅ Helper: combine independent OR-groups with AND semantics.
+// Each call adds one `{ $or: [...] }` clause to the shared `$and` array so that
+// separate filters (access-control, search text, mobile, etc.) NARROW the result
+// set instead of accidentally widening it by appending into a single `$or`.
+function addOrGroup(andConditions: Record<string, unknown>[], conditions: Record<string, unknown>[]) {
+  if (conditions.length) andConditions.push({ $or: conditions });
 }
 
 // ✅ Helper: Validate and convert string to ObjectId
@@ -34,25 +33,30 @@ export async function GET(request: Request) {
     const id = searchParams.get('id');
     const viewAll = searchParams.get('viewAll') === 'true';
     const filter: Record<string, unknown> = {};
+    // Independent OR-groups are collected here and combined with AND at the end.
+    const andConditions: Record<string, unknown>[] = [];
 
     const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
     const isAccounting = user.roles?.includes('accounting') || user.roles?.includes('ACCOUNTING');
 
-    // 🔐 Team-based access control
+    // 🔐 Team-based access control — kept as its own OR-group so search/filter
+    // OR-groups can never widen it back open.
     if (!isAdmin && !isAccounting && !viewAll) {
       const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
       const possibleTeamNames = [userTeam, `${userTeam}_TEAM`, userTeam.replace('_TEAM', '')];
-      
-      filter.$or = [
+      const ownId = toObjectId(user.userId);
+
+      addOrGroup(andConditions, [
         { createdByUserId: user.userId },
-        { assignedToUserId: user.userId ? new ObjectId(user.userId) : null },
-        { visibleToTeams: { $in: possibleTeamNames } }
-      ];
+        { assignedToUserId: ownId },
+        { visibleToTeams: { $in: possibleTeamNames } },
+      ]);
     }
 
-    // 🔍 Single lead view
+    // 🔍 Single lead view (still subject to the access-control group above)
     if (id) {
-      const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...filter });
+      const accessFilter = andConditions.length ? { $and: andConditions } : {};
+      const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...accessFilter });
       if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
       return NextResponse.json({ ...lead, id: lead._id.toString(), _id: undefined });
     }
@@ -60,7 +64,9 @@ export async function GET(request: Request) {
     // 📋 Apply filters
     const transitLevel = searchParams.get('transitLevel');
     const clientType = searchParams.get('clientType');
+    const userType = searchParams.get('userType');
     const leadStatus = searchParams.get('leadStatus');
+    const mobile = searchParams.get('mobile');
     const searchText = searchParams.get('searchText');
     const cityId = searchParams.get('cityId');
     const areaId = searchParams.get('areaId');
@@ -102,8 +108,20 @@ export async function GET(request: Request) {
       filter.visibleToTeams = { $in: [normalizedTeam] };
     }
     
+    // clientType / userType are aliases for the lead contact's type (OWNER/TENANT/AGENT)
     if (clientType) filter['client.clientType'] = clientType;
+    if (userType) filter['client.clientType'] = userType;
     if (leadStatus) filter.leadStatus = leadStatus;
+
+    // 📱 Mobile filter — matches across every phone field a lead can carry
+    if (mobile) {
+      addOrGroup(andConditions, [
+        { 'client.phoneNo': { $regex: mobile, $options: 'i' } },
+        { 'agreement.mobileNo': { $regex: mobile, $options: 'i' } },
+        { 'agreement.owner.phoneNo': { $regex: mobile, $options: 'i' } },
+        { 'agreement.tenant.phoneNo': { $regex: mobile, $options: 'i' } },
+      ]);
+    }
     if (cityId) filter['city.id'] = cityId;
     if (areaId) filter['area.id'] = areaId;
     if (assignedToUserId) {
@@ -127,11 +145,10 @@ export async function GET(request: Request) {
 
     // Accounting filters - ✅ Safe $or merge
     if (clientName) {
-      const nameConditions = [
+      addOrGroup(andConditions, [
         { 'client.firstName': { $regex: clientName, $options: 'i' } },
         { 'client.lastName': { $regex: clientName, $options: 'i' } },
-      ];
-      mergeOrConditions(filter, nameConditions);
+      ]);
     }
     if (phone) filter['client.phoneNo'] = { $regex: phone, $options: 'i' };
     if (amount) {
@@ -150,22 +167,24 @@ export async function GET(request: Request) {
     if (tenantMobile) filter['agreement.tenant.phoneNo'] = { $regex: tenantMobile, $options: 'i' };
     if (tenantDob) filter['agreement.tenant.dateOfBirth'] = tenantDob;
 
-    // 🔍 Search text - ✅ Safe $or merge
+    // 🔍 Search text - ✅ Own AND-ed OR-group
     if (searchText) {
-      const searchConditions = [
+      addOrGroup(andConditions, [
         { 'client.firstName': { $regex: searchText, $options: 'i' } },
         { 'client.lastName': { $regex: searchText, $options: 'i' } },
         { 'client.phoneNo': { $regex: searchText, $options: 'i' } },
         { 'agreement.tokenNo': { $regex: searchText, $options: 'i' } },
         { 'agreement.owner.firstName': { $regex: searchText, $options: 'i' } },
         { 'agreement.tenant.firstName': { $regex: searchText, $options: 'i' } },
-      ];
-      mergeOrConditions(filter, searchConditions);
+      ]);
     }
+
+    // Combine all independent OR-groups under a single $and
+    if (andConditions.length) filter.$and = andConditions;
 
     const page = parseInt(searchParams.get('page') || '0');
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
-    
+
     const total = await db.collection('leads').countDocuments(filter);
     const leads = await db.collection('leads')
       .find(filter)

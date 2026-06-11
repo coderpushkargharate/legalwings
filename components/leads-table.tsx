@@ -1120,6 +1120,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [appointmentToDate, setAppointmentToDate] = useState('');
   const [appointmentLocation, setAppointmentLocation] = useState('');
   const [clientType, setClientType] = useState('');
+  const [mobileFilter, setMobileFilter] = useState('');
   const [assignedEmployeeFilter, setAssignedEmployeeFilter] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [nextFollowUpFromDate, setNextFollowUpFromDate] = useState('');
@@ -1295,7 +1296,10 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (appointmentLocation) params.set('appointmentLocation', appointmentLocation);
         if (clientType) params.set('clientType', clientType);
         if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
-        if (selectedStatus) params.set('status', selectedStatus);
+        // Lead Status dropdown is populated from leadStatuses, so it must filter the
+        // lead's own status field — not agreement.status (which the `status` param maps to).
+        if (selectedStatus) params.set('leadStatus', selectedStatus);
+        if (mobileFilter) params.set('mobile', mobileFilter);
         if (nextFollowUpFromDate) params.set('nextFollowUpFromDate', nextFollowUpFromDate);
         if (nextFollowUpToDate) params.set('nextFollowUpToDate', nextFollowUpToDate);
         if (lastFollowUpFromDate) params.set('lastFollowUpFromDate', lastFollowUpFromDate);
@@ -1356,7 +1360,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -1369,6 +1373,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     setAppointmentToDate('');
     setAppointmentLocation('');
     setClientType('');
+    setMobileFilter('');
     setAssignedEmployeeFilter('');
     setSelectedStatus('');
     setNextFollowUpFromDate('');
@@ -1503,6 +1508,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label><input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="tel" placeholder="Search by mobile" value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label><input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>

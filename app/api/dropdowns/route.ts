@@ -20,10 +20,16 @@ export async function POST(request: Request) {
       db.collection('executives').find({}).toArray(),
     ]);
 
+    // Safety net: guarantee the "Completed" lead status is always available in
+    // dropdowns even if the database was seeded before it was introduced.
+    const normalizedLeadStatuses = leadStatuses.some(s => s.key === 'COMPLETED')
+      ? leadStatuses
+      : [...leadStatuses, { key: 'COMPLETED', value: 'Completed', color: '#059669', order: 16 }];
+
     return NextResponse.json({
       cities: cities.map(c => ({ id: c._id.toString(), name: c.name, state: c.state })),
       areas: areas.map(a => ({ id: a._id.toString(), name: a.name, cityId: a.cityId?.toString(), cityName: a.cityName })),
-      leadStatuses,
+      leadStatuses: normalizedLeadStatuses,
       agreementStatuses,
       backOfficeStatuses,
       executives: executives.map(e => ({ id: e._id.toString(), name: e.name, userId: e.userId })),

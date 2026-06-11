@@ -118,29 +118,33 @@ export async function GET() {
     // 📊 LEAD STATUSES COLLECTION
     // ========================================
     const leadStatuses = db.collection('leadStatuses');
-    const statusCount = await leadStatuses.countDocuments();
-    
-    if (statusCount === 0) {
-      await leadStatuses.insertMany([
-        { key: 'NEW_LEAD', value: 'New Lead', color: '#3B82F6', order: 1 },
-        { key: 'INTERESTED', value: 'Interested', color: '#10B981', order: 2 },
-        { key: 'NOT_INTERESTED', value: 'Not Interested', color: '#6B7280', order: 3 },
-        { key: 'CALL_NOT_RECEIVED', value: 'Call Not Received', color: '#F59E0B', order: 4 },
-        { key: 'FIRST_FOLLOWUP', value: '1st Follow-up', color: '#8B5CF6', order: 5 },
-        { key: 'SECOND_FOLLOWUP', value: '2nd Follow Up', color: '#8B5CF6', order: 6 },
-        { key: 'THIRD_FOLLOWUP', value: '3rd Follow Up', color: '#8B5CF6', order: 7 },
-        { key: 'DOCUMENTS_RECEIVED', value: 'Documents Received', color: '#06B6D4', order: 8 },
-        { key: 'CREATE_DRAFT', value: 'Create Draft', color: '#EC4899', order: 9 },
-        { key: 'DRAFT_CONFIRM_PENDING', value: 'Draft Confirm Pending', color: '#F97316', order: 10 },
-        { key: 'DRAFT_CONFIRM', value: 'Draft Confirm', color: '#10B981', order: 11 },
-        { key: 'BOOKING_APPOINTMENT', value: 'Booking Appointment', color: '#6366F1', order: 12 },
-        { key: 'ASSIGNED_APPOINTMENT', value: 'Assigned Appointment', color: '#6366F1', order: 13 },
-        { key: 'CANCEL_APPOINTMENT', value: 'Cancel Appointment', color: '#EF4444', order: 14 },
-        { key: 'POSTPONE_APPOINTMENT', value: 'Postpone Appointment', color: '#F59E0B', order: 15 },
-        { key: 'LOST', value: 'Lost', color: '#9CA3AF', order: 16 },
-      ]);
-      console.log('✅ Lead statuses seeded');
-    }
+    const leadStatusSeed = [
+      { key: 'NEW_LEAD', value: 'New Lead', color: '#3B82F6', order: 1 },
+      { key: 'INTERESTED', value: 'Interested', color: '#10B981', order: 2 },
+      { key: 'NOT_INTERESTED', value: 'Not Interested', color: '#6B7280', order: 3 },
+      { key: 'CALL_NOT_RECEIVED', value: 'Call Not Received', color: '#F59E0B', order: 4 },
+      { key: 'FIRST_FOLLOWUP', value: '1st Follow-up', color: '#8B5CF6', order: 5 },
+      { key: 'SECOND_FOLLOWUP', value: '2nd Follow Up', color: '#8B5CF6', order: 6 },
+      { key: 'THIRD_FOLLOWUP', value: '3rd Follow Up', color: '#8B5CF6', order: 7 },
+      { key: 'DOCUMENTS_RECEIVED', value: 'Documents Received', color: '#06B6D4', order: 8 },
+      { key: 'CREATE_DRAFT', value: 'Create Draft', color: '#EC4899', order: 9 },
+      { key: 'DRAFT_CONFIRM_PENDING', value: 'Draft Confirm Pending', color: '#F97316', order: 10 },
+      { key: 'DRAFT_CONFIRM', value: 'Draft Confirm', color: '#10B981', order: 11 },
+      { key: 'BOOKING_APPOINTMENT', value: 'Booking Appointment', color: '#6366F1', order: 12 },
+      { key: 'ASSIGNED_APPOINTMENT', value: 'Assigned Appointment', color: '#6366F1', order: 13 },
+      { key: 'CANCEL_APPOINTMENT', value: 'Cancel Appointment', color: '#EF4444', order: 14 },
+      { key: 'POSTPONE_APPOINTMENT', value: 'Postpone Appointment', color: '#F59E0B', order: 15 },
+      { key: 'COMPLETED', value: 'Completed', color: '#059669', order: 16 },
+      { key: 'LOST', value: 'Lost', color: '#9CA3AF', order: 17 },
+    ];
+    // Idempotent upsert by key so re-running the seed adds newly-introduced
+    // statuses (e.g. COMPLETED) to databases that were seeded earlier.
+    await leadStatuses.bulkWrite(
+      leadStatusSeed.map((s) => ({
+        updateOne: { filter: { key: s.key }, update: { $set: s }, upsert: true },
+      }))
+    );
+    console.log('✅ Lead statuses seeded');
 
     // ========================================
     // 📑 AGREEMENT STATUSES COLLECTION
@@ -230,7 +234,7 @@ export async function GET() {
         users: ['akshaygonate123@gmail.com', 'pushkargharate3011@gmail.com'],
         cities: 5,
         areas: 20,
-        leadStatuses: 16,
+        leadStatuses: 17,
         agreementStatuses: 6,
         backOfficeStatuses: 4,
         executives: 3,
