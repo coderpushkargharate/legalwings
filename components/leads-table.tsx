@@ -97,6 +97,7 @@ interface Lead {
   status?: string;
   visitAddress?: string;
   appointmentTime?: string;
+  isAppointment?: boolean;
   lastFollowUpDate?: string;
   nextFollowUpDate?: string;
   createdDate?: string;
@@ -1098,8 +1099,8 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
 };
 
 // ==================== MAIN LEADS TABLE COMPONENT ====================
-interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; }
-export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true }: LeadsTableProps) {
+interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; filterFn?: (lead: Lead) => boolean; }
+export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true, filterFn }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
 
@@ -1160,6 +1161,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [cancelReason, setCancelReason] = useState('');
   const [availableEmployees, setAvailableEmployees] = useState<Employee[]>([]);
   const [editLead, setEditLead] = useState<Lead | null>(null);
+  // Calling team: switch between the "Leads" list and forwarded "Appointments".
+  const [callingView, setCallingView] = useState<'leads' | 'appointments'>('leads');
+  const [forwardingId, setForwardingId] = useState<string | null>(null);
 
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
@@ -1427,6 +1431,24 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } catch { alert('Failed to cancel lead.'); } finally { setCancelModal({ isOpen: false, leadId: '' }); setCancelReason(''); }
   };
 
+  // Calling team: forward a lead into the Appointments view (and back).
+  const handleToggleAppointment = async (leadId: string, makeAppointment: boolean) => {
+    setForwardingId(leadId);
+    try {
+      const res = await apiFetch('/api/leads', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: leadId, isAppointment: makeAppointment }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, isAppointment: makeAppointment } : l)));
+      alert(makeAppointment ? 'Lead forwarded to Appointment.' : 'Moved back to Leads.');
+    } catch {
+      alert('Failed to update appointment. Please try again.');
+    } finally {
+      setForwardingId(null);
+    }
+  };
+
   // ✅ KEY FIX: Update lead in local state instead of refetching the entire list.
   // This prevents leads from disappearing when date filters are active and a lead's
   // date doesn't match the current filter range after saving.
@@ -1617,6 +1639,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
   const shouldShowExtraColumns = !isMarketingDashboard;
 
+  // Apply optional client-side filter (e.g. account team: only paid leads) and,
+  // for the calling team, split between the Leads list and the Appointments list.
+  let displayedLeads = leads;
+  if (filterFn) displayedLeads = displayedLeads.filter(filterFn);
+  if (isCallingDashboard) {
+    displayedLeads = displayedLeads.filter((l) =>
+      callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
+    );
+  }
+
   return (
     <div className="space-y-6 font-sans text-slate-700">
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -1627,6 +1659,23 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
+        </div>
+      )}
+
+      {isCallingDashboard && (
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+          {(['leads', 'appointments'] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setCallingView(view)}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                callingView === view ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {view === 'leads' ? 'Lead' : 'Appointment'}
+            </button>
+          ))}
         </div>
       )}
 
@@ -1651,10 +1700,10 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <tbody className="divide-y divide-slate-100">
               {loading ? (
                 <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
-              ) : leads.length === 0 ? (
+              ) : displayedLeads.length === 0 ? (
                 <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
-                leads.map((lead) => (
+                displayedLeads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
@@ -1683,6 +1732,27 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                             <button onClick={() => setSendModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee">
                               <Send className="w-4 h-4" />
                             </button>
+                            {isCallingDashboard && (
+                              callingView === 'leads' ? (
+                                <button
+                                  onClick={() => handleToggleAppointment(lead.id, true)}
+                                  disabled={forwardingId === lead.id}
+                                  className="p-2 text-slate-400 hover:text-[#00A651] hover:bg-[#f0fdf4] rounded-lg transition-all disabled:opacity-40"
+                                  title="Forward to Appointment"
+                                >
+                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleToggleAppointment(lead.id, false)}
+                                  disabled={forwardingId === lead.id}
+                                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-40"
+                                  title="Move back to Leads"
+                                >
+                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                                </button>
+                              )
+                            )}
                             <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel">
                               <Trash2 className="w-4 h-4" />
                             </button>

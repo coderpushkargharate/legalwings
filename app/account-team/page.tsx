@@ -173,19 +173,31 @@ const columns: Column[] = [
   },
 ];
 
+// ✅ Only show leads that have actually received a payment.
+const hasPayment = (lead: Lead): boolean => {
+  const received = lead.paymentDetails?.reduce((sum, p) => {
+    const amount = typeof p.paymentAmount === 'string' ? parseFloat(p.paymentAmount) : p.paymentAmount || 0;
+    return sum + (isNaN(amount as number) ? 0 : (amount as number));
+  }, 0) || 0;
+  const paid = Number(lead.payment?.paidAmount) || 0;
+  const totalReceived = Number(lead.payment?.totalReceivedAmount) || 0;
+  return received > 0 || paid > 0 || totalReceived > 0;
+};
+
 export default function AccountTeamPage() {
   return (
     <AppShell>
       <Header title="Accounts Overview" />
       <div className="p-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
-          📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial & operational tracking.
+          📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial & operational tracking. Only leads with a received payment are shown.
         </div>
         <LeadsTable
           transitLevel="ALL"
           title="All Leads Overview"
           columns={columns}
           showAddButton={false}
+          filterFn={hasPayment}
         />
       </div>
     </AppShell>
