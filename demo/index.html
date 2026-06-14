@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead API Demo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f1f5f9; color: #1e293b; }
+    .wrap { max-width: 900px; margin: 30px auto; padding: 0 16px; }
+    h1 { font-size: 22px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+    .card h2 { font-size: 15px; margin: 0 0 14px; color: #334155; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; }
+    input, select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; flex: 1; min-width: 120px; }
+    button { padding: 8px 16px; border: none; border-radius: 8px; background: #00A651; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button.secondary { background: #64748b; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    th { background: #f8fafc; font-size: 12px; text-transform: uppercase; color: #64748b; }
+    .badge { padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; }
+    .pending { background: #fef3c7; color: #b45309; }
+    .completed { background: #dcfce7; color: #15803d; }
+    .msg { font-size: 13px; margin-top: 8px; }
+    .err { color: #dc2626; }
+    .ok { color: #15803d; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Lead API Demo</h1>
+
+    <!-- Add Lead -->
+    <div class="card">
+      <h2>Add Lead</h2>
+      <div class="row">
+        <input id="name" placeholder="Name" />
+        <input id="number" placeholder="Phone (10 digits)" maxlength="10" />
+        <select id="usertype">
+          <option value="owner">owner</option>
+          <option value="tenant">tenant</option>
+        </select>
+        <select id="status">
+          <option value="pending">pending</option>
+          <option value="completed">completed</option>
+        </select>
+        <button onclick="addLead()">Add</button>
+      </div>
+      <div id="addMsg" class="msg"></div>
+    </div>
+
+    <!-- Filters -->
+    <div class="card">
+      <h2>Filters</h2>
+      <div class="row">
+        <input id="fNumber" placeholder="Number (e.g. 9876543210)" />
+        <select id="fUsertype">
+          <option value="">usertype: any</option>
+          <option value="owner">owner</option>
+          <option value="tenant">tenant</option>
+        </select>
+        <select id="fStatus">
+          <option value="">status: any</option>
+          <option value="pending">pending</option>
+          <option value="completed">completed</option>
+        </select>
+        <button onclick="loadLeads()">Search</button>
+        <button class="secondary" onclick="clearFilters()">Clear</button>
+      </div>
+      <div id="queryMsg" class="msg"></div>
+    </div>
+
+    <!-- Results -->
+    <div class="card">
+      <h2>Leads (<span id="count">0</span>)</h2>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Number</th><th>User Type</th><th>Status</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/leads';
+
+    async function loadLeads() {
+      const params = new URLSearchParams();
+      const number = document.getElementById('fNumber').value.trim();
+      const usertype = document.getElementById('fUsertype').value;
+      const status = document.getElementById('fStatus').value;
+      if (number) params.set('number', number);
+      if (usertype) params.set('usertype', usertype);
+      if (status) params.set('status', status);
+
+      const url = params.toString() ? `${API}?${params}` : API;
+      document.getElementById('queryMsg').textContent = 'GET ' + url;
+
+      const res = await fetch(url);
+      const data = await res.json();
+      renderRows(data.leads || []);
+      document.getElementById('count').textContent = data.count || 0;
+    }
+
+    function renderRows(leads) {
+      const tbody = document.getElementById('rows');
+      if (!leads.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8;padding:20px">No leads found</td></tr>';
+        return;
+      }
+      tbody.innerHTML = leads.map(l => `
+        <tr>
+          <td>${l.id}</td>
+          <td>${l.name}</td>
+          <td>${l.number}</td>
+          <td>${l.usertype}</td>
+          <td><span class="badge ${l.status}">${l.status}</span></td>
+        </tr>`).join('');
+    }
+
+    async function addLead() {
+      const body = {
+        name: document.getElementById('name').value,
+        number: document.getElementById('number').value,
+        usertype: document.getElementById('usertype').value,
+        status: document.getElementById('status').value,
+      };
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const msg = document.getElementById('addMsg');
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.textContent = '✔ ' + data.message + ' (id ' + data.lead.id + ')';
+        document.getElementById('name').value = '';
+        document.getElementById('number').value = '';
+        loadLeads();
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✖ ' + data.error;
+      }
+    }
+
+    function clearFilters() {
+      document.getElementById('fNumber').value = '';
+      document.getElementById('fUsertype').value = '';
+      document.getElementById('fStatus').value = '';
+      loadLeads();
+    }
+
+    loadLeads();
+  </script>
+</body>
+</html>
