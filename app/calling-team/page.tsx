@@ -29,16 +29,22 @@ const columns: Column[] = [
     render: (lead: Lead) => lead.client?.phoneNo || '-',
   },
   {
-    key: 'lastFollowUp',
-    label: 'Last Follow Up',
-    width: '110px',
-    render: (lead: Lead) => lead.lastFollowUpDate ? new Date(lead.lastFollowUpDate).toLocaleDateString('en-IN') : '-',
+    key: 'svName',
+    label: 'SV Name',
+    width: '120px',
+    render: (lead: Lead) => lead.agreement?.svName || '-',
   },
   {
-    key: 'nextFollowUp',
-    label: 'Next Follow Up',
+    key: 'svNo',
+    label: 'SV No.',
     width: '110px',
-    render: (lead: Lead) => lead.nextFollowUpDate ? new Date(lead.nextFollowUpDate).toLocaleDateString('en-IN') : '-',
+    render: (lead: Lead) => lead.agreement?.svNo || '-',
+  },
+  {
+    key: 'svLocation',
+    label: 'SV Location',
+    width: '140px',
+    render: (lead: Lead) => lead.agreement?.svLocation || '-',
   },
   {
     key: 'leadStatus',
@@ -71,8 +77,21 @@ const columns: Column[] = [
   {
     key: 'visitCount',
     label: 'Visit Count',
-    width: '90px',
-    render: (lead: Lead) => lead.visitCount || 0,
+    width: '120px',
+    render: (lead: Lead) => {
+      const assign = lead.agreement?.assignStatus;
+      const cls = assign === 'Completed'
+        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+        : 'bg-amber-50 text-amber-700 border-amber-200';
+      return (
+        <div className="flex flex-col gap-1">
+          <span>{lead.visitCount || 0}</span>
+          {assign && (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium border w-fit ${cls}`}>{assign}</span>
+          )}
+        </div>
+      );
+    },
   },
   {
     key: 'apptStatus',

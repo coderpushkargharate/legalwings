@@ -72,6 +72,10 @@ interface Lead {
     pvAge?: string;
     pvMobile?: string;
     pvRelation?: string;
+    svName?: string;
+    svNo?: string;
+    svLocation?: string;
+    assignStatus?: string;
     agreementFile?: string;
     agreementFileName?: string;
   };
@@ -580,6 +584,23 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
 
             <div className={sectionClass}>
+              <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>SV No.</label><input type="text" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>SV Location</label><input type="text" value={formData.agreement?.svLocation || ''} onChange={(e) => handleInputChange('agreement', 'svLocation', e.target.value)} className={inputClass} /></div>
+                <div>
+                  <label className={labelClass}>Assign Status</label>
+                  <select value={formData.agreement?.assignStatus || ''} onChange={(e) => handleInputChange('agreement', 'assignStatus', e.target.value)} className={inputClass}>
+                    <option value="">Select Assign Status</option>
+                    <option value="Payment Pending">Payment Pending</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -904,6 +925,15 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Age" value={lead.agreement?.pvAge || '-'} />
                     <InfoItem label="Mobile" value={lead.agreement?.pvMobile || '-'} icon={Phone} />
                     <InfoItem label="Relation" value={lead.agreement?.pvRelation || '-'} />
+                  </div>
+                </div>
+                <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <InfoItem label="SV Name" value={lead.agreement?.svName || '-'} />
+                    <InfoItem label="SV No." value={lead.agreement?.svNo || '-'} icon={Hash} />
+                    <InfoItem label="SV Location" value={lead.agreement?.svLocation || '-'} icon={MapPin} />
+                    <InfoItem label="Assign Status" value={lead.agreement?.assignStatus || '-'} badge />
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">

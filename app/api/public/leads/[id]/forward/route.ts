@@ -102,11 +102,23 @@ export async function POST(
       ? `Forwarded to ${transitLevel} and assigned to ${assignedName}`
       : `Forwarded to ${transitLevel}`;
 
+    // Bidirectional visibility by default (lead stays visible to the source team),
+    // EXCEPT when forwarding to the BACKEND team, where the source team is removed
+    // so the lead leaves the source list. Matches the internal assign-team behavior.
+    const sourceTransit = lead.transitLevel as string | undefined;
+    let newVisibleToTeams = Array.from(
+      new Set([...((lead.visibleToTeams as string[]) || []), transitLevel])
+    );
+    const isBackend = resolveTransit(body.team) === 'BACKEND_TEAM';
+    if (isBackend && sourceTransit) {
+      newVisibleToTeams = newVisibleToTeams.filter((t) => t !== sourceTransit);
+    }
+    set.visibleToTeams = newVisibleToTeams;
+
     await db.collection('leads').updateOne(
       { _id },
       {
         $set: set,
-        $addToSet: { visibleToTeams: transitLevel },
         $push: {
           forwardedHistory: forwardEntry,
           activities: activityEntry('FORWARDED', detail),

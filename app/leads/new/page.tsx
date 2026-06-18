@@ -98,6 +98,10 @@ interface AgreementFormData {
   pvAge?: string;
   pvMobile?: string;
   pvRelation?: string;
+  svName?: string;
+  svNo?: string;
+  svLocation?: string;
+  assignStatus?: string;
   agreementMobileNo?: string;
   agreementExecuteDate?: string;
 }
@@ -221,6 +225,8 @@ function LeadFormContent() {
     ownerContact: '', ownerAadhar: '', ownerPan: '', ownerBirthDate: '',
     tenantFirstName: '', tenantLastName: '', tenantEmail: '', tenantContact: '',
     tenantAadhar: '', tenantPan: '', tenantBirthDate: '',
+    pvName: '', pvAge: '', pvMobile: '', pvRelation: '',
+    svName: '', svNo: '', svLocation: '', assignStatus: '',
     agreementMobileNo: '',
     agreementExecuteDate: '',
   });
@@ -334,6 +340,10 @@ function LeadFormContent() {
               tenantEmail: data.agreement.tenant?.email || '', tenantContact: data.agreement.tenant?.phoneNo || '',
               tenantAadhar: data.agreement.tenant?.aadharNumber || '', tenantPan: data.agreement.tenant?.panNumber || '',
               tenantBirthDate: data.agreement.tenant?.birthDate || '',
+              pvName: data.agreement.pvName || '', pvAge: data.agreement.pvAge || '',
+              pvMobile: data.agreement.pvMobile || '', pvRelation: data.agreement.pvRelation || '',
+              svName: data.agreement.svName || '', svNo: data.agreement.svNo || '',
+              svLocation: data.agreement.svLocation || '', assignStatus: data.agreement.assignStatus || '',
               agreementMobileNo: data.agreement.mobileNo || '',
               agreementExecuteDate: data.agreement.executeDate || '',
             });
@@ -519,6 +529,10 @@ function LeadFormContent() {
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
+          pvName: agreement.pvName, pvAge: agreement.pvAge,
+          pvMobile: agreement.pvMobile, pvRelation: agreement.pvRelation,
+          svName: agreement.svName, svNo: agreement.svNo,
+          svLocation: agreement.svLocation, assignStatus: agreement.assignStatus,
           owner: { 
             firstName: agreement.ownerFirstName, lastName: agreement.ownerLastName, email: agreement.ownerEmail, 
             phoneNo: agreement.ownerContact, aadharNumber: agreement.ownerAadhar, panNumber: agreement.ownerPan, 
@@ -851,6 +865,23 @@ function LeadFormContent() {
                 <Input label="Age" value={agreement.pvAge || ''} onChange={(v) => updateAgreement('pvAge', v.replace(/[^0-9]/g, '').slice(0, 3))} maxLength={3} disabled={!isEditable} placeholder="Age" type="number" id="agreement-pvAge" />
                 <Input label="Mobile No." value={agreement.pvMobile || ''} onChange={(v) => updateAgreement('pvMobile', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Mobile No." id="agreement-pvMobile" />
                 <Input label="Relation" value={agreement.pvRelation || ''} onChange={(v) => updateAgreement('pvRelation', v)} disabled={!isEditable} placeholder="Relation" id="agreement-pvRelation" />
+              </div>
+            </div>
+            {/* Site Visit Details Section */}
+            <div className="bg-white rounded-xl border border-slate-200 p-6">
+              <h3 className="text-base font-semibold text-slate-800 mb-4">Site Visit Details</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Input label="SV Name" value={agreement.svName || ''} onChange={(v) => updateAgreement('svName', v)} disabled={!isEditable} placeholder="SV Name" id="agreement-svName" />
+                <Input label="SV No." value={agreement.svNo || ''} onChange={(v) => updateAgreement('svNo', v)} disabled={!isEditable} placeholder="SV No." id="agreement-svNo" />
+                <Input label="SV Location" value={agreement.svLocation || ''} onChange={(v) => updateAgreement('svLocation', v)} disabled={!isEditable} placeholder="SV Location" id="agreement-svLocation" />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Assign Status</label>
+                  <select value={agreement.assignStatus || ''} onChange={(e) => updateAgreement('assignStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-assignStatus">
+                    <option value="">Select Assign Status</option>
+                    <option value="Payment Pending">Payment Pending</option>
+                    <option value="Completed">Completed</option>
+                  </select>
+                </div>
               </div>
             </div>
             {/* Agreement Details Section */}

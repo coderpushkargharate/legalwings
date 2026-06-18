@@ -66,7 +66,23 @@ export async function POST(
       reason: reason || null,
     };
 
-    // ✅ FIXED: Update Logic for BIDIRECTIONAL visibility
+    // ✅ Compute new visibility list.
+    // - Forwarding to any team adds the destination team (bidirectional visibility),
+    //   so the lead stays visible to the source team too (e.g. CALLING → EXECUTIVE
+    //   shows in both).
+    // - EXCEPTION: forwarding to the BACKEND team removes the source team from the
+    //   list, so the lead disappears from the source (e.g. CALLING → BACKEND removes
+    //   it from the Calling Team list). Everything else stays as-is.
+    const sourceTransitLevel = currentLead.transitLevel;
+    let newVisibleToTeams = Array.from(
+      new Set([...(currentLead.visibleToTeams || []), destinationTransitLevel])
+    );
+    if (team === 'BACKEND' && sourceTransitLevel) {
+      newVisibleToTeams = newVisibleToTeams.filter((t) => t !== sourceTransitLevel);
+    }
+
+    // Use $set for visibleToTeams (instead of $addToSet) because we may also need to
+    // remove the source team — $addToSet and $pull cannot touch the same field in one update.
     const updateObj: any = {
       $set: {
         transitLevel: destinationTransitLevel,
@@ -77,8 +93,8 @@ export async function POST(
         forwardedAt: new Date(),
         forwardedBy: user.userId,
         forwardReason: reason || null,
+        visibleToTeams: newVisibleToTeams,
       },
-      $addToSet: { visibleToTeams: destinationTransitLevel },
       $push: { forwardedHistory: forwardEntry }
     };
 
@@ -107,7 +123,7 @@ export async function POST(
       leadId: id,
       newTransitLevel: destinationTransitLevel,
       assignedToUserId: assignedToUserId || null,
-      visibleToTeams: [...(currentLead.visibleToTeams || []), destinationTransitLevel],
+      visibleToTeams: newVisibleToTeams,
     });
   } catch (error) {
     console.error('Assign team/employee error:', error);
