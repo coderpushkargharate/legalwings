@@ -75,6 +75,15 @@ const columns: Column[] = [
     render: (lead: Lead) => lead.visitCount || 0,
   },
   {
+    key: 'apptStatus',
+    label: 'Appt. Status',
+    width: '150px',
+    render: (lead: Lead) => {
+      const { label, cls } = getApptStatus(lead);
+      return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{label}</span>;
+    },
+  },
+  {
     key: 'createdBy',
     label: 'Created By',
     width: '130px',
@@ -94,6 +103,26 @@ function getStatusClass(status: string) {
   if (['PENDING', 'POSTPONED', 'NEW', 'NEW_LEAD', 'INTERESTED'].includes(s)) return 'bg-amber-50 text-amber-700 border-amber-200';
   if (['CANCELLED', 'REJECTED', 'NOT_INTERESTED', 'LOST'].includes(s)) return 'bg-red-50 text-red-700 border-red-200';
   return 'bg-slate-50 text-slate-700 border-slate-200';
+}
+
+// Derive the appointment status badge automatically:
+// 1) Manual appointment action (Complete / Pending / Cancel) wins if set,
+// 2) else Payment Pending when an amount is still due,
+// 3) else Assigned when the lead is assigned to someone,
+// 4) else fall back to the lead's own status.
+function getApptStatus(lead: Lead): { label: string; cls: string } {
+  const appt = (lead.appointmentStatus || '').toUpperCase();
+  if (appt === 'COMPLETED') return { label: 'Completed', cls: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  if (appt === 'CANCELLED') return { label: 'Cancelled', cls: 'bg-red-50 text-red-700 border-red-200' };
+  if (appt === 'PENDING') return { label: 'Pending', cls: 'bg-amber-50 text-amber-700 border-amber-200' };
+
+  const pending = Number(lead.payment?.pendingAmount ?? lead.payment?.outstandingAmount) || 0;
+  if (pending > 0) return { label: 'Payment Pending', cls: 'bg-yellow-50 text-yellow-700 border-yellow-200' };
+
+  if (lead.assignedToUserName) return { label: 'Assigned', cls: 'bg-blue-50 text-blue-700 border-blue-200' };
+
+  const s = lead.leadStatus || 'NEW';
+  return { label: s, cls: getStatusClass(s) };
 }
 
 export default function CallingTeamPage() {

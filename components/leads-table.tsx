@@ -8,7 +8,8 @@ import {
   Users, IndianRupee, BadgeCheck, AlertCircle, CalendarClock, FileDown, Edit, Save,
   ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
   PhoneCall, MailOpen, Hash, CalendarRange, Timer, Tag, Link2, DollarSign, Percent,
-  ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp
+  ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp, CheckCircle2, XCircle,
+  ArrowUpDown, ArrowDownUp
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -71,6 +72,8 @@ interface Lead {
     pvAge?: string;
     pvMobile?: string;
     pvRelation?: string;
+    agreementFile?: string;
+    agreementFileName?: string;
   };
   payment?: {
     grnNumber?: string;
@@ -98,6 +101,7 @@ interface Lead {
   visitAddress?: string;
   appointmentTime?: string;
   isAppointment?: boolean;
+  appointmentStatus?: string;
   lastFollowUpDate?: string;
   nextFollowUpDate?: string;
   createdDate?: string;
@@ -601,6 +605,25 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     <option value="">Select Status</option>
                     {['Govt. Approval pending', 'Govt. Quiery', 'Govt. Copy send clint', 'Govt. Other issue', 'Challan Pending', 'DHC Pending', 'ReShadule visit', 'Payment Pending', 'POA Pending', 'PVR Pending', 'Cummision Sending', 'Document Pending', 'Draft Confirmation Pending', 'Other State Bio. Pending', 'NRI Bio Pending', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                </div>
+                <div className="md:col-span-3">
+                  <label className={labelClass}>Agreement File (PDF)</label>
+                  {formData.agreement?.agreementFile && (
+                    <a
+                      href={formData.agreement.agreementFile}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline mb-1"
+                    >
+                      <FileText className="w-3.5 h-3.5" /> View current file
+                    </a>
+                  )}
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={(e) => handleInputChange('agreement', 'agreementFileName', e.target.files?.[0]?.name || '')}
+                    className={inputClass}
+                  />
                 </div>
               </div>
             </div>
@@ -1164,6 +1187,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   // Calling team: switch between the "Leads" list and forwarded "Appointments".
   const [callingView, setCallingView] = useState<'leads' | 'appointments'>('leads');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
+  // Accounting / appointment list: sort by appointment date (ascending / descending).
+  const [appointmentSort, setAppointmentSort] = useState<'none' | 'asc' | 'desc'>('none');
 
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
@@ -1449,6 +1474,23 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     }
   };
 
+  // Calling team appointments: mark an appointment Complete / Pending / Cancelled.
+  const handleAppointmentStatus = async (leadId: string, status: string) => {
+    setForwardingId(leadId);
+    try {
+      const res = await apiFetch('/api/leads', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: leadId, appointmentStatus: status }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, appointmentStatus: status } : l)));
+    } catch {
+      alert('Failed to update appointment status. Please try again.');
+    } finally {
+      setForwardingId(null);
+    }
+  };
+
   // ✅ KEY FIX: Update lead in local state instead of refetching the entire list.
   // This prevents leads from disappearing when date filters are active and a lead's
   // date doesn't match the current filter range after saving.
@@ -1648,6 +1690,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
   }
+  // Sort by appointment date (ascending / descending) when requested.
+  if (appointmentSort !== 'none') {
+    displayedLeads = [...displayedLeads].sort((a, b) => {
+      const ta = a.appointmentTime ? new Date(a.appointmentTime).getTime() : 0;
+      const tb = b.appointmentTime ? new Date(b.appointmentTime).getTime() : 0;
+      return appointmentSort === 'asc' ? ta - tb : tb - ta;
+    });
+  }
 
   return (
     <div className="space-y-6 font-sans text-slate-700">
@@ -1676,6 +1726,22 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
               {view === 'leads' ? 'Lead' : 'Appointment'}
             </button>
           ))}
+        </div>
+      )}
+
+      {(isAccountingDashboard || (isCallingDashboard && callingView === 'appointments')) && (
+        <div className="flex items-center gap-2 text-sm">
+          <ArrowUpDown className="w-4 h-4 text-amber-500" />
+          <span className="font-medium text-slate-600">Sort by Appointment Date:</span>
+          <select
+            value={appointmentSort}
+            onChange={(e) => setAppointmentSort(e.target.value as 'none' | 'asc' | 'desc')}
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all cursor-pointer"
+          >
+            <option value="none">Default</option>
+            <option value="asc">Ascending (Oldest first)</option>
+            <option value="desc">Descending (Newest first)</option>
+          </select>
         </div>
       )}
 
@@ -1752,6 +1818,34 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                                   {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
                                 </button>
                               )
+                            )}
+                            {isCallingDashboard && callingView === 'appointments' && (
+                              <>
+                                <button
+                                  onClick={() => handleAppointmentStatus(lead.id, 'COMPLETED')}
+                                  disabled={forwardingId === lead.id}
+                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'COMPLETED' ? 'text-white bg-emerald-500 hover:bg-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
+                                  title="Mark Appointment Complete"
+                                >
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleAppointmentStatus(lead.id, 'PENDING')}
+                                  disabled={forwardingId === lead.id}
+                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'PENDING' ? 'text-white bg-amber-500 hover:bg-amber-600' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
+                                  title="Mark Appointment Pending"
+                                >
+                                  <Clock className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleAppointmentStatus(lead.id, 'CANCELLED')}
+                                  disabled={forwardingId === lead.id}
+                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'CANCELLED' ? 'text-white bg-red-500 hover:bg-red-600' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
+                                  title="Mark Appointment Cancelled"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              </>
                             )}
                             <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel">
                               <Trash2 className="w-4 h-4" />
