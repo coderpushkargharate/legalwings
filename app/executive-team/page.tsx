@@ -5,6 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
 import type { Column, Lead } from '@/components/leads-table';
+import { formatDateTime } from '@/lib/date-utils';
 
 const columns: Column[] = [
   {
@@ -18,6 +19,24 @@ const columns: Column[] = [
     label: 'Phone',
     width: '110px',
     render: (lead: Lead) => lead.client?.phoneNo || '-',
+  },
+  {
+    key: 'svName',
+    label: 'SV Name',
+    width: '120px',
+    render: (lead: Lead) => lead.agreement?.svName || '-',
+  },
+  {
+    key: 'svNo',
+    label: 'SV No.',
+    width: '110px',
+    render: (lead: Lead) => lead.agreement?.svNo || '-',
+  },
+  {
+    key: 'svLocation',
+    label: 'SV Location',
+    width: '140px',
+    render: (lead: Lead) => lead.agreement?.svLocation || '-',
   },
   {
     key: 'visitAddress',
@@ -34,7 +53,7 @@ const columns: Column[] = [
     key: 'appointmentTime',
     label: 'Appointment',
     width: '140px',
-    render: (lead: Lead) => lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-',
+    render: (lead: Lead) => formatDateTime(lead.appointmentTime),
   },
   {
     key: 'leadStatus',

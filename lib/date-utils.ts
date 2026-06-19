@@ -6,19 +6,21 @@ export const formatDate = (dateString?: string | null, showTime: boolean = false
     if (isNaN(date.getTime())) return '-';
     
     if (showTime) {
-      return date.toLocaleString('en-IN', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric',
+      // DD/MM/YY HH:MM
+      return date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: '2-digit',
+        year: '2-digit',
         hour: '2-digit',
         minute: '2-digit'
       });
     }
-    
-    return date.toLocaleDateString('en-IN', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
+
+    // DD/MM/YY
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
     });
   } catch {
     return '-';

@@ -106,6 +106,8 @@ interface Lead {
   appointmentTime?: string;
   isAppointment?: boolean;
   appointmentStatus?: string;
+  // Backend workflow bucket: undefined = All Work, 'SUBMITTED', 'COMPLETED'
+  backendStatus?: string;
   lastFollowUpDate?: string;
   nextFollowUpDate?: string;
   createdDate?: string;
@@ -184,10 +186,65 @@ const THEME = {
 };
 
 // ==================== UTILITY FUNCTIONS ====================
+// DD/MM/YY (2-digit year) — consistent across all team tables.
 const formatDate = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+};
+
+// DD/MM/YY HH:MM for fields that carry a time (appointments, forwarding history).
+const formatDateTime = (dateString?: string): string => {
+  if (!dateString) return '-';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+};
+
+// Typeable date field in DD/MM/YY. Displays an ISO value as DD/MM/YY, lets the
+// user type digits (auto-inserting slashes), and emits an ISO yyyy-mm-dd string
+// once a full date is entered so the rest of the app keeps storing ISO dates.
+const isoToDDMMYY = (iso?: string): string => {
+  if (!iso) return '';
+  if (/^\d{2}\/\d{2}\/\d{2}$/.test(iso)) return iso;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const yy = String(d.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+};
+
+const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; className?: string }> = ({ value, onChange, className }) => {
+  const [text, setText] = useState<string>(isoToDDMMYY(value));
+  useEffect(() => { setText(isoToDDMMYY(value)); }, [value]);
+
+  const handle = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    let out = digits;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    setText(out);
+    if (digits.length === 6) {
+      const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yy = digits.slice(4, 6);
+      onChange(`20${yy}-${mm}-${dd}`);
+    } else if (digits.length === 0) {
+      onChange('');
+    }
+  };
+
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="DD/MM/YY"
+      value={text}
+      onChange={(e) => handle(e.target.value)}
+      maxLength={8}
+      className={className}
+    />
+  );
 };
 
 const formatCurrency = (amount?: number | string): string => {
@@ -552,7 +609,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Birth Date</label>
-                  <input type="date" value={formData.agreement?.owner?.birthDate?.split('T')[0] || formData.agreement?.owner?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('owner', 'birthDate', e.target.value)} className={inputClass} />
+                  <DateInput value={formData.agreement?.owner?.birthDate || formData.agreement?.owner?.dateOfBirth} onChange={(iso) => handleInputChange('owner', 'birthDate', iso)} className={inputClass} />
                 </div>
               </div>
             </div>
@@ -568,7 +625,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Birth Date</label>
-                  <input type="date" value={formData.agreement?.tenant?.birthDate?.split('T')[0] || formData.agreement?.tenant?.dateOfBirth?.split('T')[0] || ''} onChange={(e) => handleInputChange('tenant', 'birthDate', e.target.value)} className={inputClass} />
+                  <DateInput value={formData.agreement?.tenant?.birthDate || formData.agreement?.tenant?.dateOfBirth} onChange={(iso) => handleInputChange('tenant', 'birthDate', iso)} className={inputClass} />
                 </div>
               </div>
             </div>
@@ -587,7 +644,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>SV No.</label><input type="text" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>SV No.</label><input type="text" inputMode="numeric" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>SV Location</label><input type="text" value={formData.agreement?.svLocation || ''} onChange={(e) => handleInputChange('agreement', 'svLocation', e.target.value)} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Assign Status</label>
@@ -630,14 +687,23 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div className="md:col-span-3">
                   <label className={labelClass}>Agreement File (PDF)</label>
                   {formData.agreement?.agreementFile && (
-                    <a
-                      href={formData.agreement.agreementFile}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline mb-1"
-                    >
-                      <FileText className="w-3.5 h-3.5" /> View current file
-                    </a>
+                    <div className="flex items-center gap-3 mb-1">
+                      <a
+                        href={formData.agreement.agreementFile}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline"
+                      >
+                        <FileText className="w-3.5 h-3.5" /> View current file
+                      </a>
+                      <a
+                        href={formData.agreement.agreementFile}
+                        download={formData.agreement.agreementFileName || 'agreement.pdf'}
+                        className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline"
+                      >
+                        <Download className="w-3.5 h-3.5" /> Download
+                      </a>
+                    </div>
                   )}
                   <input
                     type="file"
@@ -727,10 +793,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className={labelClass}>GRN Number</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>GRN Number</label><input type="text" inputMode="numeric" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 18))} maxLength={18} className={inputClass} /></div>
                 <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                 <div><label className={labelClass}>Govt GRN Date</label><input type="date" value={formData.payment?.govtGrnDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'govtGrnDate', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>DHC Number</label><input type="text" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Number</label><input type="text" inputMode="numeric" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 13))} maxLength={13} className={inputClass} /></div>
                 <div><label className={labelClass}>DHC Amount</label><input type="text" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                 <div><label className={labelClass}>DHC Date</label><input type="date" value={formData.payment?.dhcDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'dhcDate', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Date</label><input type="date" value={formData.payment?.commissionDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'commissionDate', e.target.value)} className={inputClass} /></div>
@@ -855,7 +921,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Lead Source" value={lead.leadSource || '-'} />
                     <InfoItem label="Lead Status" value={lead.leadStatus || '-'} badge />
                     <InfoItem label="Tentative Agreement Date" value={formatDate(lead.tentativeAgreementDate)} icon={CalendarDays} />
-                    <InfoItem label="Appointment Time" value={lead.appointmentTime ? new Date(lead.appointmentTime).toLocaleString('en-IN') : '-'} icon={Clock} />
+                    <InfoItem label="Appointment Time" value={formatDateTime(lead.appointmentTime)} icon={Clock} />
                     <InfoItem label="Visit Address" value={lead.visitAddress || '-'} icon={MapPin} />
                     <InfoItem label="Description" value={lead.description || '-'} multiline />
                     <InfoItem label="Reference Name" value={lead.referenceName || '-'} />
@@ -879,7 +945,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                         <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00A651]">{history.toTeam}</span></span>
-                            <span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{history.forwardedAt ? new Date(history.forwardedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}</span>
+                            <span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(history.forwardedAt)}</span>
                           </div>
                           <p className="text-xs text-slate-600 mt-2"><User className="w-3 h-3 inline mr-1" /> Forwarded by: <span className="font-medium">{history.forwardedBy}</span></p>
                           {history.reason && <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800"><AlertCircle className="w-3 h-3 inline mr-1" /><strong>Reason:</strong> {history.reason}</div>}
@@ -948,6 +1014,23 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Mobile No" value={lead.agreement?.mobileNo || '-'} icon={Phone} />
                     <InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline />
                     <InfoItem label="Address Line 2" value={lead.agreement?.addressLine2 || '-'} multiline />
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Agreement File
+                      </label>
+                      {lead.agreement?.agreementFile ? (
+                        <div className="flex items-center gap-3">
+                          <a href={lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                            <Eye className="w-3.5 h-3.5" /> View
+                          </a>
+                          <a href={lead.agreement.agreementFile} download={lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
+                            <Download className="w-3.5 h-3.5" /> Download
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-700">-</p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1080,6 +1163,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
   const prevTeamRef = useRef<string>('');
   const reasonOptions = [
     { value: '', label: '-- Select Reason --' },
+    { value: 'Completed', label: 'Completed' },
     { value: 'Witness Pending', label: 'Witness Pending' },
     { value: 'Correction and Witness', label: 'Correction and Witness' },
     { value: 'Postpone', label: 'Postpone' },
@@ -1216,6 +1300,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [editLead, setEditLead] = useState<Lead | null>(null);
   // Calling team: switch between the "Leads" list and forwarded "Appointments".
   const [callingView, setCallingView] = useState<'leads' | 'appointments'>('leads');
+  // Backend team: All Work / Submitted / Completed buckets.
+  const [backendView, setBackendView] = useState<'all' | 'submitted' | 'completed'>('all');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   // Accounting / appointment list: sort by appointment date (ascending / descending).
   const [appointmentSort, setAppointmentSort] = useState<'none' | 'asc' | 'desc'>('none');
@@ -1339,7 +1425,34 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       { key: 'assignedTo', label: 'Assigned To', width: '140px', render: (lead) => lead.assignedToUserName || 'Team Only' },
     ];
   };
-  const columns = getColumnsForDashboard();
+  let columns = getColumnsForDashboard();
+
+  // Calling team Lead view: SV Name / No / Location belong to the Appointment view
+  // only. In the Lead view, collapse those columns into a single "Next Forward"
+  // action that pushes the lead into the Appointment view.
+  if (isCallingDashboard && callingView === 'leads') {
+    const svKeys = ['svName', 'svNo', 'svLocation'];
+    const svIndex = columns.findIndex((c) => svKeys.includes(c.key));
+    const withoutSv = columns.filter((c) => !svKeys.includes(c.key));
+    if (svIndex >= 0) {
+      const nextForwardCol: Column = {
+        key: 'nextForward',
+        label: 'Next Forward',
+        width: '150px',
+        render: (lead) => (
+          <button
+            onClick={(e) => { e.stopPropagation(); handleToggleAppointment(lead.id, true); }}
+            disabled={forwardingId === lead.id}
+            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-50"
+          >
+            {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Forward
+          </button>
+        ),
+      };
+      withoutSv.splice(Math.min(svIndex, withoutSv.length), 0, nextForwardCol);
+    }
+    columns = withoutSv;
+  }
 
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
@@ -1516,6 +1629,24 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, appointmentStatus: status } : l)));
     } catch {
       alert('Failed to update appointment status. Please try again.');
+    } finally {
+      setForwardingId(null);
+    }
+  };
+
+  // Backend team: forward / reforward a lead between All Work → Submitted → Completed.
+  // `status` is '' (All Work), 'SUBMITTED' or 'COMPLETED'.
+  const handleBackendStatus = async (leadId: string, status: string) => {
+    setForwardingId(leadId);
+    try {
+      const res = await apiFetch('/api/leads', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: leadId, backendStatus: status }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, backendStatus: status } : l)));
+    } catch {
+      alert('Failed to update backend status. Please try again.');
     } finally {
       setForwardingId(null);
     }
@@ -1720,6 +1851,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
   }
+  // Backend team: All Work shows everything; Submitted / Completed are subsets.
+  if (isBackendDashboard) {
+    displayedLeads = displayedLeads.filter((l) => {
+      if (backendView === 'submitted') return l.backendStatus === 'SUBMITTED';
+      if (backendView === 'completed') return l.backendStatus === 'COMPLETED';
+      return true;
+    });
+  }
   // Sort by appointment date (ascending / descending) when requested.
   if (appointmentSort !== 'none') {
     displayedLeads = [...displayedLeads].sort((a, b) => {
@@ -1754,6 +1893,23 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
               }`}
             >
               {view === 'leads' ? 'Lead' : 'Appointment'}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isBackendDashboard && (
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+          {([['all', 'All Work'], ['submitted', 'Submitted'], ['completed', 'Completed']] as const).map(([view, label]) => (
+            <button
+              key={view}
+              type="button"
+              onClick={() => setBackendView(view)}
+              className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                backendView === view ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              {label}
             </button>
           ))}
         </div>
@@ -1876,6 +2032,46 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                                   <XCircle className="w-4 h-4" />
                                 </button>
                               </>
+                            )}
+                            {isBackendDashboard && (
+                              lead.backendStatus === 'COMPLETED' ? (
+                                <button
+                                  onClick={() => handleBackendStatus(lead.id, 'SUBMITTED')}
+                                  disabled={forwardingId === lead.id}
+                                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-40"
+                                  title="Reforward to Submitted"
+                                >
+                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                                </button>
+                              ) : lead.backendStatus === 'SUBMITTED' ? (
+                                <>
+                                  <button
+                                    onClick={() => handleBackendStatus(lead.id, 'COMPLETED')}
+                                    disabled={forwardingId === lead.id}
+                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40"
+                                    title="Forward to Completed"
+                                  >
+                                    {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                                  </button>
+                                  <button
+                                    onClick={() => handleBackendStatus(lead.id, '')}
+                                    disabled={forwardingId === lead.id}
+                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-40"
+                                    title="Reforward to All Work"
+                                  >
+                                    <ArrowRightLeft className="w-4 h-4" />
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => handleBackendStatus(lead.id, 'SUBMITTED')}
+                                  disabled={forwardingId === lead.id}
+                                  className="p-2 text-slate-400 hover:text-[#00A651] hover:bg-[#f0fdf4] rounded-lg transition-all disabled:opacity-40"
+                                  title="Forward to Submitted"
+                                >
+                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                </button>
+                              )
                             )}
                             <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel">
                               <Trash2 className="w-4 h-4" />

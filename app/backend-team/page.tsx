@@ -5,6 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
 import type { Column, Lead } from '@/components/leads-table';
+import { formatDate } from '@/lib/date-utils';
 
 const columns: Column[] = [
   {
@@ -67,7 +68,7 @@ const columns: Column[] = [
     key: 'commissionDate',
     label: 'Commission Date',
     width: '120px',
-    render: (lead: Lead) => lead.payment?.commissionDate ? new Date(lead.payment.commissionDate).toLocaleDateString('en-IN') : '-',
+    render: (lead: Lead) => formatDate(lead.payment?.commissionDate),
   },
   {
     key: 'commissionAmount',

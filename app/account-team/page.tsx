@@ -11,10 +11,10 @@ const formatDate = (dateString?: string | null): string => {
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return '-';
-    return date.toLocaleDateString('en-IN', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: '2-digit',
+      year: '2-digit'
     });
   } catch {
     return '-';

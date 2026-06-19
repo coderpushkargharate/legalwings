@@ -318,7 +318,7 @@ export default function EmployeesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap">
-                      {new Date(emp.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      {new Date(emp.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                     </td>
                     <td className="px-4 py-3">
                       <button 
@@ -395,7 +395,7 @@ export default function EmployeesPage() {
                   </div>
                   <div className="flex items-center gap-2 text-sm text-slate-600">
                     <Calendar className="w-4 h-4 flex-shrink-0" />
-                    <span>Joined {new Date(emp.createdAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
+                    <span>Joined {new Date(emp.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
                   </div>
                 </div>
               </div>
