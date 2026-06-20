@@ -80,6 +80,9 @@ const columns: Column[] = [
           {assign && (
             <span className={`px-2 py-0.5 rounded-full text-xs font-medium border w-fit ${cls}`}>{assign}</span>
           )}
+          {lead.forwardReason && (
+            <span className="text-xs text-slate-500 whitespace-normal" title={lead.forwardReason}>{lead.forwardReason}</span>
+          )}
         </div>
       );
     },
