@@ -1435,9 +1435,15 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     const svIndex = columns.findIndex((c) => svKeys.includes(c.key));
     const withoutSv = columns.filter((c) => !svKeys.includes(c.key));
     if (svIndex >= 0) {
+      const leadFollowUpCol: Column = {
+        key: 'leadFollowUp',
+        label: 'Lead Followup',
+        width: '120px',
+        render: (lead) => formatDate(lead.nextFollowUpDate),
+      };
       const nextForwardCol: Column = {
         key: 'nextForward',
-        label: 'Next Forward',
+        label: 'Next Followup',
         width: '150px',
         render: (lead) => (
           <button
@@ -1445,11 +1451,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             disabled={forwardingId === lead.id}
             className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-50"
           >
-            {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Forward
+            {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Followup
           </button>
         ),
       };
-      withoutSv.splice(Math.min(svIndex, withoutSv.length), 0, nextForwardCol);
+      const insertAt = Math.min(svIndex, withoutSv.length);
+      withoutSv.splice(insertAt, 0, leadFollowUpCol, nextForwardCol);
     }
     columns = withoutSv;
   }
