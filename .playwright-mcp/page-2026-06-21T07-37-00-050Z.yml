@@ -1,0 +1,33 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e7]:
+      - img "LegalWings Logo" [ref=e8]
+      - heading "LegalWing" [level=1] [ref=e9]
+      - paragraph [ref=e10]: Rent Agreement CRM System
+      - paragraph [ref=e11]: Manage your rent agreements, clients, leads, and payments all in one place. Streamline your legal workflow with our comprehensive CRM solution.
+      - generic [ref=e12]:
+        - generic [ref=e13]:
+          - paragraph [ref=e14]: 500+
+          - paragraph [ref=e15]: Agreements
+        - generic [ref=e16]:
+          - paragraph [ref=e17]: 200+
+          - paragraph [ref=e18]: Clients
+        - generic [ref=e19]:
+          - paragraph [ref=e20]: "5"
+          - paragraph [ref=e21]: Teams
+    - generic [ref=e23]:
+      - heading "Welcome back" [level=2] [ref=e24]
+      - paragraph [ref=e25]: Sign in to your account to continue
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - generic [ref=e28]: Email Address
+          - textbox "Enter your email" [ref=e29]
+        - generic [ref=e30]:
+          - generic [ref=e31]: Password
+          - generic [ref=e32]:
+            - textbox "Enter your password" [ref=e33]
+            - button [ref=e34] [cursor=pointer]:
+              - img [ref=e35]
+        - button "Sign In" [ref=e38] [cursor=pointer]
+      - paragraph [ref=e39]: LegalWings CRM v1.0 - Powered by LegalWings
+  - alert [ref=e40]

@@ -5,7 +5,8 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
+import { formatDate, formatDateTime } from '@/lib/date-utils';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -104,6 +105,8 @@ interface AgreementFormData {
   assignStatus?: string;
   agreementMobileNo?: string;
   agreementExecuteDate?: string;
+  agreementFileName?: string;
+  agreementFileData?: string; // base64 data URL of the uploaded file
 }
 
 interface PaymentFormData {
@@ -119,6 +122,15 @@ interface PaymentFormData {
   dhcDate: string;
   description: string;
 }
+
+// ============================================================================
+// 🔹 FILE TYPE HELPERS (works with base64 data URLs or file names)
+// ============================================================================
+const isPdfFile = (data?: string, name?: string): boolean =>
+  !!(data?.startsWith('data:application/pdf') || name?.toLowerCase().endsWith('.pdf'));
+
+const isImageFile = (data?: string, name?: string): boolean =>
+  !!(data?.startsWith('data:image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name || ''));
 
 // ============================================================================
 // 🔹 REUSABLE COMPONENTS
@@ -146,6 +158,42 @@ const Input = memo(function Input({
         readOnly={readOnly} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
         className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all"
       />
+    </div>
+  );
+});
+
+// ✅ Date field: native picker when editable, formatted DD/MM/YY text in view mode
+interface DateFieldProps {
+  label: string;
+  value?: string;
+  onChange: (v: string) => void;
+  isEditable: boolean;
+  withTime?: boolean;
+  id?: string;
+}
+const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
+  const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
+  return (
+    <div>
+      <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      {isEditable ? (
+        <div className="relative">
+          <input
+            id={fieldId}
+            type={withTime ? 'datetime-local' : 'date'}
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all pr-10"
+          />
+          <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+      ) : (
+        <div id={fieldId} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">
+          {withTime ? formatDateTime(value) : formatDate(value)}
+        </div>
+      )}
     </div>
   );
 });
@@ -346,6 +394,8 @@ function LeadFormContent() {
               svLocation: data.agreement.svLocation || '', assignStatus: data.agreement.assignStatus || '',
               agreementMobileNo: data.agreement.mobileNo || '',
               agreementExecuteDate: data.agreement.executeDate || '',
+              agreementFileName: data.agreement.fileName || '',
+              agreementFileData: data.agreement.fileData || '',
             });
           }
 
@@ -394,6 +444,20 @@ function LeadFormContent() {
 
   const updateAgreement = useCallback((field: keyof AgreementFormData, value: string) => {
     setAgreement(prev => prev[field] === value ? prev : { ...prev, [field]: value });
+  }, []);
+
+  // ✅ Read uploaded agreement file as a base64 data URL so it can be stored & downloaded later
+  const handleAgreementFile = useCallback((file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAgreement(prev => ({
+        ...prev,
+        agreementFileName: file.name,
+        agreementFileData: typeof reader.result === 'string' ? reader.result : '',
+      }));
+    };
+    reader.readAsDataURL(file);
   }, []);
 
   const updatePayment = useCallback((field: keyof PaymentFormData, value: string) => {
@@ -529,6 +593,7 @@ function LeadFormContent() {
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
+          fileName: agreement.agreementFileName, fileData: agreement.agreementFileData,
           pvName: agreement.pvName, pvAge: agreement.pvAge,
           pvMobile: agreement.pvMobile, pvRelation: agreement.pvRelation,
           svName: agreement.svName, svNo: agreement.svNo,
@@ -666,22 +731,7 @@ function LeadFormContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* ✅ NEW: Lead Date Field */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Lead Date</label>
-                <div className="relative">
-                  <input 
-                    type="date" 
-                    value={lead.leadDate} 
-                    onChange={(e) => updateLead('leadDate', e.target.value)} 
-                    disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                    id="lead-leadDate" 
-                  />
-                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-              </div>
+              <DateField label="Lead Date" value={lead.leadDate} onChange={(v) => updateLead('leadDate', v)} isEditable={isEditable} id="lead-leadDate" />
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
@@ -720,20 +770,8 @@ function LeadFormContent() {
                   {dropdowns.leadStatuses.map((status) => (<option key={status.key} value={status.key}>{status.value}</option>))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Tentative Agreement Date</label>
-                <div className="relative">
-                  <input type="date" value={lead.tentativeAgreementDate} onChange={(e) => updateLead('tentativeAgreementDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="lead-tentativeAgreementDate" />
-                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Appointment Time</label>
-                <div className="relative">
-                  <input type="datetime-local" value={lead.appointmentTime} onChange={(e) => updateLead('appointmentTime', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="lead-appointmentTime" />
-                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                </div>
-              </div>
+              <DateField label="Tentative Agreement Date" value={lead.tentativeAgreementDate} onChange={(v) => updateLead('tentativeAgreementDate', v)} isEditable={isEditable} id="lead-tentativeAgreementDate" />
+              <DateField label="Appointment Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
                 <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
@@ -768,20 +806,8 @@ function LeadFormContent() {
                   {dropdowns.areas.map((area) => (<option key={area.id} value={area.id}>{area.name}</option>))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Last FollowUp Date</label>
-                <div className="relative">
-                  <input type="date" value={lead.lastFollowUpDate} onChange={(e) => updateLead('lastFollowUpDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="lead-lastFollowUpDate" />
-                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Next FollowUp Date</label>
-                <div className="relative">
-                  <input type="date" value={lead.nextFollowUpDate} onChange={(e) => updateLead('nextFollowUpDate', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" id="lead-nextFollowUpDate" />
-                  <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                </div>
-              </div>
+              <DateField label="Last FollowUp Date" value={lead.lastFollowUpDate} onChange={(v) => updateLead('lastFollowUpDate', v)} isEditable={isEditable} id="lead-lastFollowUpDate" />
+              <DateField label="Next FollowUp Date" value={lead.nextFollowUpDate} onChange={(v) => updateLead('nextFollowUpDate', v)} isEditable={isEditable} id="lead-nextFollowUpDate" />
             </div>
             {isEditable && (
               <div className="flex justify-end gap-3 mt-6">
@@ -810,22 +836,7 @@ function LeadFormContent() {
                 <Input label="Owner Aadhar Number" value={agreement.ownerAadhar} onChange={(v) => updateAgreement('ownerAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Owner Aadhar Number" id="agreement-ownerAadhar" />
                 <Input label="Owner PAN Number" value={agreement.ownerPan} onChange={(v) => updateAgreement('ownerPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Owner PAN Number" id="agreement-ownerPan" />
                 {/* ✅ NEW: Owner Birth Date */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Owner Birth Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={agreement.ownerBirthDate || ''} 
-                      onChange={(e) => updateAgreement('ownerBirthDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="agreement-ownerBirthDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
+                <DateField label="Owner Birth Date" value={agreement.ownerBirthDate} onChange={(v) => updateAgreement('ownerBirthDate', v)} isEditable={isEditable} id="agreement-ownerBirthDate" />
               </div>
             </div>
             {/* Tenant Section */}
@@ -839,22 +850,7 @@ function LeadFormContent() {
                 <Input label="Tenant Aadhar Number" value={agreement.tenantAadhar} onChange={(v) => updateAgreement('tenantAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Tenant Aadhar Number" id="agreement-tenantAadhar" />
                 <Input label="Tenant PAN Number" value={agreement.tenantPan} onChange={(v) => updateAgreement('tenantPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Tenant PAN Number" id="agreement-tenantPan" />
                 {/* ✅ NEW: Tenant Birth Date */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Tenant Birth Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={agreement.tenantBirthDate || ''} 
-                      onChange={(e) => updateAgreement('tenantBirthDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="agreement-tenantBirthDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
+                <DateField label="Tenant Birth Date" value={agreement.tenantBirthDate} onChange={(v) => updateAgreement('tenantBirthDate', v)} isEditable={isEditable} id="agreement-tenantBirthDate" />
               </div>
             </div>
             {/* Police Verification Details Section */}
@@ -890,40 +886,9 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
                 
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Start Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={agreement.agreementStartDate} 
-                      onChange={(e) => updateAgreement('agreementStartDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="agreement-agreementStartDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Agreement End Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={agreement.agreementEndDate} 
-                      onChange={(e) => updateAgreement('agreementEndDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="agreement-agreementEndDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
-                
+                <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={(v) => updateAgreement('agreementStartDate', v)} isEditable={isEditable} id="agreement-agreementStartDate" />
+                <DateField label="Agreement End Date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} isEditable={isEditable} id="agreement-agreementEndDate" />
+
                 {/* ✅ EXISTING: Mobile No Field */}
                 <Input 
                   label="Mobile No" 
@@ -936,23 +901,8 @@ function LeadFormContent() {
                 />
                 
                 {/* ✅ EXISTING: Execute Date Field */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Execute Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={agreement.agreementExecuteDate || ''} 
-                      onChange={(e) => updateAgreement('agreementExecuteDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      id="agreement-executeDate" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
-                
+                <DateField label="Execute Date" value={agreement.agreementExecuteDate} onChange={(v) => updateAgreement('agreementExecuteDate', v)} isEditable={isEditable} id="agreement-executeDate" />
+
                 <Input label="Address Line 1" value={agreement.addressLine1} onChange={(v) => updateAgreement('addressLine1', v)} disabled={!isEditable} placeholder="Address Line 1" id="agreement-addressLine1" />
                 <Input label="Address Line 2" value={agreement.addressLine2} onChange={(v) => updateAgreement('addressLine2', v)} disabled={!isEditable} placeholder="Address Line 2" id="agreement-addressLine2" />
                 <div>
@@ -971,7 +921,49 @@ function LeadFormContent() {
                 </div>
                 <div className="md:col-span-3">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement File</label>
-                  <input type="file" disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="agreement-file" />
+                  {isEditable && (
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={(e) => handleAgreementFile(e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      id="agreement-file"
+                    />
+                  )}
+                  {/* ✅ Inline preview of the uploaded file + download option */}
+                  {agreement.agreementFileData ? (
+                    <div className="mt-2 space-y-2">
+                      <a
+                        href={agreement.agreementFileData}
+                        download={agreement.agreementFileName || 'agreement-file'}
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        {agreement.agreementFileName || 'Download file'}
+                      </a>
+                      {isPdfFile(agreement.agreementFileData, agreement.agreementFileName) ? (
+                        <object
+                          data={agreement.agreementFileData}
+                          type="application/pdf"
+                          className="w-full h-[600px] border border-slate-200 rounded-lg"
+                        >
+                          <iframe
+                            src={agreement.agreementFileData}
+                            title="Agreement PDF"
+                            className="w-full h-[600px] border border-slate-200 rounded-lg"
+                          />
+                        </object>
+                      ) : isImageFile(agreement.agreementFileData, agreement.agreementFileName) ? (
+                        <img
+                          src={agreement.agreementFileData}
+                          alt={agreement.agreementFileName || 'Agreement file'}
+                          className="max-w-full max-h-[600px] border border-slate-200 rounded-lg"
+                        />
+                      ) : null}
+                    </div>
+                  ) : (
+                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
+                  )}
                 </div>
               </div>
             </div>
