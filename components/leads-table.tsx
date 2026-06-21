@@ -78,6 +78,8 @@ interface Lead {
     assignStatus?: string;
     agreementFile?: string;
     agreementFileName?: string;
+    fileData?: string;
+    fileName?: string;
   };
   payment?: {
     grnNumber?: string;
@@ -686,10 +688,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </div>
                 <div className="md:col-span-3">
                   <label className={labelClass}>Agreement File (PDF)</label>
-                  {formData.agreement?.agreementFile && (
+                  {(formData.agreement?.fileData || formData.agreement?.agreementFile) && (
                     <div className="flex items-center gap-3 mb-1">
                       <a
-                        href={formData.agreement.agreementFile}
+                        href={formData.agreement.fileData || formData.agreement.agreementFile}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline"
@@ -697,8 +699,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                         <FileText className="w-3.5 h-3.5" /> View current file
                       </a>
                       <a
-                        href={formData.agreement.agreementFile}
-                        download={formData.agreement.agreementFileName || 'agreement.pdf'}
+                        href={formData.agreement.fileData || formData.agreement.agreementFile}
+                        download={formData.agreement.fileName || formData.agreement.agreementFileName || 'agreement.pdf'}
                         className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline"
                       >
                         <Download className="w-3.5 h-3.5" /> Download
@@ -708,7 +710,16 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <input
                     type="file"
                     accept="application/pdf"
-                    onChange={(e) => handleInputChange('agreement', 'agreementFileName', e.target.files?.[0]?.name || '')}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        handleInputChange('agreement', 'fileName', file.name);
+                        handleInputChange('agreement', 'fileData', typeof reader.result === 'string' ? reader.result : '');
+                      };
+                      reader.readAsDataURL(file);
+                    }}
                     className={inputClass}
                   />
                 </div>
@@ -1018,12 +1029,12 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
                         <FileText className="w-3 h-3" /> Agreement File
                       </label>
-                      {lead.agreement?.agreementFile ? (
+                      {(lead.agreement?.fileData || lead.agreement?.agreementFile) ? (
                         <div className="flex items-center gap-3">
-                          <a href={lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
                             <Eye className="w-3.5 h-3.5" /> View
                           </a>
-                          <a href={lead.agreement.agreementFile} download={lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
+                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} download={lead.agreement.fileName || lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
                             <Download className="w-3.5 h-3.5" /> Download
                           </a>
                         </div>
