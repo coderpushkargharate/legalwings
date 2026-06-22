@@ -23,6 +23,33 @@ function toObjectId(id: string | null): ObjectId | null {
   return new ObjectId(id);
 }
 
+// ✅ Helper: escape user input before embedding it in a RegExp
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// ✅ External CRM integration sends a lean shape (no agreement/payment/history
+// blobs). Strip the lead down to the core fields the external service needs.
+function toLeanLead(l: Record<string, unknown>) {
+  return {
+    id: (l._id as ObjectId).toString(),
+    client: l.client,
+    leadStatus: l.leadStatus,
+    leadSource: l.leadSource,
+    leadDate: l.leadDate,
+    transitLevel: l.transitLevel,
+    city: l.city,
+    area: l.area,
+    createdByUserId: l.createdByUserId,
+    createdByUserName: l.createdByUserName,
+    updatedByUserId: l.updatedByUserId,
+    updatedByUserName: l.updatedByUserName,
+    createdAt: l.createdAt,
+    updatedAt: l.updatedAt,
+    visibleToTeams: l.visibleToTeams,
+  };
+}
+
 export async function GET(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -64,9 +91,16 @@ export async function GET(request: Request) {
     // 📋 Apply filters
     const transitLevel = searchParams.get('transitLevel');
     const clientType = searchParams.get('clientType');
-    const userType = searchParams.get('userType');
+    // External CRM uses lowercase `usertype`; internal callers use `userType`.
+    const userType = searchParams.get('userType') || searchParams.get('usertype');
     const leadStatus = searchParams.get('leadStatus');
-    const mobile = searchParams.get('mobile');
+    // External CRM uses `number`; internal callers use `mobile`.
+    const mobile = searchParams.get('mobile') || searchParams.get('number');
+
+    // External CRM calls are detected by their distinctive param names. They get
+    // case-insensitive value matching and a trimmed (lean) response. Internal
+    // dashboard calls (which need full agreement/payment data) are unaffected.
+    const isExternal = searchParams.has('number') || searchParams.has('usertype');
     const searchText = searchParams.get('searchText');
     const cityId = searchParams.get('cityId');
     const areaId = searchParams.get('areaId');
@@ -110,7 +144,13 @@ export async function GET(request: Request) {
     
     // clientType / userType are aliases for the lead contact's type (OWNER/TENANT/AGENT)
     if (clientType) filter['client.clientType'] = clientType;
-    if (userType) filter['client.clientType'] = userType;
+    if (userType) {
+      // External CRM sends values like "owner" / "tenants" — match case-insensitively
+      // and tolerate a trailing plural "s" (tenant ⇄ tenants) against stored
+      // values such as "Owner" / "Tenant" / "OWNER".
+      const root = userType.replace(/s$/i, '');
+      filter['client.clientType'] = { $regex: `^${escapeRegex(root)}s?$`, $options: 'i' };
+    }
     if (leadStatus) filter.leadStatus = leadStatus;
 
     // 📱 Mobile filter — matches across every phone field a lead can carry
@@ -155,7 +195,20 @@ export async function GET(request: Request) {
       const num = parseFloat(amount);
       if (!isNaN(num)) filter['payment.totalAmount'] = num;
     }
-    if (status) filter['agreement.status'] = status;
+    if (status) {
+      if (isExternal) {
+        // External CRM filters on the lead's own status. "pending" means any
+        // open lead (not COMPLETED and not CANCELLED); any other value is an
+        // exact, case-insensitive leadStatus match.
+        if (/^pending$/i.test(status)) {
+          filter.leadStatus = { $not: { $regex: '^(completed|cancelled)$', $options: 'i' } };
+        } else {
+          filter.leadStatus = { $regex: `^${escapeRegex(status)}$`, $options: 'i' };
+        }
+      } else {
+        filter['agreement.status'] = status;
+      }
+    }
     if (paymentDate) filter['payment.paymentDate'] = paymentDate;
 
     // Marketing filters
@@ -195,7 +248,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       leadPage: {
-        content: leads.map(l => ({ ...l, id: l._id.toString(), _id: undefined })),
+        content: isExternal
+          ? leads.map(toLeanLead)
+          : leads.map(l => ({ ...l, id: l._id.toString(), _id: undefined })),
         totalElements: total,
         totalPages: Math.ceil(total / pageSize),
         number: page,
