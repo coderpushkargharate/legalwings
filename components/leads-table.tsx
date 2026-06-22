@@ -1446,28 +1446,27 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     const svIndex = columns.findIndex((c) => svKeys.includes(c.key));
     const withoutSv = columns.filter((c) => !svKeys.includes(c.key));
     if (svIndex >= 0) {
-      const leadFollowUpCol: Column = {
-        key: 'leadFollowUp',
-        label: 'Lead Followup',
-        width: '120px',
-        render: (lead) => formatDate(lead.nextFollowUpDate),
-      };
+      // Next Followup column shows the lead's Next FollowUp Date (entered on the
+      // new-lead form) and keeps the forward-to-Appointment action below it.
       const nextForwardCol: Column = {
         key: 'nextForward',
         label: 'Next Followup',
         width: '150px',
         render: (lead) => (
-          <button
-            onClick={(e) => { e.stopPropagation(); handleToggleAppointment(lead.id, true); }}
-            disabled={forwardingId === lead.id}
-            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-50"
-          >
-            {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Followup
-          </button>
+          <div className="flex flex-col gap-1.5 items-start">
+            <span className="text-sm text-slate-700">{formatDate(lead.nextFollowUpDate)}</span>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleToggleAppointment(lead.id, true); }}
+              disabled={forwardingId === lead.id}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-50"
+            >
+              {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Followup
+            </button>
+          </div>
         ),
       };
       const insertAt = Math.min(svIndex, withoutSv.length);
-      withoutSv.splice(insertAt, 0, leadFollowUpCol, nextForwardCol);
+      withoutSv.splice(insertAt, 0, nextForwardCol);
     }
     columns = withoutSv;
   }
