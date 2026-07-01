@@ -364,10 +364,25 @@ function LeadFormContent() {
   const [ownerPayments, setOwnerPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
   const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
 
-  // ✅ CALCULATED: Outstanding Amount
+  // ✅ CALCULATED: Payment flow
+  // 1) Outstanding = Total Agreement Amount + AC Amount
   const outstandingAmount = useMemo(() => {
     return calculateOutstanding(payment.totalAmount, payment.commissionAmount);
   }, [payment.totalAmount, payment.commissionAmount]);
+
+  // A) Sum of all owner payments, B) Sum of all tenant payments
+  const ownerReceived = useMemo(
+    () => ownerPayments.reduce((s, p) => s + (parseFloat(p.paymentAmount) || 0), 0),
+    [ownerPayments]
+  );
+  const tenantReceived = useMemo(
+    () => tenantPayments.reduce((s, p) => s + (parseFloat(p.paymentAmount) || 0), 0),
+    [tenantPayments]
+  );
+  // 2) Total received = A + B
+  const totalReceived = ownerReceived + tenantReceived;
+  // 3) Balance = Outstanding − Total received
+  const balanceAmount = (parseFloat(outstandingAmount) || 0) - totalReceived;
 
   const isView = mode === 'view';
   const isEditable = !isView;
@@ -725,6 +740,12 @@ function LeadFormContent() {
           commissionName: payment.commissionName, commissionDate: payment.commissionDate, grnNumber: payment.grnNumber,
           grnAmount: parseFloat(payment.grnAmount) || 0, govtGrnDate: payment.govtGrnDate, dhcNumber: payment.dhcNumber,
           dhcAmount: parseFloat(payment.dhcAmount) || 0, dhcDate: payment.dhcDate, description: payment.description,
+          // Derived payment flow: Outstanding = Total + AC; Received = owner(A) + tenant(B); Balance = Outstanding − Received
+          outstandingAmount: parseFloat(outstandingAmount) || 0,
+          receivedAmount: totalReceived,
+          paidAmount: totalReceived,
+          balanceAmount,
+          pendingAmount: balanceAmount,
           paymentDetails: [
             ...ownerPayments.filter(p => p.paymentAmount && parseFloat(p.paymentAmount) > 0).map(p => ({ 
               ...p, clientType: 'OWNER' as const,
@@ -1266,6 +1287,10 @@ function LeadFormContent() {
                   <Plus className="w-4 h-4" /> Add Owner Payment
                 </button>
               )}
+              <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
+                <span className="text-sm text-slate-600 mr-2">Owner Total (A):</span>
+                <span className="text-sm font-semibold text-[#00A651]">₹ {ownerReceived.toFixed(2)}</span>
+              </div>
             </div>
 
             {/* Tenant Payments */}
@@ -1347,23 +1372,53 @@ function LeadFormContent() {
                   <Plus className="w-4 h-4" /> Add Tenant Payment
                 </button>
               )}
+              <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
+                <span className="text-sm text-slate-600 mr-2">Tenant Total (B):</span>
+                <span className="text-sm font-semibold text-[#00A651]">₹ {tenantReceived.toFixed(2)}</span>
+              </div>
             </div>
 
-            {/* Total Amount Received */}
+            {/* Payment Summary: Received & Balance */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Total Amount Received</label>
-                <input 
-                  type="text" 
-                  value={`₹ ${(() => {
-                    const ownerTotal = ownerPayments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount) || 0), 0);
-                    const tenantTotal = tenantPayments.reduce((sum, p) => sum + (parseFloat(p.paymentAmount) || 0), 0);
-                    return (ownerTotal + tenantTotal).toFixed(2);
-                  })()}`}
-                  readOnly 
-                  disabled 
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00A651] font-semibold" 
-                />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Outstanding (recap) */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Outstanding Amount</label>
+                  <input
+                    type="text"
+                    value={`₹ ${outstandingAmount}`}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Total + AC</p>
+                </div>
+
+                {/* 2) Total received = A + B */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Total Amount Received</label>
+                  <input
+                    type="text"
+                    value={`₹ ${totalReceived.toFixed(2)}`}
+                    readOnly
+                    disabled
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00A651] font-semibold cursor-not-allowed"
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Owner (A) + Tenant (B)</p>
+                </div>
+
+                {/* 3) Balance = Outstanding − Received */}
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Balance Amount</label>
+                  <input
+                    type="text"
+                    value={`₹ ${balanceAmount.toFixed(2)}`}
+                    readOnly
+                    disabled
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00A651]'}`}
+                  />
+                  <p className="text-xs text-slate-500 mt-1">Outstanding − Received</p>
+                </div>
               </div>
             </div>
 
