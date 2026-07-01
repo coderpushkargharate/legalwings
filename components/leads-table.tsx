@@ -9,7 +9,7 @@ import {
   ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
   PhoneCall, MailOpen, Hash, CalendarRange, Timer, Tag, Link2, DollarSign, Percent,
   ClipboardList, Notebook, CircleDot, ArrowRightLeft, CircleHelp, CheckCircle2, XCircle,
-  ArrowUpDown, ArrowDownUp
+  ArrowUpDown, ArrowDownUp, ArrowRight, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
@@ -1175,6 +1175,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
   const reasonOptions = [
     { value: '', label: '-- Select Reason --' },
     { value: 'Completed', label: 'Completed' },
+    { value: 'Payment Pending', label: 'Payment Pending' },
     { value: 'Witness Pending', label: 'Witness Pending' },
     { value: 'Correction and Witness', label: 'Correction and Witness' },
     { value: 'Postpone', label: 'Postpone' },
@@ -1868,12 +1869,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
   }
-  // Backend team: All Work shows everything; Submitted / Completed are subsets.
+  // Backend team: each bucket shows only its own leads. Once a lead is forwarded to
+  // Submitted (or Completed) it leaves All Work; forwarding to Completed removes it from Submitted.
   if (isBackendDashboard) {
     displayedLeads = displayedLeads.filter((l) => {
       if (backendView === 'submitted') return l.backendStatus === 'SUBMITTED';
       if (backendView === 'completed') return l.backendStatus === 'COMPLETED';
-      return true;
+      // All Work: only leads that haven't been moved to Submitted/Completed yet.
+      return l.backendStatus !== 'SUBMITTED' && l.backendStatus !== 'COMPLETED';
     });
   }
   // Sort by appointment date (ascending / descending) when requested.
@@ -2052,41 +2055,44 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                             )}
                             {isBackendDashboard && (
                               lead.backendStatus === 'COMPLETED' ? (
+                                // Completed → can only go back to Submitted
                                 <button
                                   onClick={() => handleBackendStatus(lead.id, 'SUBMITTED')}
                                   disabled={forwardingId === lead.id}
-                                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-40"
-                                  title="Reforward to Submitted"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all disabled:opacity-40"
+                                  title="Move this lead back to Submitted"
                                 >
-                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRightLeft className="w-4 h-4" />}
+                                  {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowLeft className="w-3.5 h-3.5" />} Submitted
                                 </button>
                               ) : lead.backendStatus === 'SUBMITTED' ? (
+                                // Submitted → forward to Completed, or back to All Work
                                 <>
-                                  <button
-                                    onClick={() => handleBackendStatus(lead.id, 'COMPLETED')}
-                                    disabled={forwardingId === lead.id}
-                                    className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all disabled:opacity-40"
-                                    title="Forward to Completed"
-                                  >
-                                    {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                                  </button>
                                   <button
                                     onClick={() => handleBackendStatus(lead.id, '')}
                                     disabled={forwardingId === lead.id}
-                                    className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all disabled:opacity-40"
-                                    title="Reforward to All Work"
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-all disabled:opacity-40"
+                                    title="Move this lead back to All Work"
                                   >
-                                    <ArrowRightLeft className="w-4 h-4" />
+                                    <ArrowLeft className="w-3.5 h-3.5" /> All Work
+                                  </button>
+                                  <button
+                                    onClick={() => handleBackendStatus(lead.id, 'COMPLETED')}
+                                    disabled={forwardingId === lead.id}
+                                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-all disabled:opacity-40"
+                                    title="Forward this lead to Completed"
+                                  >
+                                    {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Completed <ArrowRight className="w-3.5 h-3.5" /></>}
                                   </button>
                                 </>
                               ) : (
+                                // All Work → forward to Submitted
                                 <button
                                   onClick={() => handleBackendStatus(lead.id, 'SUBMITTED')}
                                   disabled={forwardingId === lead.id}
-                                  className="p-2 text-slate-400 hover:text-[#00A651] hover:bg-[#f0fdf4] rounded-lg transition-all disabled:opacity-40"
-                                  title="Forward to Submitted"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-all disabled:opacity-40"
+                                  title="Forward this lead to Submitted"
                                 >
-                                  {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                  {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <>Submitted <ArrowRight className="w-3.5 h-3.5" /></>}
                                 </button>
                               )
                             )}

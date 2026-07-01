@@ -866,18 +866,10 @@ function LeadFormContent() {
             {/* Site Visit Details Section */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Site Visit Details</h3>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="SV Name" value={agreement.svName || ''} onChange={(v) => updateAgreement('svName', v)} disabled={!isEditable} placeholder="SV Name" id="agreement-svName" />
                 <Input label="SV No." value={agreement.svNo || ''} onChange={(v) => updateAgreement('svNo', v)} disabled={!isEditable} placeholder="SV No." id="agreement-svNo" />
                 <Input label="SV Location" value={agreement.svLocation || ''} onChange={(v) => updateAgreement('svLocation', v)} disabled={!isEditable} placeholder="SV Location" id="agreement-svLocation" />
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assign Status</label>
-                  <select value={agreement.assignStatus || ''} onChange={(e) => updateAgreement('assignStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-assignStatus">
-                    <option value="">Select Assign Status</option>
-                    <option value="Payment Pending">Payment Pending</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
               </div>
             </div>
             {/* Agreement Details Section */}
