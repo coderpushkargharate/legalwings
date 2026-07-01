@@ -5,6 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useAuth } from '@/components/auth-provider';
 import { useApi } from '@/components/api-client';
+import AdminUserHistory from '@/components/admin-user-history';
 import {
   Phone,
   UserCheck,
@@ -164,6 +165,9 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* 🔹 Admin-only: search any employee and view their full lead history */}
+        {extendedUser.roles?.includes('admin') && <AdminUserHistory />}
 
         <h3 className="text-lg font-semibold text-slate-800 mb-4">Your Teams</h3>
         

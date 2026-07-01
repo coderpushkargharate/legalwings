@@ -14,6 +14,51 @@ import {
 import Link from 'next/link';
 import * as XLSX from 'xlsx';
 
+// ==================== 12-HOUR DATETIME PICKER ====================
+// Native datetime-local follows the OS locale, so it may show 24-hour time.
+// This picker always uses a 12-hour clock with an explicit AM/PM selector.
+const parseDateTime12 = (value?: string) => {
+  const [datePart = '', timePart = ''] = (value || '').split('T');
+  const [hStr = '', mStr = ''] = timePart.split(':');
+  const h24 = hStr === '' ? null : parseInt(hStr, 10);
+  return {
+    datePart,
+    minute: mStr === '' ? '' : mStr.padStart(2, '0'),
+    hour12: h24 === null ? '' : String(h24 % 12 || 12).padStart(2, '0'),
+    ampm: h24 === null ? 'AM' : h24 >= 12 ? 'PM' : 'AM',
+  };
+};
+
+const buildDateTime12 = (datePart: string, hour12: string, minute: string, ampm: string) => {
+  if (!datePart) return '';
+  const h12 = parseInt(hour12 || '12', 10) % 12;
+  const h24 = ampm === 'PM' ? h12 + 12 : h12;
+  return `${datePart}T${String(h24).padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
+};
+
+function DateTime12Picker({ value, onChange, inputClass }: { value?: string; onChange: (v: string) => void; inputClass: string }) {
+  const { datePart, hour12, minute, ampm } = parseDateTime12(value);
+  const selectClass = "px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all cursor-pointer";
+  return (
+    <div className="flex gap-2 items-center">
+      <input type="date" value={datePart} onChange={(e) => onChange(buildDateTime12(e.target.value, hour12, minute, ampm))} className={`flex-1 ${inputClass}`} />
+      <select aria-label="Hour" value={hour12 || ''} onChange={(e) => onChange(buildDateTime12(datePart, e.target.value, minute, ampm))} className={selectClass}>
+        <option value="" disabled>hh</option>
+        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-slate-400">:</span>
+      <select aria-label="Minute" value={minute || ''} onChange={(e) => onChange(buildDateTime12(datePart, hour12, e.target.value, ampm))} className={selectClass}>
+        <option value="" disabled>mm</option>
+        {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+      <select aria-label="AM/PM" value={ampm} onChange={(e) => onChange(buildDateTime12(datePart, hour12, minute, e.target.value))} className={selectClass}>
+        <option value="AM">AM</option>
+        <option value="PM">PM</option>
+      </select>
+    </div>
+  );
+}
+
 // ==================== INTERFACES ====================
 interface PaymentDetail {
   paymentDate: string;
@@ -80,6 +125,10 @@ interface Lead {
     agreementFileName?: string;
     fileData?: string;
     fileName?: string;
+    pvrFileData?: string;
+    pvrFileName?: string;
+    otherFileData?: string;
+    otherFileName?: string;
   };
   payment?: {
     grnNumber?: string;
@@ -188,20 +237,23 @@ const THEME = {
 };
 
 // ==================== UTILITY FUNCTIONS ====================
-// DD/MM/YY (2-digit year) — consistent across all team tables.
+// DD.MM.YYYY — consistent across all team tables.
 const formatDate = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' });
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  return `${dd}.${mm}.${date.getFullYear()}`;
 };
 
-// DD/MM/YY HH:MM for fields that carry a time (appointments, forwarding history).
+// DD.MM.YYYY hh:mm AM/PM (12-hour) for fields that carry a time (appointments, forwarding history).
 const formatDateTime = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
-  return date.toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  const timePart = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${formatDate(dateString)} ${timePart}`;
 };
 
 // Typeable date field in DD/MM/YY. Displays an ISO value as DD/MM/YY, lets the
@@ -209,13 +261,13 @@ const formatDateTime = (dateString?: string): string => {
 // once a full date is entered so the rest of the app keeps storing ISO dates.
 const isoToDDMMYY = (iso?: string): string => {
   if (!iso) return '';
-  if (/^\d{2}\/\d{2}\/\d{2}$/.test(iso)) return iso;
+  if (/^\d{2}\.\d{2}\.\d{4}$/.test(iso)) return iso;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yy = String(d.getFullYear()).slice(-2);
-  return `${dd}/${mm}/${yy}`;
+  const yyyy = d.getFullYear();
+  return `${dd}.${mm}.${yyyy}`;
 };
 
 const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; className?: string }> = ({ value, onChange, className }) => {
@@ -223,14 +275,14 @@ const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; cla
   useEffect(() => { setText(isoToDDMMYY(value)); }, [value]);
 
   const handle = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
     let out = digits;
-    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}.${digits.slice(2)}`;
     setText(out);
-    if (digits.length === 6) {
-      const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yy = digits.slice(4, 6);
-      onChange(`20${yy}-${mm}-${dd}`);
+    if (digits.length === 8) {
+      const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yyyy = digits.slice(4, 8);
+      onChange(`${yyyy}-${mm}-${dd}`);
     } else if (digits.length === 0) {
       onChange('');
     }
@@ -240,10 +292,10 @@ const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; cla
     <input
       type="text"
       inputMode="numeric"
-      placeholder="DD/MM/YY"
+      placeholder="DD.MM.YYYY"
       value={text}
       onChange={(e) => handle(e.target.value)}
-      maxLength={8}
+      maxLength={10}
       className={className}
     />
   );
@@ -349,8 +401,9 @@ interface EditLeadModalProps {
   lead: Lead | null;
   onClose: () => void;
   onSave: (leadId: string, updatedData: Partial<Lead>) => Promise<void>;
+  dropdowns?: DropdownData;
 }
-const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave }) => {
+const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave, dropdowns }) => {
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -390,8 +443,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         referenceNumber: lead.referenceNumber,
         amount: lead.amount,
         visitCount: lead.visitCount,
-        cityId: lead.cityId,
-        areaId: lead.areaId,
+        cityId: lead.cityId || lead.city?.id,
+        areaId: lead.areaId || lead.area?.id,
         leadDate: lead.leadDate,
         visibleToTeams: lead.visibleToTeams,
         transitLevel: lead.transitLevel,
@@ -486,8 +539,15 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         ...tenantPayments.filter(p => p.paymentAmount).map(p => ({ ...p, clientType: 'TENANT' as const })),
       ];
 
+      // Resolve the selected City/Area ids to full { id, name } objects so tables
+      // (which read lead.city?.name) keep showing the right label after save.
+      const selectedCity = dropdowns?.cities.find(c => c.id === formData.cityId);
+      const selectedArea = dropdowns?.areas.find(a => a.id === formData.areaId);
+
       const updateData = {
         ...formData,
+        city: selectedCity ? { id: selectedCity.id, name: selectedCity.name } : formData.city,
+        area: selectedArea ? { id: selectedArea.id, name: selectedArea.name } : formData.area,
         paymentDetails,
         visibleToTeams: lead.visibleToTeams,
         assignedToUserId: lead.assignedToUserId,
@@ -584,14 +644,26 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </select>
               </div>
               <div><label className={labelClass}>Tentative Agreement Date</label><input type="date" value={formData.tentativeAgreementDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'tentativeAgreementDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Appointment Time</label><input type="datetime-local" value={formData.appointmentTime?.slice(0, 16) || ''} onChange={(e) => handleInputChange('general', 'appointmentTime', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Appointment Time</label><DateTime12Picker value={formData.appointmentTime?.slice(0, 16)} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} inputClass={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Number</label><input type="text" value={formData.referenceNumber || ''} onChange={(e) => handleInputChange('general', 'referenceNumber', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Amount</label><input type="text" value={formData.amount || ''} onChange={(e) => handleInputChange('general', 'amount', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>City</label><input type="text" value={formData.client?.cityName || formData.city?.name || ''} className={inputClass} readOnly disabled /></div>
-              <div><label className={labelClass}>Area</label><input type="text" value={formData.client?.areaName || formData.area?.name || ''} className={inputClass} readOnly disabled /></div>
+              <div>
+                <label className={labelClass}>City</label>
+                <select value={formData.cityId || ''} onChange={(e) => handleInputChange('general', 'cityId', e.target.value)} className={inputClass}>
+                  <option value="">Select City</option>
+                  {(dropdowns?.cities || []).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className={labelClass}>Area</label>
+                <select value={formData.areaId || ''} onChange={(e) => handleInputChange('general', 'areaId', e.target.value)} className={inputClass}>
+                  <option value="">Select Area</option>
+                  {(dropdowns?.areas || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+                </select>
+              </div>
               <div><label className={labelClass}>Last FollowUp Date</label><input type="date" value={formData.lastFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'lastFollowUpDate', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Next FollowUp Date</label><input type="date" value={formData.nextFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'nextFollowUpDate', e.target.value)} className={inputClass} /></div>
             </div>
@@ -671,7 +743,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>Execute Date</label><input type="date" value={formData.agreement?.executeDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'executeDate', e.target.value)} className={inputClass} /></div>
                 <div className="md:col-span-2"><label className={labelClass}>Address Line 1</label><input type="text" value={formData.agreement?.addressLine1 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine1', e.target.value)} className={inputClass} /></div>
-                <div className="md:col-span-2"><label className={labelClass}>Address Line 2</label><input type="text" value={formData.agreement?.addressLine2 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine2', e.target.value)} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Agreement Status</label>
                   <select value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass}>
@@ -723,6 +794,62 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     className={inputClass}
                   />
                 </div>
+                <div className="md:col-span-3">
+                  <label className={labelClass}>PVR File</label>
+                  {formData.agreement?.pvrFileData && (
+                    <div className="flex items-center gap-3 mb-1">
+                      <a href={formData.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline">
+                        <FileText className="w-3.5 h-3.5" /> View current file
+                      </a>
+                      <a href={formData.agreement.pvrFileData} download={formData.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
+                        <Download className="w-3.5 h-3.5" /> Download
+                      </a>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        handleInputChange('agreement', 'pvrFileName', file.name);
+                        handleInputChange('agreement', 'pvrFileData', typeof reader.result === 'string' ? reader.result : '');
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="md:col-span-3">
+                  <label className={labelClass}>Other File</label>
+                  {formData.agreement?.otherFileData && (
+                    <div className="flex items-center gap-3 mb-1">
+                      <a href={formData.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline">
+                        <FileText className="w-3.5 h-3.5" /> View current file
+                      </a>
+                      <a href={formData.agreement.otherFileData} download={formData.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
+                        <Download className="w-3.5 h-3.5" /> Download
+                      </a>
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="application/pdf,image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        handleInputChange('agreement', 'otherFileName', file.name);
+                        handleInputChange('agreement', 'otherFileData', typeof reader.result === 'string' ? reader.result : '');
+                      };
+                      reader.readAsDataURL(file);
+                    }}
+                    className={inputClass}
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -742,7 +869,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <input type="text" placeholder="e.g., 5000" value={formData.payment?.totalAmount || ''} onChange={(e) => handleInputChange('payment', 'totalAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
                 </div>
                 <div>
-                  <label className={labelClass}>Commission Amount</label>
+                  <label className={labelClass}>AC Amount</label>
                   <input type="text" placeholder="e.g., 500" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
                 </div>
                 <div>
@@ -838,8 +965,9 @@ interface ViewLeadModalProps {
   onEdit?: (lead: Lead) => void;
   onLeadUpdated?: (updatedLead: Lead) => void;
   isAdmin?: boolean;
+  dropdowns?: DropdownData;
 }
-const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, onLeadUpdated, isAdmin = false }) => {
+const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, onLeadUpdated, isAdmin = false, dropdowns }) => {
   const { apiFetch } = useApi();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1024,7 +1152,6 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Execute Date" value={formatDate(lead.agreement?.executeDate)} icon={CalendarDays} />
                     <InfoItem label="Mobile No" value={lead.agreement?.mobileNo || '-'} icon={Phone} />
                     <InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline />
-                    <InfoItem label="Address Line 2" value={lead.agreement?.addressLine2 || '-'} multiline />
                     <div className="space-y-1">
                       <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
                         <FileText className="w-3 h-3" /> Agreement File
@@ -1035,6 +1162,40 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                             <Eye className="w-3.5 h-3.5" /> View
                           </a>
                           <a href={lead.agreement.fileData || lead.agreement.agreementFile} download={lead.agreement.fileName || lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
+                            <Download className="w-3.5 h-3.5" /> Download
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-700">-</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> PVR File
+                      </label>
+                      {lead.agreement?.pvrFileData ? (
+                        <div className="flex items-center gap-3">
+                          <a href={lead.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                            <Eye className="w-3.5 h-3.5" /> View
+                          </a>
+                          <a href={lead.agreement.pvrFileData} download={lead.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
+                            <Download className="w-3.5 h-3.5" /> Download
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-700">-</p>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <FileText className="w-3 h-3" /> Other File
+                      </label>
+                      {lead.agreement?.otherFileData ? (
+                        <div className="flex items-center gap-3">
+                          <a href={lead.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                            <Eye className="w-3.5 h-3.5" /> View
+                          </a>
+                          <a href={lead.agreement.otherFileData} download={lead.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
                             <Download className="w-3.5 h-3.5" /> Download
                           </a>
                         </div>
@@ -1110,7 +1271,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="DHC Date" value={formatDate(lead.payment?.dhcDate)} icon={CalendarDays} />
                     <InfoItem label="Commission Date" value={formatDate(lead.payment?.commissionDate)} icon={CalendarDays} />
                     <InfoItem label="Commission Name" value={lead.payment?.commissionName || '-'} />
-                    <InfoItem label="Commission Amount" value={formatCurrency(lead.payment?.commissionAmount)} />
+                    <InfoItem label="AC Amount" value={formatCurrency(lead.payment?.commissionAmount)} />
                     <InfoItem label="Description" value={lead.payment?.description || '-'} multiline />
                   </div>
                 </div>
@@ -1119,7 +1280,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
           </>
         )}
       </BaseModal>
-      <EditLeadModal isOpen={isEditing} lead={lead} onClose={() => setIsEditing(false)} onSave={handleSaveEdit} />
+      <EditLeadModal isOpen={isEditing} lead={lead} onClose={() => setIsEditing(false)} onSave={handleSaveEdit} dropdowns={dropdowns} />
     </>
   );
 };
@@ -1162,8 +1323,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, me
 };
 
 // ==================== TEAM SELECTION MODAL ====================
-interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; restrictTeams?: boolean; }
-const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false }) => {
+interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; restrictTeams?: boolean; excludeTeam?: string; }
+const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false, excludeTeam }) => {
   const { apiFetch } = useApi();
   const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING'>('CALLING');
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -1195,9 +1356,20 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     { key: 'ACCOUNTING', label: 'Accounts Team', icon: '💰', color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700' },
     { key: 'MARKETING', label: 'Marketing Team', icon: '📢', color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700' },
   ];
-  const teams = restrictTeams
-    ? allTeams.filter(t => ['CALLING', 'EXECUTIVE', 'BACKEND'].includes(t.key))
-    : allTeams;
+  // Employees can only forward to Calling / Executive / Backend, and never back to
+  // their own team (e.g. a Calling-team employee sees only Executive & Backend).
+  const teams = allTeams
+    .filter(t => (restrictTeams ? ['CALLING', 'EXECUTIVE', 'BACKEND'].includes(t.key) : true))
+    .filter(t => t.key !== excludeTeam);
+
+  // If the currently-selected team isn't available (e.g. it's the excluded own
+  // team), snap the selection to the first available team when the modal opens.
+  useEffect(() => {
+    if (isOpen && teams.length > 0 && !teams.some(t => t.key === selectedTeam)) {
+      setSelectedTeam(teams[0].key as any);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -2132,8 +2304,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         onEdit={setEditLead}
         onLeadUpdated={handleLeadUpdatedFromView}
         isAdmin={isAdmin}
+        dropdowns={dropdowns}
       />
-      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} restrictTeams={!user?.roles?.includes('admin')} />
+      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} restrictTeams={!isAdmin} excludeTeam={!isAdmin && transitLevel && transitLevel !== 'ALL' ? transitLevel.toUpperCase().replace('_TEAM', '') : undefined} />
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-slate-800 mb-2">Cancel Lead</h3>
@@ -2153,6 +2326,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           lead={editLead}
           onClose={() => setEditLead(null)}
           onSave={handleSaveLeadEdit}
+          dropdowns={dropdowns}
         />
       )}
     </div>

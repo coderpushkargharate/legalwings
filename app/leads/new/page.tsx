@@ -107,6 +107,10 @@ interface AgreementFormData {
   agreementExecuteDate?: string;
   agreementFileName?: string;
   agreementFileData?: string; // base64 data URL of the uploaded file
+  pvrFileName?: string;
+  pvrFileData?: string;
+  otherFileName?: string;
+  otherFileData?: string;
 }
 
 interface PaymentFormData {
@@ -171,8 +175,81 @@ interface DateFieldProps {
   withTime?: boolean;
   id?: string;
 }
+// Parse a `YYYY-MM-DDTHH:mm` value into 12-hour picker parts.
+const parseDateTime = (value?: string) => {
+  const [datePart = '', timePart = ''] = (value || '').split('T');
+  const [hStr = '', mStr = ''] = timePart.split(':');
+  const h24 = hStr === '' ? null : parseInt(hStr, 10);
+  return {
+    datePart,
+    minute: mStr === '' ? '' : mStr.padStart(2, '0'),
+    hour12: h24 === null ? '' : String(h24 % 12 || 12).padStart(2, '0'),
+    ampm: h24 === null ? 'AM' : h24 >= 12 ? 'PM' : 'AM',
+  };
+};
+
+// Rebuild a `YYYY-MM-DDTHH:mm` value from 12-hour picker parts.
+const buildDateTime = (datePart: string, hour12: string, minute: string, ampm: string) => {
+  if (!datePart) return '';
+  const h12 = parseInt(hour12 || '12', 10) % 12;
+  const h24 = ampm === 'PM' ? h12 + 12 : h12;
+  return `${datePart}T${String(h24).padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
+};
+
 const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
+
+  if (withTime && isEditable) {
+    const { datePart, hour12, minute, ampm } = parseDateTime(value);
+    const timeSelectClass = "px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer bg-white";
+    return (
+      <div>
+        <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+        <div className="flex gap-2 items-center">
+          <input
+            id={fieldId}
+            type="date"
+            value={datePart}
+            onChange={(e) => onChange(buildDateTime(e.target.value, hour12, minute, ampm))}
+            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+          />
+          <select
+            aria-label={`${label} hour`}
+            value={hour12 || ''}
+            onChange={(e) => onChange(buildDateTime(datePart, e.target.value, minute, ampm))}
+            className={timeSelectClass}
+          >
+            <option value="" disabled>hh</option>
+            {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((h) => (
+              <option key={h} value={h}>{h}</option>
+            ))}
+          </select>
+          <span className="text-slate-400">:</span>
+          <select
+            aria-label={`${label} minute`}
+            value={minute || ''}
+            onChange={(e) => onChange(buildDateTime(datePart, hour12, e.target.value, ampm))}
+            className={timeSelectClass}
+          >
+            <option value="" disabled>mm</option>
+            {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
+              <option key={m} value={m}>{m}</option>
+            ))}
+          </select>
+          <select
+            aria-label={`${label} AM/PM`}
+            value={ampm}
+            onChange={(e) => onChange(buildDateTime(datePart, hour12, minute, e.target.value))}
+            className={timeSelectClass}
+          >
+            <option value="AM">AM</option>
+            <option value="PM">PM</option>
+          </select>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -180,7 +257,7 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
         <div className="relative">
           <input
             id={fieldId}
-            type={withTime ? 'datetime-local' : 'date'}
+            type="date"
             value={value || ''}
             onChange={(e) => onChange(e.target.value)}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all pr-10"
@@ -396,6 +473,10 @@ function LeadFormContent() {
               agreementExecuteDate: data.agreement.executeDate || '',
               agreementFileName: data.agreement.fileName || '',
               agreementFileData: data.agreement.fileData || '',
+              pvrFileName: data.agreement.pvrFileName || '',
+              pvrFileData: data.agreement.pvrFileData || '',
+              otherFileName: data.agreement.otherFileName || '',
+              otherFileData: data.agreement.otherFileData || '',
             });
           }
 
@@ -455,6 +536,20 @@ function LeadFormContent() {
         ...prev,
         agreementFileName: file.name,
         agreementFileData: typeof reader.result === 'string' ? reader.result : '',
+      }));
+    };
+    reader.readAsDataURL(file);
+  }, []);
+
+  // ✅ Read an extra uploaded file (PVR / Other) as a base64 data URL for storage & download.
+  const handleExtraFile = useCallback((nameField: keyof AgreementFormData, dataField: keyof AgreementFormData, file: File | null) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setAgreement(prev => ({
+        ...prev,
+        [nameField]: file.name,
+        [dataField]: typeof reader.result === 'string' ? reader.result : '',
       }));
     };
     reader.readAsDataURL(file);
@@ -594,6 +689,8 @@ function LeadFormContent() {
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
           fileName: agreement.agreementFileName, fileData: agreement.agreementFileData,
+          pvrFileName: agreement.pvrFileName, pvrFileData: agreement.pvrFileData,
+          otherFileName: agreement.otherFileName, otherFileData: agreement.otherFileData,
           pvName: agreement.pvName, pvAge: agreement.pvAge,
           pvMobile: agreement.pvMobile, pvRelation: agreement.pvRelation,
           svName: agreement.svName, svNo: agreement.svNo,
@@ -896,7 +993,6 @@ function LeadFormContent() {
                 <DateField label="Execute Date" value={agreement.agreementExecuteDate} onChange={(v) => updateAgreement('agreementExecuteDate', v)} isEditable={isEditable} id="agreement-executeDate" />
 
                 <Input label="Address Line 1" value={agreement.addressLine1} onChange={(v) => updateAgreement('addressLine1', v)} disabled={!isEditable} placeholder="Address Line 1" id="agreement-addressLine1" />
-                <Input label="Address Line 2" value={agreement.addressLine2} onChange={(v) => updateAgreement('addressLine2', v)} disabled={!isEditable} placeholder="Address Line 2" id="agreement-addressLine2" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
                   <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
@@ -957,6 +1053,60 @@ function LeadFormContent() {
                     !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
                   )}
                 </div>
+                {/* PVR File upload */}
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">PVR File</label>
+                  {isEditable && (
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={(e) => handleExtraFile('pvrFileName', 'pvrFileData', e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      id="agreement-pvrFile"
+                    />
+                  )}
+                  {agreement.pvrFileData ? (
+                    <div className="mt-2">
+                      <a
+                        href={agreement.pvrFileData}
+                        download={agreement.pvrFileName || 'pvr-file'}
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        {agreement.pvrFileName || 'Download file'}
+                      </a>
+                    </div>
+                  ) : (
+                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
+                  )}
+                </div>
+                {/* Other File upload */}
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Other File</label>
+                  {isEditable && (
+                    <input
+                      type="file"
+                      accept="application/pdf,image/*"
+                      onChange={(e) => handleExtraFile('otherFileName', 'otherFileData', e.target.files?.[0] || null)}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      id="agreement-otherFile"
+                    />
+                  )}
+                  {agreement.otherFileData ? (
+                    <div className="mt-2">
+                      <a
+                        href={agreement.otherFileData}
+                        download={agreement.otherFileName || 'other-file'}
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                      >
+                        <Download className="w-4 h-4" />
+                        {agreement.otherFileName || 'Download file'}
+                      </a>
+                    </div>
+                  ) : (
+                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
+                  )}
+                </div>
               </div>
             </div>
             {isEditable && (
@@ -1008,7 +1158,7 @@ function LeadFormContent() {
                 
                 {/* Commission Amount */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">AC Amount</label>
                   <input 
                     type="text" 
                     placeholder="e.g., 500" 
@@ -1339,10 +1489,10 @@ function LeadFormContent() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Amount</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">AC Amount</label>
                   <input 
                     type="text" 
-                    placeholder="Commission Amount" 
+                    placeholder="AC Amount"
                     value={payment.commissionAmount} 
                     onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
