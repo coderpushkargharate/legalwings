@@ -1439,34 +1439,34 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   let columns = getColumnsForDashboard();
 
   // Calling team Lead view: SV Name / No / Location belong to the Appointment view
-  // only. In the Lead view, collapse those columns into a single "Next Forward"
-  // action that pushes the lead into the Appointment view.
+  // only. In the Lead view, collapse those columns into Last Followup / Next
+  // Followup date columns.
   if (isCallingDashboard && callingView === 'leads') {
     const svKeys = ['svName', 'svNo', 'svLocation'];
     const svIndex = columns.findIndex((c) => svKeys.includes(c.key));
     const withoutSv = columns.filter((c) => !svKeys.includes(c.key));
     if (svIndex >= 0) {
+      // Last Followup column shows the lead's most recent follow-up date.
+      const lastFollowupCol: Column = {
+        key: 'lastFollowup',
+        label: 'Last Followup',
+        width: '130px',
+        render: (lead) => (
+          <span className="text-sm text-slate-700">{formatDate(lead.lastFollowUpDate)}</span>
+        ),
+      };
       // Next Followup column shows the lead's Next FollowUp Date (entered on the
-      // new-lead form) and keeps the forward-to-Appointment action below it.
+      // new-lead form) — date only.
       const nextForwardCol: Column = {
         key: 'nextForward',
         label: 'Next Followup',
-        width: '150px',
+        width: '130px',
         render: (lead) => (
-          <div className="flex flex-col gap-1.5 items-start">
-            <span className="text-sm text-slate-700">{formatDate(lead.nextFollowUpDate)}</span>
-            <button
-              onClick={(e) => { e.stopPropagation(); handleToggleAppointment(lead.id, true); }}
-              disabled={forwardingId === lead.id}
-              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-50"
-            >
-              {forwardingId === lead.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CalendarClock className="w-3.5 h-3.5" />} Next Followup
-            </button>
-          </div>
+          <span className="text-sm text-slate-700">{formatDate(lead.nextFollowUpDate)}</span>
         ),
       };
       const insertAt = Math.min(svIndex, withoutSv.length);
-      withoutSv.splice(insertAt, 0, nextForwardCol);
+      withoutSv.splice(insertAt, 0, lastFollowupCol, nextForwardCol);
     }
     columns = withoutSv;
   }
