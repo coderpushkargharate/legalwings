@@ -1162,8 +1162,8 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, me
 };
 
 // ==================== TEAM SELECTION MODAL ====================
-interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; }
-const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose }) => {
+interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; restrictTeams?: boolean; }
+const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false }) => {
   const { apiFetch } = useApi();
   const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING'>('CALLING');
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -1187,13 +1187,17 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     { value: 'NRI Call', label: 'NRI Call' },
     { value: 'Out Of Pune', label: 'Out Of Pune' },
   ];
-  const teams = [
+  // Employees (non-admin dashboards) can only forward to Calling / Executive / Backend.
+  const allTeams = [
     { key: 'CALLING', label: 'Calling Team', icon: '📞', color: 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' },
     { key: 'EXECUTIVE', label: 'Executive Team', icon: '👔', color: 'bg-purple-50 border-purple-200 hover:border-purple-400 text-purple-700' },
     { key: 'BACKEND', label: 'Backend Team', icon: '⚙️', color: 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 text-emerald-700' },
     { key: 'ACCOUNTING', label: 'Accounts Team', icon: '💰', color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700' },
     { key: 'MARKETING', label: 'Marketing Team', icon: '📢', color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700' },
   ];
+  const teams = restrictTeams
+    ? allTeams.filter(t => ['CALLING', 'EXECUTIVE', 'BACKEND'].includes(t.key))
+    : allTeams;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -2129,7 +2133,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         onLeadUpdated={handleLeadUpdatedFromView}
         isAdmin={isAdmin}
       />
-      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} />
+      <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} restrictTeams={!user?.roles?.includes('admin')} />
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-slate-800 mb-2">Cancel Lead</h3>
