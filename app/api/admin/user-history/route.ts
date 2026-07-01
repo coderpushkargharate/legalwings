@@ -75,6 +75,9 @@ export async function GET(request: Request) {
       leadStatus: '$leadStatus',
       createdAt: '$createdAt',
       assignedAt: '$assignedAt',
+      // Payment snapshot so each lead row can show what was collected.
+      paymentAmount: { $ifNull: ['$payment.totalAmount', null] },
+      commissionAmount: { $ifNull: ['$payment.commissionAmount', null] },
     };
 
     const createdLeads = await db.collection('leads').aggregate([
@@ -91,6 +94,27 @@ export async function GET(request: Request) {
       { $project: projectLead },
     ]).toArray();
 
+    // 💰 Total payment collected across every lead this user created OR is
+    // assigned to (de-duplicated so a lead counted in both isn't summed twice).
+    const paymentAgg = await db.collection('leads').aggregate([
+      {
+        $match: {
+          $or: [{ createdByUserId: userId }, { assignedToUserId: objId }],
+          'payment.totalAmount': { $gt: 0 },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalPayment: { $sum: '$payment.totalAmount' },
+          totalCommission: { $sum: { $ifNull: ['$payment.commissionAmount', 0] } },
+          count: { $sum: 1 },
+        },
+      },
+    ]).toArray();
+
+    const payments = paymentAgg[0] || { totalPayment: 0, totalCommission: 0, count: 0 };
+
     return NextResponse.json({
       user: {
         id: target._id.toString(),
@@ -104,6 +128,9 @@ export async function GET(request: Request) {
         created: createdLeads.length,
         assigned: assignedLeads.length,
         forwarded: forwards.length,
+        totalPayment: payments.totalPayment || 0,
+        totalCommission: payments.totalCommission || 0,
+        paidLeads: payments.count || 0,
       },
       forwards,
       createdLeads,
