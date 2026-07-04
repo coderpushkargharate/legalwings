@@ -5,7 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable, { type Column, type Lead } from '@/components/leads-table';
 
-// ✅ Helper: Format date consistently
+// ✅ Helper: Format date consistently (DD/MM/YY)
 const formatDate = (dateString?: string | null): string => {
   if (!dateString) return '-';
   try {
@@ -14,174 +14,100 @@ const formatDate = (dateString?: string | null): string => {
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
-      year: '2-digit'
+      year: '2-digit',
     });
   } catch {
     return '-';
   }
 };
 
-const columns: Column[] = [
-  { 
-    key: 'createdBy', 
-    label: 'Created By', 
-    width: '130px', 
-    render: (lead: Lead) => lead.createdByUserName || 'System' 
-  },
-  { 
-    key: 'team', 
-    label: 'Role/Team', 
-    width: '110px', 
-    render: (lead: Lead) => {
-      const status = lead.leadStatus || 'NEW';
-      return (
-        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700 border border-slate-200">
-          {status}
-        </span>
-      );
-    }
-  },
-  { 
-    key: 'name', 
-    label: 'Client Name', 
-    width: '160px', 
-    render: (lead: Lead) => 
-      `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' 
-  },
-  { 
-    key: 'phoneNo', 
-    label: 'Phone', 
-    width: '120px', 
-    render: (lead: Lead) => lead.client?.phoneNo || '-' 
-  },
-  { 
-    key: 'amount', 
-    label: 'Amount', 
-    width: '100px', 
-    render: (lead: Lead) => {
-      const amount = lead.amount;
-      if (amount == null || amount === '') return '-';
-      const numericValue = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(numericValue) ? '-' : `₹${numericValue.toLocaleString('en-IN')}`;
-    }
-  },
-  { 
-    key: 'leadStatus', 
-    label: 'Status', 
-    width: '140px', 
-    render: (lead: Lead) => lead.leadStatus || '-' 
-  },
-  // ✅ FIXED: Date column with leadDate added to fallback chain
-  { 
-    key: 'date', 
-    label: 'Date', 
-    width: '110px', 
-    render: (lead: Lead) => {
-      // Try multiple date sources in priority order (leadDate added!)
-      const paymentDate = lead.paymentDetails?.[0]?.paymentDate;
-      const commissionDate = lead.payment?.commissionDate;
-      const agreementExecuteDate = lead.agreement?.executeDate;
-      const agreementStartDate = lead.agreement?.agreementStartDate;
-      const leadDate = lead.leadDate; // ✅ NEW: Added leadDate
-      const createdDate = lead.createdDate;
-      
-      const displayDate = paymentDate || commissionDate || agreementExecuteDate || agreementStartDate || leadDate || createdDate;
-      return formatDate(displayDate);
-    }
-  },
-  // ✅ Accounting-specific columns
-  { 
-    key: 'tokenNumber', 
-    label: 'Token No.', 
-    width: '120px', 
-    render: (lead: Lead) => lead.agreement?.tokenNo || '-' 
-  },
-  // ✅ Amount Received Column (sums all paymentDetails)
-  { 
-    key: 'amountReceived', 
-    label: 'Amount Received', 
-    width: '130px', 
-    render: (lead: Lead) => {
-      const received = lead.paymentDetails?.reduce((sum, p) => {
-        const amount = typeof p.paymentAmount === 'string' 
-          ? parseFloat(p.paymentAmount) 
-          : p.paymentAmount || 0;
-        return sum + (isNaN(amount) ? 0 : amount);
-      }, 0) || 0;
+// ✅ Helpers shared by the on-screen columns AND the Excel export so both match.
+const toNum = (v?: number | string | null): number => {
+  if (v == null || v === '') return 0;
+  const n = typeof v === 'string' ? parseFloat(v) : v;
+  return isNaN(n) ? 0 : n;
+};
 
-      if (received === 0) return '₹ -';
-      
-      return new Intl.NumberFormat('en-IN', { 
-        style: 'currency', 
-        currency: 'INR', 
-        maximumFractionDigits: 0 
-      }).format(received);
-    }
-  },
-  { 
-    key: 'outstandingAmount', 
-    label: 'Outstanding', 
-    width: '110px',
-    render: (lead: Lead) => {
-      const total = Number(lead.payment?.totalAmount) || 0;
-      const commission = Number(lead.payment?.commissionAmount) || 0;
-      const outstanding = lead.payment?.outstandingAmount ?? (total + commission);
-      if (isNaN(outstanding)) return '₹ -';
-      return new Intl.NumberFormat('en-IN', {
-        style: 'currency', currency: 'INR', maximumFractionDigits: 0,
-      }).format(outstanding);
-    }
-  },
-  { 
-    key: 'paidAmount', 
-    label: 'Paid Amount', 
-    width: '110px', 
-    render: (lead: Lead) => {
-      const amount = lead.payment?.paidAmount;
-      if (amount == null) return '₹ -';
-      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
-        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
-      }).format(num);
-    }
-  },
-  { 
-    key: 'pendingAmount', 
-    label: 'Pending', 
-    width: '110px', 
-    render: (lead: Lead) => {
-      const amount = lead.payment?.pendingAmount || lead.payment?.outstandingAmount;
-      if (amount == null) return '₹ -';
-      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
-        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
-      }).format(num);
-    }
-  },
-  { 
-    key: 'commissionAmount', 
-    label: 'Commission', 
-    width: '110px', 
-    render: (lead: Lead) => {
-      const amount = lead.payment?.commissionAmount;
-      if (amount == null) return '₹ -';
-      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(num) ? '₹ -' : new Intl.NumberFormat('en-IN', { 
-        style: 'currency', currency: 'INR', maximumFractionDigits: 0 
-      }).format(num);
-    }
-  },
+const formatINR = (v?: number | string | null): string => {
+  const n = toNum(v);
+  return new Intl.NumberFormat('en-IN', {
+    style: 'currency',
+    currency: 'INR',
+    maximumFractionDigits: 0,
+  }).format(n);
+};
+
+const leadName = (lead: Lead): string =>
+  `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-';
+
+const ownerName = (lead: Lead): string =>
+  `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim() || '-';
+
+const tenantName = (lead: Lead): string =>
+  `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-';
+
+// Execute date from the Client & Agreement form.
+const executeDate = (lead: Lead): string =>
+  formatDate(lead.agreement?.executeDate || lead.agreement?.startDate || lead.agreement?.agreementStartDate);
+
+const totalAgreementFees = (lead: Lead): number =>
+  toNum(lead.payment?.totalAmount) || toNum(lead.amount);
+
+// Received = sum of all recorded payments, falling back to payment summary fields.
+const receivedAmount = (lead: Lead): number => {
+  const fromDetails = lead.paymentDetails?.reduce((sum, p) => sum + toNum(p.paymentAmount), 0) || 0;
+  if (fromDetails > 0) return fromDetails;
+  return toNum(lead.payment?.totalReceivedAmount) || toNum(lead.payment?.paidAmount);
+};
+
+const outstandingAmount = (lead: Lead): number => {
+  if (lead.payment?.outstandingAmount != null) return toNum(lead.payment.outstandingAmount);
+  if (lead.payment?.pendingAmount != null) return toNum(lead.payment.pendingAmount);
+  return totalAgreementFees(lead) - receivedAmount(lead);
+};
+
+const commissionAmount = (lead: Lead): number => toNum(lead.payment?.commissionAmount);
+const commissionDate = (lead: Lead): string => formatDate(lead.payment?.commissionDate);
+const assignedTo = (lead: Lead): string => lead.assignedToUserName || '-';
+
+// ✅ Accounts-team columns — the 12 requested points, in order.
+const columns: Column[] = [
+  { key: 'leadName', label: 'Lead Name', width: '150px', render: leadName },
+  { key: 'leadPhone', label: 'Lead Phone No', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
+  { key: 'ownerName', label: 'Owner Name', width: '150px', render: ownerName },
+  { key: 'tenantName', label: 'Tenant Name', width: '150px', render: tenantName },
+  { key: 'executeDate', label: 'Execute Date', width: '120px', render: executeDate },
+  { key: 'status', label: 'Status', width: '130px', render: (lead) => lead.leadStatus || '-' },
+  { key: 'totalFees', label: 'Total Agreement Fees', width: '150px', render: (lead) => formatINR(totalAgreementFees(lead)) },
+  { key: 'received', label: 'Received Amount', width: '140px', render: (lead) => formatINR(receivedAmount(lead)) },
+  { key: 'outstanding', label: 'Outstanding Amount', width: '150px', render: (lead) => formatINR(outstandingAmount(lead)) },
+  { key: 'commissionAmount', label: 'Commission Amount', width: '150px', render: (lead) => formatINR(commissionAmount(lead)) },
+  { key: 'commissionDate', label: 'Commission Date', width: '130px', render: commissionDate },
+  { key: 'assignedTo', label: 'Assigned To', width: '140px', render: assignedTo },
 ];
+
+// ✅ Excel export — same 12 columns as the on-screen table.
+const exportRows = (leads: Lead[]): Record<string, any>[] =>
+  leads.map((lead) => ({
+    'Lead Name': leadName(lead),
+    'Lead Phone No': lead.client?.phoneNo || '-',
+    'Owner Name': ownerName(lead),
+    'Tenant Name': tenantName(lead),
+    'Execute Date': executeDate(lead),
+    'Status': lead.leadStatus || '-',
+    'Total Agreement Fees': totalAgreementFees(lead),
+    'Received Amount': receivedAmount(lead),
+    'Outstanding Amount': outstandingAmount(lead),
+    'Commission Amount': commissionAmount(lead),
+    'Commission Date': commissionDate(lead),
+    'Assigned To': assignedTo(lead),
+  }));
 
 // ✅ Only show leads that have actually received a payment.
 const hasPayment = (lead: Lead): boolean => {
-  const received = lead.paymentDetails?.reduce((sum, p) => {
-    const amount = typeof p.paymentAmount === 'string' ? parseFloat(p.paymentAmount) : p.paymentAmount || 0;
-    return sum + (isNaN(amount as number) ? 0 : (amount as number));
-  }, 0) || 0;
-  const paid = Number(lead.payment?.paidAmount) || 0;
+  const received = receivedAmount(lead);
   const totalReceived = Number(lead.payment?.totalReceivedAmount) || 0;
-  return received > 0 || paid > 0 || totalReceived > 0;
+  return received > 0 || totalReceived > 0;
 };
 
 export default function AccountTeamPage() {
@@ -190,7 +116,7 @@ export default function AccountTeamPage() {
       <Header title="Accounts Overview" />
       <div className="p-6">
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4 text-sm text-blue-800">
-          📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial & operational tracking. Only leads with a received payment are shown.
+          📊 <strong>Global View:</strong> This dashboard aggregates leads from all teams for financial &amp; operational tracking. Only leads with a received payment are shown.
         </div>
         <LeadsTable
           transitLevel="ALL"
@@ -198,6 +124,9 @@ export default function AccountTeamPage() {
           columns={columns}
           showAddButton={false}
           filterFn={hasPayment}
+          exportRows={exportRows}
+          exportSheetName="Accounts Report"
+          exportFileName="Accounts_Report"
         />
       </div>
     </AppShell>

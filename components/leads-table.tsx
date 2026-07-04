@@ -1424,8 +1424,8 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
 };
 
 // ==================== MAIN LEADS TABLE COMPONENT ====================
-interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; filterFn?: (lead: Lead) => boolean; }
-export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true, filterFn }: LeadsTableProps) {
+interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; filterFn?: (lead: Lead) => boolean; exportRows?: (leads: Lead[]) => Record<string, any>[]; exportSheetName?: string; exportFileName?: string; }
+export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true, filterFn, exportRows, exportSheetName, exportFileName }: LeadsTableProps) {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
 
@@ -1870,6 +1870,17 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
   const handleExportExcel = () => {
     if (leads.length === 0) return alert('No data to export.');
+
+    // Caller-supplied export (e.g. Accounts team's fixed 12-column report).
+    if (exportRows) {
+      const rows = exportRows(leads);
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, exportSheetName || 'Report');
+      XLSX.writeFile(wb, `${exportFileName || 'Report'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      return;
+    }
+
     const exportData: any[] = [];
     exportData.push({ 'Token Number': '', 'Our Fees': '', 'Commission': '', 'Total Amount': '', 'Payment Date': '', 'Payment Amount': '', 'Mode': '', 'Party Name': '', 'Transaction No.': '', 'Total Received': '', 'GRN Date': '', 'GRN Number': '', 'GRN Amount': '', 'DHC Date': '', 'DHC Number': '', 'DHC Amount': '', 'Commission Date': '', 'Commission Name': '', 'Commission Amount': '' });
     leads.forEach((lead) => {
