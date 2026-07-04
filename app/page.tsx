@@ -6,18 +6,13 @@ import Header from '@/components/header';
 import { useAuth } from '@/components/auth-provider';
 import { useApi } from '@/components/api-client';
 import AdminUserHistory from '@/components/admin-user-history';
+import AdminOverview from '@/components/admin-overview';
 import {
-  Phone,
-  UserCheck,
-  Server,
-  DollarSign,
-  Megaphone,
   Users,
   FileText,
   TrendingUp,
   ArrowUpRight,
 } from 'lucide-react';
-import Link from 'next/link';
 
 interface DashboardStats {
   totalLeads: number;
@@ -82,40 +77,6 @@ export default function DashboardPage() {
     fetchStats();
   }, [user]);
 
-  // 🔹 Team definitions with role mapping
-  const allTeams = [
-    { name: 'Calling Team', path: '/calling-team', icon: Phone, desc: 'Manage incoming leads and calls', color: 'bg-blue-500', role: 'calling' },
-    { name: 'Executive Team', path: '/executive-team', icon: UserCheck, desc: 'Handle executive appointments', color: 'bg-emerald-500', role: 'executive' },
-    { name: 'Backend Team', path: '/backend-team', icon: Server, desc: 'Process agreements and documents', color: 'bg-amber-500', role: 'backend' },
-    { name: 'Account Team', path: '/account-team', icon: DollarSign, desc: 'Track payments and commissions', color: 'bg-rose-500', role: 'accounting' },
-    { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, desc: 'Marketing campaigns and analytics', color: 'bg-cyan-500', role: 'marketing' },
-  ];
-
-  // 🔹 Filter teams based on user role - with type-safe access
-  const visibleTeams = React.useMemo(() => {
-    if (!user) return [];
-    
-    // 🔹 Cast to ExtendedUser to access 'team' property safely
-    const extendedUser = user as ExtendedUser;
-    
-    const isAdmin = extendedUser.roles?.includes('admin');
-    const isAccounting = extendedUser.roles?.includes('accounting');
-    
-    // 🔹 Admin & Accounting see ALL teams
-    if (isAdmin || isAccounting) {
-      return allTeams;
-    }
-    
-    // 🔹 Employees see ONLY their assigned team
-    const userTeam = extendedUser.team?.toLowerCase();
-    if (userTeam) {
-      return allTeams.filter(team => team.role === userTeam);
-    }
-    
-    // 🔹 Fallback: show teams matching user roles
-    return allTeams.filter(team => extendedUser.roles?.includes(team.role));
-  }, [user]);
-
   const statCards = [
     { label: 'Total Leads', value: stats.totalLeads, icon: TrendingUp, color: 'text-teal-600', bg: 'bg-teal-50' },
     { label: 'Total Clients', value: stats.totalClients, icon: Users, color: 'text-blue-600', bg: 'bg-blue-50' },
@@ -166,37 +127,11 @@ export default function DashboardPage() {
           ))}
         </div>
 
+        {/* 🔹 Admin-only: charts overview (leads per month, revenue, pending, per-employee) */}
+        {extendedUser.roles?.includes('admin') && <AdminOverview />}
+
         {/* 🔹 Admin-only: search any employee and view their full lead history */}
         {extendedUser.roles?.includes('admin') && <AdminUserHistory />}
-
-        <h3 className="text-lg font-semibold text-slate-800 mb-4">Your Teams</h3>
-        
-        {/* 🔹 Show message if no teams visible */}
-        {visibleTeams.length === 0 ? (
-          <div className="bg-slate-50 rounded-xl border border-slate-200 p-8 text-center">
-            <Users className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <p className="text-slate-500">No team access configured. Please contact your administrator.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {visibleTeams.map((team) => (
-              <Link
-                key={team.path}
-                href={team.path}
-                className="group bg-white rounded-xl border border-slate-200 p-6 hover:shadow-lg hover:border-teal-200 transition-all duration-200"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`w-12 h-12 ${team.color} rounded-xl flex items-center justify-center shadow-sm`}>
-                    <team.icon className="w-6 h-6 text-white" />
-                  </div>
-                  <ArrowUpRight className="w-5 h-5 text-slate-300 group-hover:text-teal-500 transition-colors" />
-                </div>
-                <h4 className="text-base font-semibold text-slate-800 group-hover:text-teal-700 transition-colors">{team.name}</h4>
-                <p className="text-sm text-slate-500 mt-1">{team.desc}</p>
-              </Link>
-            ))}
-          </div>
-        )}
       </div>
     </AppShell>
   );
