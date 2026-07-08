@@ -298,14 +298,12 @@ const Select = memo(function Select({ label, value, onChange, options, disabled 
 });
 
 // ============================================================================
-// 🔹 HELPER: Calculate Outstanding Amount (Positive - Using Addition)
+// 🔹 HELPER: Calculate Outstanding Amount (= Legal Fees / Total Agreement Amount)
 // ============================================================================
-const calculateOutstanding = (total: string, commission: string): string => {
+const calculateOutstanding = (total: string): string => {
   const totalNum = parseFloat(total) || 0;
-  const commissionNum = parseFloat(commission) || 0;
-  // ✅ Use addition to ensure positive count as requested
-  const outstanding = totalNum + commissionNum;
-  return outstanding.toFixed(2);
+  // ✅ Outstanding equals the Legal Fees (Total Agreement Amount) directly
+  return totalNum.toFixed(2);
 };
 
 // ============================================================================
@@ -365,10 +363,10 @@ function LeadFormContent() {
   const [tenantPayments, setTenantPayments] = useState<PaymentDetail[]>([{ paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
 
   // ✅ CALCULATED: Payment flow
-  // 1) Outstanding = Total Agreement Amount + AC Amount
+  // 1) Outstanding = Legal Fees (Total Agreement Amount)
   const outstandingAmount = useMemo(() => {
-    return calculateOutstanding(payment.totalAmount, payment.commissionAmount);
-  }, [payment.totalAmount, payment.commissionAmount]);
+    return calculateOutstanding(payment.totalAmount);
+  }, [payment.totalAmount]);
 
   // A) Sum of all owner payments, B) Sum of all tenant payments
   const ownerReceived = useMemo(
@@ -740,7 +738,7 @@ function LeadFormContent() {
           commissionName: payment.commissionName, commissionDate: payment.commissionDate, grnNumber: payment.grnNumber,
           grnAmount: parseFloat(payment.grnAmount) || 0, govtGrnDate: payment.govtGrnDate, dhcNumber: payment.dhcNumber,
           dhcAmount: parseFloat(payment.dhcAmount) || 0, dhcDate: payment.dhcDate, description: payment.description,
-          // Derived payment flow: Outstanding = Total + AC; Received = owner(A) + tenant(B); Balance = Outstanding − Received
+          // Derived payment flow: Outstanding = Legal Fees; Received = owner(A) + tenant(B); Balance = Outstanding − Received
           outstandingAmount: parseFloat(outstandingAmount) || 0,
           receivedAmount: totalReceived,
           paidAmount: totalReceived,
@@ -1161,9 +1159,9 @@ function LeadFormContent() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Total Agreement Amount */}
+                {/* Legal Fees (Total Agreement Amount) */}
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Total Agreement Amount</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Legal Fees</label>
                   <input 
                     type="text" 
                     placeholder="e.g., 5000" 
@@ -1203,7 +1201,7 @@ function LeadFormContent() {
                     disabled 
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed" 
                   />
-                  <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
+                  <p className="text-xs text-slate-500 mt-1">Same as Legal Fees</p>
                 </div>
               </div>
             </div>
@@ -1391,7 +1389,7 @@ function LeadFormContent() {
                     disabled
                     className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-red-600 font-semibold cursor-not-allowed"
                   />
-                  <p className="text-xs text-slate-500 mt-1">Total + AC</p>
+                  <p className="text-xs text-slate-500 mt-1">Same as Legal Fees</p>
                 </div>
 
                 {/* 2) Total received = A + B */}
