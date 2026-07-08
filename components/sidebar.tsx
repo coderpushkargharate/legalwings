@@ -11,6 +11,7 @@ import {
   Server,
   DollarSign,
   Megaphone,
+  Receipt,
   Database,
   ChevronLeft,
   ChevronRight,
@@ -27,6 +28,7 @@ const navItems = [
   { name: 'Executive Team', path: '/executive-team', icon: UserCheck, role: 'executive' },
   { name: 'Backend Team', path: '/backend-team', icon: Server, role: 'backend' },
   { name: 'Account Team', path: '/account-team', icon: DollarSign, role: 'accounting' },
+  { name: 'Payment Statement', path: '/payment-statement', icon: Receipt, role: 'accounting' },
   { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, role: 'marketing' },
   { name: 'Employees', path: '/employees', icon: Users, role: 'admin' },
 ];
