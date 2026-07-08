@@ -70,15 +70,17 @@ export async function POST(
     // - Forwarding to any team adds the destination team (bidirectional visibility),
     //   so the lead stays visible to the source team too (e.g. CALLING → EXECUTIVE
     //   shows in both).
-    // - EXCEPTION: forwarding to the BACKEND team removes the source team from the
-    //   list, so the lead disappears from the source (e.g. CALLING → BACKEND removes
-    //   it from the Calling Team list). Everything else stays as-is.
+    // - EXCEPTION: forwarding to the BACKEND team removes the lead from BOTH the
+    //   Calling and Executive teams, so once it's sent to backend the appointment
+    //   disappears from the Calling and Executive sections (including the admin panel).
     const sourceTransitLevel = currentLead.transitLevel;
     let newVisibleToTeams = Array.from(
       new Set([...(currentLead.visibleToTeams || []), destinationTransitLevel])
     );
-    if (team === 'BACKEND' && sourceTransitLevel) {
-      newVisibleToTeams = newVisibleToTeams.filter((t) => t !== sourceTransitLevel);
+    if (team === 'BACKEND') {
+      newVisibleToTeams = newVisibleToTeams.filter(
+        (t) => t !== 'CALLING_TEAM' && t !== 'EXECUTIVE_TEAM' && t !== sourceTransitLevel
+      );
     }
 
     // Use $set for visibleToTeams (instead of $addToSet) because we may also need to
@@ -97,6 +99,12 @@ export async function POST(
       },
       $push: { forwardedHistory: forwardEntry }
     };
+
+    // Once a lead moves to the Backend team it is no longer an active appointment,
+    // so clear the flag that keeps it in the Calling/Executive Appointments list.
+    if (team === 'BACKEND') {
+      updateObj.$set.isAppointment = false;
+    }
 
     if (assignedToUserId) {
       updateObj.$set.assignedToUserId = new ObjectId(assignedToUserId);

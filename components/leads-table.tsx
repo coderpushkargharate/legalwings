@@ -237,14 +237,14 @@ const THEME = {
 };
 
 // ==================== UTILITY FUNCTIONS ====================
-// DD.MM.YYYY — consistent across all team tables.
+// DD/MM/YYYY — consistent across all team tables.
 const formatDate = (dateString?: string): string => {
   if (!dateString) return '-';
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
   const dd = String(date.getDate()).padStart(2, '0');
   const mm = String(date.getMonth() + 1).padStart(2, '0');
-  return `${dd}.${mm}.${date.getFullYear()}`;
+  return `${dd}/${mm}/${date.getFullYear()}`;
 };
 
 // DD.MM.YYYY hh:mm AM/PM (12-hour) for fields that carry a time (appointments, forwarding history).
@@ -256,18 +256,18 @@ const formatDateTime = (dateString?: string): string => {
   return `${formatDate(dateString)} ${timePart}`;
 };
 
-// Typeable date field in DD/MM/YY. Displays an ISO value as DD/MM/YY, lets the
+// Typeable date field in DD/MM/YYYY. Displays an ISO value as DD/MM/YYYY, lets the
 // user type digits (auto-inserting slashes), and emits an ISO yyyy-mm-dd string
 // once a full date is entered so the rest of the app keeps storing ISO dates.
 const isoToDDMMYY = (iso?: string): string => {
   if (!iso) return '';
-  if (/^\d{2}\.\d{2}\.\d{4}$/.test(iso)) return iso;
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return '';
   const dd = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const yyyy = d.getFullYear();
-  return `${dd}.${mm}.${yyyy}`;
+  return `${dd}/${mm}/${yyyy}`;
 };
 
 const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; className?: string }> = ({ value, onChange, className }) => {
@@ -277,8 +277,8 @@ const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; cla
   const handle = (raw: string) => {
     const digits = raw.replace(/\D/g, '').slice(0, 8);
     let out = digits;
-    if (digits.length > 4) out = `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`;
-    else if (digits.length > 2) out = `${digits.slice(0, 2)}.${digits.slice(2)}`;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
     setText(out);
     if (digits.length === 8) {
       const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yyyy = digits.slice(4, 8);
@@ -292,7 +292,7 @@ const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; cla
     <input
       type="text"
       inputMode="numeric"
-      placeholder="DD.MM.YYYY"
+      placeholder="DD/MM/YYYY"
       value={text}
       onChange={(e) => handle(e.target.value)}
       maxLength={10}
@@ -578,6 +578,11 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const totalAmount = parseFloat(formData.payment?.totalAmount?.toString() || '0');
   const commissionAmount = parseFloat(formData.payment?.commissionAmount?.toString() || '0');
   const outstandingAmount = totalAmount + commissionAmount;
+  // Received = sum of all owner + tenant payments; Balance = Outstanding − Received.
+  const receivedAmount =
+    [...ownerPayments, ...tenantPayments]
+      .reduce((sum, p) => sum + (parseFloat(p.paymentAmount) || 0), 0);
+  const balanceAmount = outstandingAmount - receivedAmount;
 
   return (
     <BaseModal isOpen={isOpen} onClose={onClose} title="Edit Lead Details" size="xl">
@@ -644,7 +649,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </select>
               </div>
               <div><label className={labelClass}>Tentative Agreement Date</label><input type="date" value={formData.tentativeAgreementDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'tentativeAgreementDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Appointment Time</label><DateTime12Picker value={formData.appointmentTime?.slice(0, 16)} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} inputClass={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Appointment Time</label><DateTime12Picker value={formData.appointmentTime?.slice(0, 16)} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} inputClass={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
@@ -716,18 +721,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
 
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>SV No.</label><input type="text" inputMode="numeric" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>SV Location</label><input type="text" value={formData.agreement?.svLocation || ''} onChange={(e) => handleInputChange('agreement', 'svLocation', e.target.value)} className={inputClass} /></div>
-                <div>
-                  <label className={labelClass}>Assign Status</label>
-                  <select value={formData.agreement?.assignStatus || ''} onChange={(e) => handleInputChange('agreement', 'assignStatus', e.target.value)} className={inputClass}>
-                    <option value="">Select Assign Status</option>
-                    <option value="Payment Pending">Payment Pending</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                </div>
               </div>
             </div>
 
@@ -876,6 +873,16 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Outstanding Amount</label>
                   <input type="text" value={`₹ ${outstandingAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-red-600 font-semibold cursor-not-allowed`} />
                   <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
+                </div>
+                <div>
+                  <label className={labelClass}>Received Amount</label>
+                  <input type="text" value={`₹ ${receivedAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-[#00A651] font-semibold cursor-not-allowed`} />
+                  <p className="text-xs text-slate-500 mt-1">Owner + Tenant payments</p>
+                </div>
+                <div>
+                  <label className={labelClass}>Balance Amount</label>
+                  <input type="text" value={`₹ ${balanceAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00A651]'}`} />
+                  <p className="text-xs text-slate-500 mt-1">Outstanding − Received</p>
                 </div>
               </div>
             </div>
@@ -1699,6 +1706,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (status) params.set('status', status);
         if (paymentDate) params.set('paymentDate', paymentDate);
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
+        if (ownerName) params.set('ownerName', ownerName);
+        if (tenantName) params.set('tenantName', tenantName);
+        if (mobileFilter) params.set('mobile', mobileFilter);
         if (searchText) params.set('searchText', searchText);
       }
       if (isMarketingDashboard) {
@@ -1978,6 +1988,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Status</label><select value={status} onChange={(e) => setStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Date</label><input type="date" value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Search owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Search tenant" value={tenantName} onChange={(e) => setTenantName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="tel" placeholder="Search by mobile" value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>

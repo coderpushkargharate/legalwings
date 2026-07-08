@@ -5,7 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable, { type Column, type Lead } from '@/components/leads-table';
 
-// ✅ Helper: Format date consistently (DD/MM/YY)
+// ✅ Helper: Format date consistently (DD/MM/YYYY)
 const formatDate = (dateString?: string | null): string => {
   if (!dateString) return '-';
   try {
@@ -14,7 +14,7 @@ const formatDate = (dateString?: string | null): string => {
     return date.toLocaleDateString('en-GB', {
       day: '2-digit',
       month: '2-digit',
-      year: '2-digit',
+      year: 'numeric',
     });
   } catch {
     return '-';

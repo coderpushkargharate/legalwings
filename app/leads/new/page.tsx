@@ -887,7 +887,9 @@ function LeadFormContent() {
                 </select>
               </div>
               <DateField label="Tentative Agreement Date" value={lead.tentativeAgreementDate} onChange={(v) => updateLead('tentativeAgreementDate', v)} isEditable={isEditable} id="lead-tentativeAgreementDate" />
-              <DateField label="Appointment Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
+              <div className="md:col-span-2">
+                <DateField label="Appointment Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
                 <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
