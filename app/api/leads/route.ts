@@ -28,6 +28,25 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+// ✅ Helper: build a MongoDB range condition ($gte/$lte) for a from/to date pair.
+// `from`/`to` arrive as `YYYY-MM-DD` strings. Two field kinds exist:
+//   - Date-object fields (createdAt / updatedAt) stored via `new Date()` → compare with Date objects.
+//   - ISO-string fields (appointmentTime, agreement.*, follow-up dates) → compare with strings.
+// The upper bound is pushed to end-of-day so same-day records are included.
+function addDateRange(
+  filter: Record<string, unknown>,
+  field: string,
+  from: string | null,
+  to: string | null,
+  isDateObject = false,
+) {
+  if (!from && !to) return;
+  const range: Record<string, unknown> = {};
+  if (from) range.$gte = isDateObject ? new Date(`${from}T00:00:00.000`) : from;
+  if (to) range.$lte = isDateObject ? new Date(`${to}T23:59:59.999`) : `${to}T23:59:59.999`;
+  filter[field] = range;
+}
+
 // ✅ External CRM integration sends a lean shape (no agreement/payment/history
 // blobs). Strip the lead down to the core fields the external service needs.
 function toLeanLead(l: Record<string, unknown>) {
@@ -133,6 +152,18 @@ export async function GET(request: Request) {
     const tenantMobile = searchParams.get('tenantMobile');
     const tenantDob = searchParams.get('tenantDob');
 
+    // Date-range filters (Calling / Accounting / Marketing dashboards)
+    const fromDate = searchParams.get('fromDate');
+    const toDate = searchParams.get('toDate');
+    const filterOn = searchParams.get('filterOn') || 'Created Date';
+    const appointmentFromDate = searchParams.get('appointmentFromDate');
+    const appointmentToDate = searchParams.get('appointmentToDate');
+    const nextFollowUpFromDate = searchParams.get('nextFollowUpFromDate');
+    const nextFollowUpToDate = searchParams.get('nextFollowUpToDate');
+    const lastFollowUpFromDate = searchParams.get('lastFollowUpFromDate');
+    const lastFollowUpToDate = searchParams.get('lastFollowUpToDate');
+    const visitCount = searchParams.get('visitCount');
+
     // ✅ FIX: visibleToTeams query for array field
     if (transitLevel && transitLevel !== 'ALL') {
       const upperTransit = transitLevel.toUpperCase();
@@ -220,15 +251,45 @@ export async function GET(request: Request) {
     if (tenantMobile) filter['agreement.tenant.phoneNo'] = { $regex: tenantMobile, $options: 'i' };
     if (tenantDob) filter['agreement.tenant.dateOfBirth'] = tenantDob;
 
-    // 🔍 Search text - ✅ Own AND-ed OR-group
+    // 📅 Primary date-range filter — the "From / To Date" + "Filter On" controls.
+    // Maps the chosen "Filter On" option to its backing field. createdAt/updatedAt
+    // are stored as Date objects; the rest are ISO strings.
+    const filterOnField: Record<string, { field: string; isDate: boolean }> = {
+      'Created Date': { field: 'createdAt', isDate: true },
+      'Updated Date': { field: 'updatedAt', isDate: true },
+      'Appointment Date': { field: 'appointmentTime', isDate: false },
+      'Agreement Date': { field: 'agreement.agreementStartDate', isDate: false },
+    };
+    const chosen = filterOnField[filterOn] || filterOnField['Created Date'];
+    addDateRange(filter, chosen.field, fromDate, toDate, chosen.isDate);
+
+    // 📅 Secondary date-range filters (appointment / follow-up windows)
+    addDateRange(filter, 'appointmentTime', appointmentFromDate, appointmentToDate, false);
+    addDateRange(filter, 'nextFollowUpDate', nextFollowUpFromDate, nextFollowUpToDate, false);
+    addDateRange(filter, 'lastFollowUpDate', lastFollowUpFromDate, lastFollowUpToDate, false);
+
+    if (visitCount) {
+      const vc = parseInt(visitCount, 10);
+      if (!isNaN(vc)) filter.visitCount = vc;
+    }
+
+    // 🔍 Search text - ✅ Own AND-ed OR-group.
+    // Searches client name/phone, agreement token/mobile, and BOTH owner & tenant
+    // full name + phone so a single box finds Owner name + Tenant name + mobile.
     if (searchText) {
+      const st = escapeRegex(searchText);
       addOrGroup(andConditions, [
-        { 'client.firstName': { $regex: searchText, $options: 'i' } },
-        { 'client.lastName': { $regex: searchText, $options: 'i' } },
-        { 'client.phoneNo': { $regex: searchText, $options: 'i' } },
-        { 'agreement.tokenNo': { $regex: searchText, $options: 'i' } },
-        { 'agreement.owner.firstName': { $regex: searchText, $options: 'i' } },
-        { 'agreement.tenant.firstName': { $regex: searchText, $options: 'i' } },
+        { 'client.firstName': { $regex: st, $options: 'i' } },
+        { 'client.lastName': { $regex: st, $options: 'i' } },
+        { 'client.phoneNo': { $regex: st, $options: 'i' } },
+        { 'agreement.tokenNo': { $regex: st, $options: 'i' } },
+        { 'agreement.mobileNo': { $regex: st, $options: 'i' } },
+        { 'agreement.owner.firstName': { $regex: st, $options: 'i' } },
+        { 'agreement.owner.lastName': { $regex: st, $options: 'i' } },
+        { 'agreement.owner.phoneNo': { $regex: st, $options: 'i' } },
+        { 'agreement.tenant.firstName': { $regex: st, $options: 'i' } },
+        { 'agreement.tenant.lastName': { $regex: st, $options: 'i' } },
+        { 'agreement.tenant.phoneNo': { $regex: st, $options: 'i' } },
       ]);
     }
 

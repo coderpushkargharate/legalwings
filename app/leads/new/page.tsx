@@ -196,6 +196,41 @@ const buildDateTime = (datePart: string, hour12: string, minute: string, ampm: s
   return `${datePart}T${String(h24).padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
 };
 
+// Show an ISO value as DD/MM/YYYY inside the typeable date input.
+const isoToDDMMYYYY = (iso?: string): string => {
+  if (!iso) return '';
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${dd}/${mm}/${d.getFullYear()}`;
+};
+
+// Typeable DD/MM/YYYY field. Auto-inserts the `/` separators as the user types and
+// emits an ISO `YYYY-MM-DD` string once a full date is entered, so the rest of the
+// form keeps storing ISO dates.
+const TypeableDateInput = memo(function TypeableDateInput(
+  { value, onChange, id, className }: { value?: string; onChange: (iso: string) => void; id?: string; className?: string },
+) {
+  const [text, setText] = useState<string>(isoToDDMMYYYY(value));
+  useEffect(() => { setText(isoToDDMMYYYY(value)); }, [value]);
+
+  const handle = (raw: string) => {
+    const digits = raw.replace(/\D/g, '').slice(0, 8);
+    let out = digits;
+    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+    setText(out);
+    if (digits.length === 8) onChange(`${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`);
+    else if (digits.length === 0) onChange('');
+  };
+
+  return (
+    <input id={id} type="text" inputMode="numeric" placeholder="DD/MM/YYYY" value={text} maxLength={10} onChange={(e) => handle(e.target.value)} className={className} />
+  );
+});
+
 const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
@@ -255,11 +290,10 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
       <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       {isEditable ? (
         <div className="relative">
-          <input
+          <TypeableDateInput
             id={fieldId}
-            type="date"
             value={value || ''}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={onChange}
             className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all pr-10"
           />
           <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1213,21 +1247,7 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
-                    <div className="relative">
-                      <input 
-                        type="date" 
-                        value={p.paymentDate} 
-                        onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} 
-                        disabled={!isEditable} 
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      />
-                      <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  </div>
+                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateOwnerPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`owner-paymentDate-${i}`} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
                     <input 
@@ -1298,21 +1318,7 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
-                    <div className="relative">
-                      <input 
-                        type="date" 
-                        value={p.paymentDate} 
-                        onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} 
-                        disabled={!isEditable} 
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                      />
-                      <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                    </div>
-                  </div>
+                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateTenantPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`tenant-paymentDate-${i}`} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
                     <input 
@@ -1439,21 +1445,7 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Govt GRN Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={payment.govtGrnDate} 
-                      onChange={(e) => updatePayment('govtGrnDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
+                <DateField label="Govt GRN Date" value={payment.govtGrnDate} onChange={(v) => updatePayment('govtGrnDate', v)} isEditable={isEditable} id="payment-govtGrnDate" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">GRN Number</label>
                   <input 
@@ -1478,21 +1470,7 @@ function LeadFormContent() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">DHC Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={payment.dhcDate} 
-                      onChange={(e) => updatePayment('dhcDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
+                <DateField label="DHC Date" value={payment.dhcDate} onChange={(v) => updatePayment('dhcDate', v)} isEditable={isEditable} id="payment-dhcDate" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">DHC Number</label>
                   <input 
@@ -1517,21 +1495,7 @@ function LeadFormContent() {
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Commission Date</label>
-                  <div className="relative">
-                    <input 
-                      type="date" 
-                      value={payment.commissionDate} 
-                      onChange={(e) => updatePayment('commissionDate', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all pr-10" 
-                    />
-                    <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                </div>
+                <DateField label="Commission Date" value={payment.commissionDate} onChange={(v) => updatePayment('commissionDate', v)} isEditable={isEditable} id="payment-commissionDate" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Commission Name</label>
                   <input 

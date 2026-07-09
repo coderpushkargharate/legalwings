@@ -612,7 +612,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
           <div className={sectionClass}>
             <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div><label className={labelClass}>Lead Date</label><input type="date" value={formData.leadDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'leadDate', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Lead Date</label><DateInput value={formData.leadDate} onChange={(iso) => handleInputChange('general', 'leadDate', iso)} className={inputClass} /></div>
               <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={inputClass} /></div>
               <div>
@@ -648,7 +648,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <option value="CANCELLED">CANCELLED</option>
                 </select>
               </div>
-              <div><label className={labelClass}>Tentative Agreement Date</label><input type="date" value={formData.tentativeAgreementDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'tentativeAgreementDate', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Tentative Agreement Date</label><DateInput value={formData.tentativeAgreementDate} onChange={(iso) => handleInputChange('general', 'tentativeAgreementDate', iso)} className={inputClass} /></div>
               <div className="md:col-span-2"><label className={labelClass}>Appointment Time</label><DateTime12Picker value={formData.appointmentTime?.slice(0, 16)} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} inputClass={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
@@ -669,8 +669,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   {(dropdowns?.areas || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
                 </select>
               </div>
-              <div><label className={labelClass}>Last FollowUp Date</label><input type="date" value={formData.lastFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'lastFollowUpDate', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Next FollowUp Date</label><input type="date" value={formData.nextFollowUpDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('general', 'nextFollowUpDate', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Last FollowUp Date</label><DateInput value={formData.lastFollowUpDate} onChange={(iso) => handleInputChange('general', 'lastFollowUpDate', iso)} className={inputClass} /></div>
+              <div><label className={labelClass}>Next FollowUp Date</label><DateInput value={formData.nextFollowUpDate} onChange={(iso) => handleInputChange('general', 'nextFollowUpDate', iso)} className={inputClass} /></div>
             </div>
           </div>
         )}
@@ -735,10 +735,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Token Number</label>
                   <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
                 </div>
-                <div><label className={labelClass}>Agreement Start Date</label><input type="date" value={formData.agreement?.agreementStartDate?.split('T')[0] || formData.agreement?.startDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementStartDate', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Agreement End Date</label><input type="date" value={formData.agreement?.agreementEndDate?.split('T')[0] || formData.agreement?.endDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'agreementEndDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={(iso) => handleInputChange('agreement', 'agreementStartDate', iso)} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement End Date</label><DateInput value={formData.agreement?.agreementEndDate || formData.agreement?.endDate} onChange={(iso) => handleInputChange('agreement', 'agreementEndDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Execute Date</label><input type="date" value={formData.agreement?.executeDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('agreement', 'executeDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Execute Date</label><DateInput value={formData.agreement?.executeDate} onChange={(iso) => handleInputChange('agreement', 'executeDate', iso)} className={inputClass} /></div>
                 <div className="md:col-span-2"><label className={labelClass}>Address Line 1</label><input type="text" value={formData.agreement?.addressLine1 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine1', e.target.value)} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Agreement Status</label>
@@ -891,7 +891,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
-                  <div><label className={labelClass}>Payment Date</label><input type="date" value={p.paymentDate} onChange={(e) => updateOwnerPayment(i, 'paymentDate', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateOwnerPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
                   <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                   <div>
                     <label className={labelClass}>Mode</label>
@@ -915,7 +915,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
-                  <div><label className={labelClass}>Payment Date</label><input type="date" value={p.paymentDate} onChange={(e) => updateTenantPayment(i, 'paymentDate', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateTenantPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
                   <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                   <div>
                     <label className={labelClass}>Mode</label>
@@ -940,11 +940,11 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>GRN Number</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 18))} maxLength={18} className={inputClass} /></div>
                 <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
-                <div><label className={labelClass}>Govt GRN Date</label><input type="date" value={formData.payment?.govtGrnDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'govtGrnDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Govt GRN Date</label><DateInput value={formData.payment?.govtGrnDate} onChange={(iso) => handleInputChange('payment', 'govtGrnDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>DHC Number</label><input type="text" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 13))} maxLength={13} className={inputClass} /></div>
                 <div><label className={labelClass}>DHC Amount</label><input type="text" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
-                <div><label className={labelClass}>DHC Date</label><input type="date" value={formData.payment?.dhcDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'dhcDate', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Commission Date</label><input type="date" value={formData.payment?.commissionDate?.split('T')[0] || ''} onChange={(e) => handleInputChange('payment', 'commissionDate', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Date</label><DateInput value={formData.payment?.dhcDate} onChange={(iso) => handleInputChange('payment', 'dhcDate', iso)} className={inputClass} /></div>
+                <div><label className={labelClass}>Commission Date</label><DateInput value={formData.payment?.commissionDate} onChange={(iso) => handleInputChange('payment', 'commissionDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Amount</label><input type="text" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                 <div className="md:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
