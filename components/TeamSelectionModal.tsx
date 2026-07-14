@@ -22,7 +22,7 @@ interface TeamSelectionModalProps {
 
 export default function TeamSelectionModal({ isOpen, leadId, onSend, onClose }: TeamSelectionModalProps) {
   const { apiFetch } = useApi();
-  const [selectedTeam, setSelectedTeam] = useState<'Calling' | 'Executive' | 'Backend' | 'Accounts' | 'Marketing'>('Calling');
+  const [selectedTeam, setSelectedTeam] = useState<'Calling' | 'Executive' | 'Backend' | 'Accounts' | 'Marketing' | 'Shop'>('Calling');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string>('');
   const [loadingEmployees, setLoadingEmployees] = useState(false);
@@ -87,13 +87,21 @@ export default function TeamSelectionModal({ isOpen, leadId, onSend, onClose }: 
       color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700',
       desc: 'Payment tracking & commission management'
     },
-    { 
-      key: 'Marketing', 
-      label: 'Marketing Team', 
-      icon: '📢', 
+    {
+      key: 'Marketing',
+      label: 'Marketing Team',
+      icon: '📢',
       transitLevel: 'MARKETING_TEAM',
       color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700',
       desc: 'Campaign management & lead sourcing'
+    },
+    {
+      key: 'Shop',
+      label: 'Shop Employee',
+      icon: '🏪',
+      transitLevel: 'SHOP_TEAM',
+      color: 'bg-indigo-50 border-indigo-200 hover:border-indigo-400 text-indigo-700',
+      desc: 'Walk-in shop leads & counter follow-ups'
     },
   ];
 

@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/components/api-client';
 import { formatDateTime } from '@/lib/date-utils';
 import Link from 'next/link';
-import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight } from 'lucide-react';
+import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -95,38 +95,45 @@ type Mode = 'employee' | 'lead';
 const teamLabel = (t?: string) => (t ? t.replace('_TEAM', '').replace('_', ' ') : '-');
 const money = (n?: number | null) => (n == null ? '-' : `₹${Number(n).toLocaleString('en-IN')}`);
 
-export default function AdminUserHistory() {
+// `leadOnly` renders just the Lead-history search (no employee mode) — used by
+// team dashboards (e.g. Shop Team) that should look up a lead's full history
+// without exposing per-employee stats.
+export default function AdminUserHistory({ leadOnly = false }: { leadOnly?: boolean }) {
   const { apiFetch } = useApi();
-  const [mode, setMode] = useState<Mode>('employee');
+  const [mode, setMode] = useState<Mode>(leadOnly ? 'lead' : 'employee');
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 mb-8">
       <div className="flex items-center gap-2 mb-1">
         <UserCheck className="w-5 h-5 text-teal-600" />
-        <h3 className="text-lg font-semibold text-slate-800">User History</h3>
-        <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">Admin only</span>
+        <h3 className="text-lg font-semibold text-slate-800">{leadOnly ? 'Lead History' : 'User History'}</h3>
+        {!leadOnly && <span className="ml-2 text-[10px] font-semibold uppercase tracking-wider bg-teal-50 text-teal-700 px-2 py-0.5 rounded-full">Admin only</span>}
       </div>
       <p className="text-sm text-slate-500 mb-4">
-        Search an <strong>employee</strong> to view every lead they created, were assigned, or forwarded (with payments) — or search a <strong>specific lead</strong> to see its full history.
+        {leadOnly
+          ? <>Search a <strong>specific lead</strong> by name, phone or token to see its full history — every forward, its current status &amp; assignment, and all payments.</>
+          : <>Search an <strong>employee</strong> to view every lead they created, were assigned, or forwarded (with payments) — or search a <strong>specific lead</strong> to see its full history.</>}
       </p>
 
-      {/* Mode toggle */}
-      <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50 mb-4">
-        <button
-          onClick={() => setMode('employee')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'employee' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          <Users className="w-4 h-4" /> Employee
-        </button>
-        <button
-          onClick={() => setMode('lead')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'lead' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-        >
-          <FileText className="w-4 h-4" /> Lead
-        </button>
-      </div>
+      {/* Mode toggle — hidden in lead-only mode */}
+      {!leadOnly && (
+        <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50 mb-4">
+          <button
+            onClick={() => setMode('employee')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'employee' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Users className="w-4 h-4" /> Employee
+          </button>
+          <button
+            onClick={() => setMode('lead')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'lead' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <FileText className="w-4 h-4" /> Lead
+          </button>
+        </div>
+      )}
 
-      {mode === 'employee' ? <EmployeeHistory apiFetch={apiFetch} /> : <LeadHistory apiFetch={apiFetch} />}
+      {mode === 'employee' && !leadOnly ? <EmployeeHistory apiFetch={apiFetch} /> : <LeadHistory apiFetch={apiFetch} />}
     </div>
   );
 }
@@ -464,6 +471,9 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
               <span className="text-xs font-medium bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full">{teamLabel(history.lead.transitLevel)}</span>
               {history.lead.leadStatus && <span className="text-xs font-medium bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full">{history.lead.leadStatus}</span>}
               <Link href={`/leads/new?mode=view&id=${history.lead.id}`} className="text-xs font-medium text-teal-600 hover:text-teal-700 px-2">Open lead</Link>
+              <Link href={`/leads/new?mode=edit&id=${history.lead.id}`} className="inline-flex items-center gap-1 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 px-3 py-1.5 rounded-lg transition-colors">
+                <Edit className="w-3.5 h-3.5" /> Edit lead
+              </Link>
             </div>
           </div>
 

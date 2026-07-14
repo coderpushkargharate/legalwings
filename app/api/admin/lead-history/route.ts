@@ -23,8 +23,12 @@ export async function GET(request: Request) {
   const user = getAuth(request);
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
-  if (!isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  // Lead history is available to admins and to the Shop team (which uses the
+  // lead-only history search on its dashboard). Employee history lives on a
+  // separate route and stays admin-only.
+  const roles = (user.roles || []).map(r => String(r).toLowerCase());
+  const canView = roles.includes('admin') || roles.includes('shop');
+  if (!canView) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   try {
     const { db } = await connectToDatabase();

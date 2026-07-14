@@ -17,7 +17,7 @@ export async function GET(request: Request) {
 
     // Base filter: include all employees, exclude admins
     const filter: Record<string, any> = { 
-      roles: { $in: ['employee', 'calling', 'executive', 'backend', 'accounting', 'marketing'] },
+      roles: { $in: ['employee', 'calling', 'executive', 'backend', 'accounting', 'marketing', 'shop'] },
       isActive: { $ne: false }
     };
     
@@ -27,9 +27,10 @@ export async function GET(request: Request) {
         'Calling': 'calling', 
         'Executive': 'executive', 
         'Backend': 'backend',
-        'Accounts': 'accounting', 
+        'Accounts': 'accounting',
         'Marketing': 'marketing',
-        'Accounting': 'accounting'
+        'Accounting': 'accounting',
+        'Shop': 'shop'
       };
       const teamRole = roleMap[teamFilter] || teamFilter.toLowerCase();
       

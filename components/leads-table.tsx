@@ -1333,7 +1333,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, me
 interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; restrictTeams?: boolean; excludeTeam?: string; }
 const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false, excludeTeam }) => {
   const { apiFetch } = useApi();
-  const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING'>('CALLING');
+  const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING' | 'SHOP'>('CALLING');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [selectedEmployee, setSelectedEmployee] = useState<string | null>(null);
   const [assignToEmployee, setAssignToEmployee] = useState(false);
@@ -1362,6 +1362,7 @@ const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId,
     { key: 'BACKEND', label: 'Backend Team', icon: '⚙️', color: 'bg-emerald-50 border-emerald-200 hover:border-emerald-400 text-emerald-700' },
     { key: 'ACCOUNTING', label: 'Accounts Team', icon: '💰', color: 'bg-rose-50 border-rose-200 hover:border-rose-400 text-rose-700' },
     { key: 'MARKETING', label: 'Marketing Team', icon: '📢', color: 'bg-cyan-50 border-cyan-200 hover:border-cyan-400 text-cyan-700' },
+    { key: 'SHOP', label: 'Shop Employee', icon: '🏪', color: 'bg-indigo-50 border-indigo-200 hover:border-indigo-400 text-indigo-700' },
   ];
   // Employees can only forward to Calling / Executive / Backend, and never back to
   // their own team (e.g. a Calling-team employee sees only Executive & Backend).
@@ -1508,6 +1509,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const isCallingDashboard = transitLevel === 'CALLING' || transitLevel === 'CALLING_TEAM';
   const isBackendDashboard = transitLevel === 'BACKEND' || transitLevel === 'BACKEND_TEAM';
   const isAccountingDashboard = transitLevel === 'ACCOUNTING' || transitLevel === 'ALL';
+  const isShopDashboard = transitLevel === 'SHOP' || transitLevel === 'SHOP_TEAM';
 
   useEffect(() => {
     if (!user) return;
@@ -1684,6 +1686,18 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
         if (searchText) params.set('searchText', searchText);
       }
+      if (isShopDashboard) {
+        if (fromDate) params.set('fromDate', fromDate);
+        if (toDate) params.set('toDate', toDate);
+        if (clientType) params.set('clientType', clientType);
+        if (selectedStatus) params.set('leadStatus', selectedStatus);
+        if (mobileFilter) params.set('mobile', mobileFilter);
+        if (selectedCity) params.set('cityId', selectedCity);
+        if (selectedArea) params.set('areaId', selectedArea);
+        if (areaText) params.set('areaText', areaText);
+        if (tokenNumber) params.set('tokenNumber', tokenNumber);
+        if (searchText) params.set('searchText', searchText);
+      }
       if (isExecutiveDashboard && executiveSearch) params.set('searchText', executiveSearch);
       if (isBackendDashboard) {
         if (ownerName) params.set('ownerName', ownerName);
@@ -1736,7 +1750,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -2053,6 +2067,32 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
             <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
+          </div>
+        </>
+      );
+    }
+    if (isShopDashboard) {
+      return (
+        <>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="tel" placeholder="Search by mobile" value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">City</label><select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select City</option>{dropdowns.cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area</label><select value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select Area</option>{dropdowns.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
+            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button onClick={handleApplyFilters} className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
+              <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
+              {canExport && (<button onClick={handleExportExcel} className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Download className="w-4 h-4" /> Export</button>)}
+            </div>
           </div>
         </>
       );

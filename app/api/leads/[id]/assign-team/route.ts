@@ -16,6 +16,7 @@ const TEAM_TO_TRANSIT_LEVEL: Record<string, string> = {
   BACKEND: 'BACKEND_TEAM',
   ACCOUNTING: 'ACCOUNTING_TEAM',
   MARKETING: 'MARKETING_TEAM',
+  SHOP: 'SHOP_TEAM',
 };
 
 export async function POST(

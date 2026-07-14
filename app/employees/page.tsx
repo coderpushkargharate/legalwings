@@ -122,6 +122,7 @@ export default function EmployeesPage() {
       'Backend': 'bg-purple-50 text-purple-700 border-purple-200',
       'Accounts': 'bg-amber-50 text-amber-700 border-amber-200',
       'Marketing': 'bg-pink-50 text-pink-700 border-pink-200',
+      'Shop': 'bg-indigo-50 text-indigo-700 border-indigo-200',
     };
     return colors[team] || 'bg-slate-50 text-slate-700 border-slate-200';
   };
@@ -151,7 +152,7 @@ export default function EmployeesPage() {
     setTeamFilter('');
   };
 
-  const teams = ['Calling', 'Executive', 'Backend', 'Accounts', 'Marketing'];
+  const teams = ['Calling', 'Executive', 'Backend', 'Accounts', 'Marketing', 'Shop'];
 
   return (
     <AppShell>
@@ -478,7 +479,7 @@ export default function EmployeesPage() {
                       className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all bg-white appearance-none"
                     >
                       {teams.map(team => (
-                        <option key={team} value={team}>{team} Team</option>
+                        <option key={team} value={team}>{team === 'Shop' ? 'Shop Employee' : `${team} Team`}</option>
                       ))}
                     </select>
                   </div>
