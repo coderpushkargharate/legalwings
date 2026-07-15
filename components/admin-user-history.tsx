@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/components/api-client';
-import { formatDateTime } from '@/lib/date-utils';
+import { formatDate, formatDateTime } from '@/lib/date-utils';
 import Link from 'next/link';
 import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit } from 'lucide-react';
 
@@ -51,6 +51,7 @@ interface LeadMatch {
   phone?: string;
   leadStatus?: string;
   transitLevel?: string;
+  leadDate?: string;
 }
 
 interface PaymentItem {
@@ -422,6 +423,9 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
 
         {showResults && matches.length > 0 && (
           <div className="absolute z-20 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+            <div className="px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400 bg-slate-50 border-b border-slate-100 sticky top-0">
+              {matches.length} lead{matches.length > 1 ? 's' : ''} found
+            </div>
             {matches.map(l => (
               <button
                 key={l.id}
@@ -433,7 +437,9 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
                 </div>
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-slate-800 truncate">{l.leadName || 'Unnamed lead'}</div>
-                  <div className="text-xs text-slate-500 truncate">{l.phone || 'No phone'} · {teamLabel(l.transitLevel)}{l.leadStatus ? ` · ${l.leadStatus}` : ''}</div>
+                  <div className="text-xs text-slate-500 truncate">
+                    {l.phone || 'No phone'} · {teamLabel(l.transitLevel)}{l.leadStatus ? ` · ${l.leadStatus}` : ''}{l.leadDate ? ` · ${formatDate(l.leadDate)}` : ''}
+                  </div>
                 </div>
               </button>
             ))}

@@ -66,7 +66,9 @@ export async function GET(request: Request) {
           },
         },
         { $sort: { createdAt: -1 } },
-        { $limit: 15 },
+        // A single customer can have many leads (repeat callers). Keep the cap
+        // high enough that ALL of one person's leads surface in the search list.
+        { $limit: 100 },
         {
           $project: {
             _id: 0,
@@ -75,6 +77,9 @@ export async function GET(request: Request) {
             phone: '$client.phoneNo',
             leadStatus: '$leadStatus',
             transitLevel: '$transitLevel',
+            // Sent so the dropdown can show a date and distinguish the same
+            // customer's multiple leads from one another.
+            leadDate: { $ifNull: ['$leadDate', '$createdAt'] },
           },
         },
       ]).toArray();
