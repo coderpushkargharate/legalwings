@@ -88,37 +88,16 @@ export async function GET(request: Request) {
     // 🔐 Team-based access control — kept as its own OR-group so search/filter
     // OR-groups can never widen it back open.
     if (!isAdmin && !isAccounting && !viewAll) {
-      // Build every transitLevel name this user's team could match. The JWT always
-      // carries `roles` (e.g. ['employee','calling']) and MAY carry `team`; derive
-      // from BOTH so leads forwarded to a team QUEUE (tracked via visibleToTeams)
-      // stay visible to that team — not only leads the user personally created or
-      // was directly assigned. Older tokens lack `team`, so roles is the reliable
-      // source and keeps already-logged-in employees working without re-login.
-      const ROLE_TO_TEAM: Record<string, string> = {
-        calling: 'CALLING_TEAM', executive: 'EXECUTIVE_TEAM', backend: 'BACKEND_TEAM',
-        accounting: 'ACCOUNTING_TEAM', marketing: 'MARKETING_TEAM', shop: 'SHOP_TEAM',
-      };
-      const teamNames = new Set<string>();
-      const rawTeam = (((user as JWTPayload & { team?: string }).team) || '').toUpperCase();
-      if (rawTeam) {
-        teamNames.add(rawTeam);
-        teamNames.add(rawTeam.endsWith('_TEAM') ? rawTeam : `${rawTeam}_TEAM`);
-        teamNames.add(rawTeam.replace('_TEAM', ''));
-      }
-      for (const role of user.roles || []) {
-        const mapped = ROLE_TO_TEAM[role.toLowerCase()];
-        if (mapped) teamNames.add(mapped);
-      }
+      // 🔐 Per-employee isolation: a regular employee sees ONLY the leads they
+      // personally created, plus any lead that was forwarded/assigned specifically
+      // to them (assignedToUserId). They do NOT see other employees' leads or the
+      // shared team queue — the full team view stays with admins (and the
+      // accounting / "All" dashboards) only.
       const ownId = toObjectId(user.userId);
-
-      const accessConditions: Record<string, unknown>[] = [
+      addOrGroup(andConditions, [
         { createdByUserId: user.userId },
         { assignedToUserId: ownId },
-      ];
-      if (teamNames.size) {
-        accessConditions.push({ visibleToTeams: { $in: Array.from(teamNames) } });
-      }
-      addOrGroup(andConditions, accessConditions);
+      ]);
     }
 
     // 🔍 Single lead view (still subject to the access-control group above)
