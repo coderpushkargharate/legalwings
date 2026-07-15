@@ -29,6 +29,7 @@ export async function POST(request: Request) {
       firstName: user.firstName,
       lastName: user.lastName,
       roles: user.roles || ['admin'],
+      team: user.team,
     });
 
     return NextResponse.json({
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
         firstName: user.firstName,
         lastName: user.lastName,
         roles: user.roles || ['admin'],
+        team: user.team,
       },
     });
   } catch (error) {

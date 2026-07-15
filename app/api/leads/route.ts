@@ -88,15 +88,37 @@ export async function GET(request: Request) {
     // 🔐 Team-based access control — kept as its own OR-group so search/filter
     // OR-groups can never widen it back open.
     if (!isAdmin && !isAccounting && !viewAll) {
-      const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
-      const possibleTeamNames = [userTeam, `${userTeam}_TEAM`, userTeam.replace('_TEAM', '')];
+      // Build every transitLevel name this user's team could match. The JWT always
+      // carries `roles` (e.g. ['employee','calling']) and MAY carry `team`; derive
+      // from BOTH so leads forwarded to a team QUEUE (tracked via visibleToTeams)
+      // stay visible to that team — not only leads the user personally created or
+      // was directly assigned. Older tokens lack `team`, so roles is the reliable
+      // source and keeps already-logged-in employees working without re-login.
+      const ROLE_TO_TEAM: Record<string, string> = {
+        calling: 'CALLING_TEAM', executive: 'EXECUTIVE_TEAM', backend: 'BACKEND_TEAM',
+        accounting: 'ACCOUNTING_TEAM', marketing: 'MARKETING_TEAM', shop: 'SHOP_TEAM',
+      };
+      const teamNames = new Set<string>();
+      const rawTeam = (((user as JWTPayload & { team?: string }).team) || '').toUpperCase();
+      if (rawTeam) {
+        teamNames.add(rawTeam);
+        teamNames.add(rawTeam.endsWith('_TEAM') ? rawTeam : `${rawTeam}_TEAM`);
+        teamNames.add(rawTeam.replace('_TEAM', ''));
+      }
+      for (const role of user.roles || []) {
+        const mapped = ROLE_TO_TEAM[role.toLowerCase()];
+        if (mapped) teamNames.add(mapped);
+      }
       const ownId = toObjectId(user.userId);
 
-      addOrGroup(andConditions, [
+      const accessConditions: Record<string, unknown>[] = [
         { createdByUserId: user.userId },
         { assignedToUserId: ownId },
-        { visibleToTeams: { $in: possibleTeamNames } },
-      ]);
+      ];
+      if (teamNames.size) {
+        accessConditions.push({ visibleToTeams: { $in: Array.from(teamNames) } });
+      }
+      addOrGroup(andConditions, accessConditions);
     }
 
     // 🔍 Single lead view (still subject to the access-control group above)
