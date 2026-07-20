@@ -23,9 +23,21 @@ export async function POST(request: Request) {
 
     // Update the lead with payment reference
     if (body.leadId) {
+      // Mirror the owner/tenant payment lines onto the top-level `paymentDetails`
+      // field too. Every UI that renders individual payments (View modal, the
+      // add/edit lead form, the Accounting table) reads `lead.paymentDetails`,
+      // not `lead.payment.paymentDetails` — so without this the received
+      // payments save but never show up.
+      const leadUpdate: Record<string, unknown> = {
+        payment: { ...payment, id: result.insertedId.toString() },
+        updatedAt: new Date(),
+      };
+      if (Array.isArray(body.paymentDetails)) {
+        leadUpdate.paymentDetails = body.paymentDetails;
+      }
       await db.collection('leads').updateOne(
         { _id: new ObjectId(body.leadId) },
-        { $set: { payment: { ...payment, id: result.insertedId.toString() }, updatedAt: new Date() } }
+        { $set: leadUpdate }
       );
     }
 

@@ -691,13 +691,24 @@ function LeadFormContent() {
     if (!token) { alert('Please wait, authentication is loading...'); return; }
     setSaving(true); setFormError(null);
     try {
+      // Resolve City/Area ids to full { id, name } objects so the dashboards and
+      // view/edit screens (which read `lead.city?.name` / `lead.area?.name` and
+      // the `lead.client?.cityName / areaName` fallbacks) show the labels — not
+      // just blanks — for a freshly created lead.
+      const selectedCity = dropdowns.cities.find(c => c.id === lead.cityId);
+      const selectedArea = dropdowns.areas.find(a => a.id === lead.areaId);
+
       const payload = {
         ...lead,
         clientId: selectedClientId || undefined,
         transitLevel,
-        client: { firstName: lead.firstName, lastName: lead.lastName, email: lead.email, phoneNo: lead.contactNumber, clientType: lead.clientType },
-        city: lead.cityId ? { id: lead.cityId } : null,
-        area: lead.areaId ? { id: lead.areaId } : null,
+        client: {
+          firstName: lead.firstName, lastName: lead.lastName, email: lead.email,
+          phoneNo: lead.contactNumber, clientType: lead.clientType,
+          cityName: selectedCity?.name || '', areaName: selectedArea?.name || '',
+        },
+        city: selectedCity ? { id: selectedCity.id, name: selectedCity.name } : (lead.cityId ? { id: lead.cityId } : null),
+        area: selectedArea ? { id: selectedArea.id, name: selectedArea.name } : (lead.areaId ? { id: lead.areaId } : null),
       };
       let response;
       if (currentLeadId) {
@@ -721,7 +732,7 @@ function LeadFormContent() {
       console.error('Save lead error:', error);
       setFormError(error.message || 'Failed to save lead.');
     } finally { setSaving(false); }
-  }, [token, lead, currentLeadId, transitLevel, selectedClientId, apiFetch]);
+  }, [token, lead, currentLeadId, transitLevel, selectedClientId, dropdowns, apiFetch]);
 
   const saveAgreement = useCallback(async () => {
     if (!token || !currentLeadId) { alert('Please save lead details first'); return; }

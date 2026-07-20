@@ -105,7 +105,8 @@ export async function GET(request: Request) {
       const accessFilter = andConditions.length ? { $and: andConditions } : {};
       const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...accessFilter });
       if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
-      return NextResponse.json({ ...lead, id: lead._id.toString(), _id: undefined });
+      // Expose `createdDate` (the UI reads it) derived from the stored `createdAt`.
+      return NextResponse.json({ ...lead, id: lead._id.toString(), createdDate: lead.createdDate || lead.createdAt, _id: undefined });
     }
 
     // 📋 Apply filters
@@ -262,7 +263,23 @@ export async function GET(request: Request) {
       'Agreement Date': { field: 'agreement.agreementStartDate', isDate: false },
     };
     const chosen = filterOnField[filterOn] || filterOnField['Created Date'];
-    addDateRange(filter, chosen.field, fromDate, toDate, chosen.isDate);
+    if (chosen.field === 'createdAt' && (fromDate || toDate)) {
+      // A lead can enter a team two ways: it was created there (`createdAt`), or
+      // it was forwarded/assigned in later (`forwardedAt`, set by assign-team).
+      // The default "Created Date" range must match EITHER — otherwise a lead
+      // created on an earlier day but forwarded into this team today is hidden
+      // from the destination team's default (today) view, so forwarded leads
+      // never surface in Calling/Shop/etc. until the user widens the dates.
+      const range: Record<string, unknown> = {};
+      if (fromDate) range.$gte = new Date(`${fromDate}T00:00:00.000`);
+      if (toDate) range.$lte = new Date(`${toDate}T23:59:59.999`);
+      addOrGroup(andConditions, [
+        { createdAt: range },
+        { forwardedAt: range },
+      ]);
+    } else {
+      addDateRange(filter, chosen.field, fromDate, toDate, chosen.isDate);
+    }
 
     // 📅 Secondary date-range filters (appointment / follow-up windows)
     addDateRange(filter, 'appointmentTime', appointmentFromDate, appointmentToDate, false);
@@ -312,7 +329,7 @@ export async function GET(request: Request) {
       leadPage: {
         content: isExternal
           ? leads.map(toLeanLead)
-          : leads.map(l => ({ ...l, id: l._id.toString(), _id: undefined })),
+          : leads.map(l => ({ ...l, id: l._id.toString(), createdDate: l.createdDate || l.createdAt, _id: undefined })),
         totalElements: total,
         totalPages: Math.ceil(total / pageSize),
         number: page,
