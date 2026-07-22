@@ -12,6 +12,7 @@ import {
   ArrowUpDown, ArrowDownUp, ArrowRight, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
+import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
 // ==================== 12-HOUR DATETIME PICKER ====================
@@ -200,6 +201,8 @@ interface Lead {
     reason?: string;
   }>;
   forwardReason?: string;
+  // Backend team: optional colour tag used to highlight a lead's row.
+  rowColor?: string;
 }
 interface Employee {
   id: string;
@@ -320,6 +323,106 @@ const getStatusBadge = (status?: string): React.ReactNode => {
   };
   const color = colors[status.toUpperCase()] || 'bg-slate-100 text-slate-600 border-slate-200';
   return <span className={`px-2.5 py-0.5 text-xs font-medium rounded-full border ${color}`}>{status}</span>;
+};
+
+// ==================== ROW COLOUR TAGS (Backend team) ====================
+// Colour options used by the Backend team to highlight leads in the table.
+const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] = [
+  { key: 'red', label: 'Red', swatch: 'bg-red-500', row: 'bg-red-50' },
+  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-700', row: 'bg-green-100' },
+  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-300', row: 'bg-emerald-50' },
+  { key: 'orange', label: 'Orange', swatch: 'bg-orange-500', row: 'bg-orange-50' },
+  { key: 'yellow', label: 'Yellow', swatch: 'bg-yellow-400', row: 'bg-yellow-50' },
+  { key: 'purple', label: 'Purple', swatch: 'bg-purple-500', row: 'bg-purple-50' },
+];
+const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
+
+// Hook: anchor a floating panel to a button and render it in a body-level portal,
+// so it always sits ABOVE the table (never clipped by the table's scroll overflow).
+function useAnchoredPanel() {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (btnRef.current?.contains(t) || panelRef.current?.contains(t)) return;
+      setOpen(false);
+    };
+    const close = () => setOpen(false);
+    document.addEventListener('mousedown', onDown);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [open]);
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 4, left: r.right });
+    }
+    setOpen((o) => !o);
+  };
+
+  return { open, setOpen, pos, btnRef, panelRef, toggle };
+}
+
+// Small per-row palette to tag a lead with a highlight colour.
+const RowColorPicker: React.FC<{ current?: string; onPick: (color: string) => void }> = ({ current, onPick }) => {
+  const { open, setOpen, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
+  const currentSwatch = ROW_COLORS.find((c) => c.key === current)?.swatch;
+  return (
+    <>
+      <button ref={btnRef} onClick={toggle} title="Tag row colour" className="p-2 rounded-lg hover:bg-slate-100 transition-all flex items-center">
+        <span className={`w-4 h-4 rounded-full border border-slate-300 ${currentSwatch || 'bg-white'}`} />
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-2 bg-white border border-slate-200 rounded-lg shadow-xl grid grid-cols-3 gap-1.5 w-max">
+          {ROW_COLORS.map((c) => (
+            <button key={c.key} onClick={() => { onPick(c.key); setOpen(false); }} title={c.label} className={`w-6 h-6 rounded-full border ${current === c.key ? 'border-slate-800 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-300'} ${c.swatch}`} />
+          ))}
+          <button onClick={() => { onPick(''); setOpen(false); }} title="Clear colour" className="w-6 h-6 rounded-full border border-slate-300 bg-white flex items-center justify-center text-slate-400"><X className="w-3 h-3" /></button>
+        </div>,
+        document.body,
+      )}
+    </>
+  );
+};
+
+// Dropdown listing a lead's uploaded files with download links (Backend team).
+const FilesDropdown: React.FC<{ lead: Lead }> = ({ lead }) => {
+  const { open, setOpen, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
+  const files = [
+    { data: lead.agreement?.fileData || lead.agreement?.agreementFile, name: lead.agreement?.fileName || lead.agreement?.agreementFileName || 'agreement', label: 'Agreement File' },
+    { data: lead.agreement?.pvrFileData, name: lead.agreement?.pvrFileName || 'pvr-file', label: 'PVR File' },
+    { data: lead.agreement?.otherFileData, name: lead.agreement?.otherFileName || 'other-file', label: 'Other File' },
+  ].filter((f) => !!f.data);
+  return (
+    <>
+      <button ref={btnRef} onClick={toggle} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-all" title="Download uploaded files">
+        <FileText className="w-3.5 h-3.5" /> Files <ChevronDown className="w-3 h-3" />
+      </button>
+      {open && pos && typeof document !== 'undefined' && createPortal(
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-xl w-48">
+          {files.length === 0 ? (
+            <div className="px-2 py-2 text-xs text-slate-400 text-center">No files uploaded</div>
+          ) : files.map((f, i) => (
+            <a key={i} href={f.data} download={f.name} className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md transition-colors">
+              <Download className="w-3.5 h-3.5 text-[#00A651]" /> <span className="truncate">{f.label}</span>
+            </a>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 };
 
 // ==================== BASE MODAL ====================
@@ -1093,7 +1196,10 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                             <span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00A651]">{history.toTeam}</span></span>
                             <span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(history.forwardedAt)}</span>
                           </div>
-                          <p className="text-xs text-slate-600 mt-2"><User className="w-3 h-3 inline mr-1" /> Forwarded by: <span className="font-medium">{history.forwardedBy}</span></p>
+                          <p className="text-xs text-slate-600 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span><User className="w-3 h-3 inline mr-1" /> Forwarded by: <span className="font-medium">{history.forwardedBy}</span></span>
+                            <span><UserCheck className="w-3 h-3 inline mr-1" /> Assigned to: <span className="font-medium">{lead.assignedToUserName || 'Team Only'}</span></span>
+                          </p>
                           {history.reason && <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded text-xs text-amber-800"><AlertCircle className="w-3 h-3 inline mr-1" /><strong>Reason:</strong> {history.reason}</div>}
                         </div>
                       ))}
@@ -1870,6 +1976,20 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     }
   };
 
+  // Backend team: tag a lead's row with a highlight colour ('' clears it).
+  const handleRowColor = async (leadId: string, color: string) => {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, rowColor: color } : l)));
+    try {
+      const res = await apiFetch('/api/leads', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: leadId, rowColor: color }),
+      });
+      if (!res.ok) throw new Error('Update failed');
+    } catch {
+      alert('Failed to update row colour. Please try again.');
+    }
+  };
+
   // ✅ KEY FIX: Update lead in local state instead of refetching the entire list.
   // This prevents leads from disappearing when date filters are active and a lead's
   // date doesn't match the current filter range after saving.
@@ -2121,13 +2241,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return l.backendStatus !== 'SUBMITTED' && l.backendStatus !== 'COMPLETED';
     });
   }
-  // Sort by appointment date (ascending / descending) when requested.
+  // Sort by date (ascending / descending) when requested. The backend team sorts by
+  // Execute Date; every other dashboard sorts by Appointment date.
   if (appointmentSort !== 'none') {
-    displayedLeads = [...displayedLeads].sort((a, b) => {
-      const ta = a.appointmentTime ? new Date(a.appointmentTime).getTime() : 0;
-      const tb = b.appointmentTime ? new Date(b.appointmentTime).getTime() : 0;
-      return appointmentSort === 'asc' ? ta - tb : tb - ta;
-    });
+    const sortDate = (l: Lead) => {
+      const v = isBackendDashboard ? l.agreement?.executeDate : l.appointmentTime;
+      return v ? new Date(v).getTime() : 0;
+    };
+    displayedLeads = [...displayedLeads].sort((a, b) =>
+      appointmentSort === 'asc' ? sortDate(a) - sortDate(b) : sortDate(b) - sortDate(a),
+    );
   }
 
   return (
@@ -2177,10 +2300,10 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         </div>
       )}
 
-      {(isAccountingDashboard || (isCallingDashboard && callingView === 'appointments')) && (
+      {(isAccountingDashboard || isBackendDashboard || (isCallingDashboard && callingView === 'appointments')) && (
         <div className="flex items-center gap-2 text-sm">
           <ArrowUpDown className="w-4 h-4 text-amber-500" />
-          <span className="font-medium text-slate-600">Sort by Appointment Date:</span>
+          <span className="font-medium text-slate-600">{isBackendDashboard ? 'Sort by Execute Date:' : 'Sort by Appointment Date:'}</span>
           <select
             value={appointmentSort}
             onChange={(e) => setAppointmentSort(e.target.value as 'none' | 'asc' | 'desc')}
@@ -2218,7 +2341,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                 <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
                 displayedLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-slate-50/80 transition-colors">
+                  <tr key={lead.id} className={`hover:bg-slate-50/80 transition-colors ${isBackendDashboard ? rowColorRowClass(lead.rowColor) : ''}`}>
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
                         {col.render ? col.render(lead) : '-'}
@@ -2237,9 +2360,17 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                         </td>
                         <td className="px-4 py-3 align-middle whitespace-nowrap sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details">
-                              <Eye className="w-4 h-4" />
-                            </button>
+                            {/* Backend Submitted/Completed: swap the view button for a downloadable files dropdown. */}
+                            {isBackendDashboard && (backendView === 'submitted' || backendView === 'completed') ? (
+                              <FilesDropdown lead={lead} />
+                            ) : (
+                              <button onClick={() => setViewModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Complete Lead Details">
+                                <Eye className="w-4 h-4" />
+                              </button>
+                            )}
+                            {isBackendDashboard && (
+                              <RowColorPicker current={lead.rowColor} onPick={(color) => handleRowColor(lead.id, color)} />
+                            )}
                             <button onClick={() => setEditLead(lead)} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Edit Lead">
                               <Edit className="w-4 h-4" />
                             </button>

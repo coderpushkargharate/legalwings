@@ -9,6 +9,12 @@ import { formatDate } from '@/lib/date-utils';
 
 const columns: Column[] = [
   {
+    key: 'executeDate',
+    label: 'Execute Date',
+    width: '120px',
+    render: (lead: Lead) => formatDate(lead.agreement?.executeDate),
+  },
+  {
     key: 'name',
     label: 'Name',
     width: '160px',
@@ -51,6 +57,24 @@ const columns: Column[] = [
       const cls = getStatusClass(s);
       return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{s}</span>;
     },
+  },
+  {
+    key: 'ownerNo',
+    label: 'Owner No.',
+    width: '130px',
+    render: (lead: Lead) => lead.agreement?.owner?.phoneNo || '-',
+  },
+  {
+    key: 'tenantNo',
+    label: 'Tenant No.',
+    width: '130px',
+    render: (lead: Lead) => lead.agreement?.tenant?.phoneNo || '-',
+  },
+  {
+    key: 'mailId',
+    label: 'Mail ID',
+    width: '190px',
+    render: (lead: Lead) => lead.client?.email || lead.agreement?.owner?.email || lead.agreement?.tenant?.email || '-',
   },
   {
     key: 'grnNumber',

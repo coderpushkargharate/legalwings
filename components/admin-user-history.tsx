@@ -101,7 +101,8 @@ const money = (n?: number | null) => (n == null ? '-' : `₹${Number(n).toLocale
 // without exposing per-employee stats.
 export default function AdminUserHistory({ leadOnly = false }: { leadOnly?: boolean }) {
   const { apiFetch } = useApi();
-  const [mode, setMode] = useState<Mode>(leadOnly ? 'lead' : 'employee');
+  // Default to Lead search (shown first), with Employee as the secondary option.
+  const [mode, setMode] = useState<Mode>('lead');
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 mb-8">
@@ -120,16 +121,16 @@ export default function AdminUserHistory({ leadOnly = false }: { leadOnly?: bool
       {!leadOnly && (
         <div className="inline-flex rounded-lg border border-slate-200 p-1 bg-slate-50 mb-4">
           <button
-            onClick={() => setMode('employee')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'employee' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <Users className="w-4 h-4" /> Employee
-          </button>
-          <button
             onClick={() => setMode('lead')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'lead' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
             <FileText className="w-4 h-4" /> Lead
+          </button>
+          <button
+            onClick={() => setMode('employee')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-all ${mode === 'employee' ? 'bg-white text-teal-700 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+          >
+            <Users className="w-4 h-4" /> Employee
           </button>
         </div>
       )}

@@ -127,11 +127,11 @@ export default function DashboardPage() {
           ))}
         </div>
 
+        {/* 🔹 Admin-only: search any lead (or employee) and view its full history — shown above the overview */}
+        {extendedUser.roles?.includes('admin') && <AdminUserHistory />}
+
         {/* 🔹 Admin-only: charts overview (leads per month, revenue, pending, per-employee) */}
         {extendedUser.roles?.includes('admin') && <AdminOverview />}
-
-        {/* 🔹 Admin-only: search any employee and view their full lead history */}
-        {extendedUser.roles?.includes('admin') && <AdminUserHistory />}
       </div>
     </AppShell>
   );

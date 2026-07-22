@@ -285,20 +285,34 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
     );
   }
 
+  // Native <input type="date"> needs a plain YYYY-MM-DD value.
+  const nativeValue = (() => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
+
   return (
     <div>
       <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       {isEditable ? (
-        <div className="relative">
+        // Manual typing (DD/MM/YYYY) AND a native calendar picker — either can set the date.
+        <div className="flex gap-2 items-center">
           <TypeableDateInput
             id={fieldId}
             value={value || ''}
             onChange={onChange}
-            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all pr-10"
+            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
           />
-          <svg className="w-5 h-5 text-slate-400 absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
+          <input
+            type="date"
+            aria-label={`${label} calendar`}
+            value={nativeValue}
+            onChange={(e) => onChange(e.target.value)}
+            className="px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer bg-white"
+          />
         </div>
       ) : (
         <div id={fieldId} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">
@@ -932,9 +946,6 @@ function LeadFormContent() {
                 </select>
               </div>
               <DateField label="Tentative Agreement Date" value={lead.tentativeAgreementDate} onChange={(v) => updateLead('tentativeAgreementDate', v)} isEditable={isEditable} id="lead-tentativeAgreementDate" />
-              <div className="md:col-span-2">
-                <DateField label="Appointment Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
-              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
                 <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
@@ -1066,13 +1077,16 @@ function LeadFormContent() {
                     {['Owner Pending','Tenant Pending','Witness Pending','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Back Office Status</label>
-                  <select value={agreement.backOfficeStatus} onChange={(e) => updateAgreement('backOfficeStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
-                    <option value="">Select Back Office Status</option>
-                    {['Govt. Approval pending','Govt. Quiery','Govt. Copy send clint','Govt. Other issue','Challan Pending','DHC Pending','ReShadule visit','Payment Pending','POA Pending','PVR Pending','Cummision Sending','Document Pending','Draft Confirmation Pending','Other State Bio. Pending','NRI Bio Pending','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
-                </div>
+                {/* Back Office Status is hidden for the Executive team's Add New form. */}
+                {transitLevel !== 'EXECUTIVE_TEAM' && transitLevel !== 'EXECUTIVE' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Back Office Status</label>
+                    <select value={agreement.backOfficeStatus} onChange={(e) => updateAgreement('backOfficeStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
+                      <option value="">Select Back Office Status</option>
+                      {['Govt. Approval pending','Govt. Quiery','Govt. Copy send clint','Govt. Other issue','Challan Pending','DHC Pending','ReShadule visit','Payment Pending','POA Pending','PVR Pending','Cummision Sending','Document Pending','Draft Confirmation Pending','Other State Bio. Pending','NRI Bio Pending','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="md:col-span-3">
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement File</label>
                   {isEditable && (
