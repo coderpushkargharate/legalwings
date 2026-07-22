@@ -337,6 +337,24 @@ const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] 
 ];
 const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
 
+// Does a lead match the global header search? Checks name, owner/tenant name,
+// token number and phone numbers (case-insensitive substring).
+const leadMatchesGlobalSearch = (lead: Lead, query: string): boolean => {
+  const q = query.trim().toLowerCase();
+  if (!q) return false;
+  const haystack = [
+    `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`,
+    `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`,
+    `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`,
+    lead.agreement?.tokenNo || '',
+    lead.client?.phoneNo || '',
+    lead.agreement?.owner?.phoneNo || '',
+    lead.agreement?.tenant?.phoneNo || '',
+    lead.agreement?.mobileNo || '',
+  ].join(' ').toLowerCase();
+  return haystack.includes(q);
+};
+
 // Hook: anchor a floating panel to a button and render it in a body-level portal,
 // so it always sits ABOVE the table (never clipped by the table's scroll overflow).
 function useAnchoredPanel() {
@@ -1607,6 +1625,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   // Accounting / appointment list: sort by appointment date (ascending / descending).
   const [appointmentSort, setAppointmentSort] = useState<'none' | 'asc' | 'desc'>('none');
+  // Query from the header's global search — matching rows float to the top of the table.
+  const [globalSearch, setGlobalSearch] = useState('');
+
+  useEffect(() => {
+    const handler = (e: Event) => setGlobalSearch((e as CustomEvent).detail || '');
+    window.addEventListener('global-lead-search', handler);
+    return () => window.removeEventListener('global-lead-search', handler);
+  }, []);
 
   const canExport = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('ACCOUNTING') || user?.roles?.includes('admin') || user?.roles?.includes('accounting'));
   const isAdmin = Array.isArray(user?.roles) && (user?.roles?.includes('ADMIN') || user?.roles?.includes('admin'));
@@ -2251,6 +2277,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     displayedLeads = [...displayedLeads].sort((a, b) =>
       appointmentSort === 'asc' ? sortDate(a) - sortDate(b) : sortDate(b) - sortDate(a),
     );
+  }
+  // Header global search: float matching leads to the top (keeps the rest below).
+  if (globalSearch.trim()) {
+    const matched = displayedLeads.filter((l) => leadMatchesGlobalSearch(l, globalSearch));
+    const rest = displayedLeads.filter((l) => !leadMatchesGlobalSearch(l, globalSearch));
+    displayedLeads = [...matched, ...rest];
   }
 
   return (

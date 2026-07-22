@@ -296,6 +296,16 @@ export async function GET(request: Request) {
     // full name + phone so a single box finds Owner name + Tenant name + mobile.
     if (searchText) {
       const st = escapeRegex(searchText);
+      // Match a full "First Last" name against separate first/last name fields.
+      const fullName = (first: string, last: string) => ({
+        $expr: {
+          $regexMatch: {
+            input: { $concat: [{ $ifNull: [`$${first}`, ''] }, ' ', { $ifNull: [`$${last}`, ''] }] },
+            regex: st,
+            options: 'i',
+          },
+        },
+      });
       addOrGroup(andConditions, [
         { 'client.firstName': { $regex: st, $options: 'i' } },
         { 'client.lastName': { $regex: st, $options: 'i' } },
@@ -308,6 +318,10 @@ export async function GET(request: Request) {
         { 'agreement.tenant.firstName': { $regex: st, $options: 'i' } },
         { 'agreement.tenant.lastName': { $regex: st, $options: 'i' } },
         { 'agreement.tenant.phoneNo': { $regex: st, $options: 'i' } },
+        // Full-name matches (First + Last) for client, owner and tenant.
+        fullName('client.firstName', 'client.lastName'),
+        fullName('agreement.owner.firstName', 'agreement.owner.lastName'),
+        fullName('agreement.tenant.firstName', 'agreement.tenant.lastName'),
       ]);
     }
 
