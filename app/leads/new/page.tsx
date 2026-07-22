@@ -175,67 +175,28 @@ interface DateFieldProps {
   withTime?: boolean;
   id?: string;
 }
-// Parse a `YYYY-MM-DDTHH:mm` value into 12-hour picker parts.
+// Parse a `YYYY-MM-DDTHH:mm` value into 24-hour picker parts (no AM/PM).
 const parseDateTime = (value?: string) => {
   const [datePart = '', timePart = ''] = (value || '').split('T');
   const [hStr = '', mStr = ''] = timePart.split(':');
-  const h24 = hStr === '' ? null : parseInt(hStr, 10);
   return {
     datePart,
+    hour24: hStr === '' ? '' : hStr.padStart(2, '0'),
     minute: mStr === '' ? '' : mStr.padStart(2, '0'),
-    hour12: h24 === null ? '' : String(h24 % 12 || 12).padStart(2, '0'),
-    ampm: h24 === null ? 'AM' : h24 >= 12 ? 'PM' : 'AM',
   };
 };
 
-// Rebuild a `YYYY-MM-DDTHH:mm` value from 12-hour picker parts.
-const buildDateTime = (datePart: string, hour12: string, minute: string, ampm: string) => {
+// Rebuild a `YYYY-MM-DDTHH:mm` value from 24-hour picker parts.
+const buildDateTime = (datePart: string, hour24: string, minute: string) => {
   if (!datePart) return '';
-  const h12 = parseInt(hour12 || '12', 10) % 12;
-  const h24 = ampm === 'PM' ? h12 + 12 : h12;
-  return `${datePart}T${String(h24).padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
+  return `${datePart}T${(hour24 || '00').padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
 };
-
-// Show an ISO value as DD/MM/YYYY inside the typeable date input.
-const isoToDDMMYYYY = (iso?: string): string => {
-  if (!iso) return '';
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${dd}/${mm}/${d.getFullYear()}`;
-};
-
-// Typeable DD/MM/YYYY field. Auto-inserts the `/` separators as the user types and
-// emits an ISO `YYYY-MM-DD` string once a full date is entered, so the rest of the
-// form keeps storing ISO dates.
-const TypeableDateInput = memo(function TypeableDateInput(
-  { value, onChange, id, className }: { value?: string; onChange: (iso: string) => void; id?: string; className?: string },
-) {
-  const [text, setText] = useState<string>(isoToDDMMYYYY(value));
-  useEffect(() => { setText(isoToDDMMYYYY(value)); }, [value]);
-
-  const handle = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 8);
-    let out = digits;
-    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    setText(out);
-    if (digits.length === 8) onChange(`${digits.slice(4, 8)}-${digits.slice(2, 4)}-${digits.slice(0, 2)}`);
-    else if (digits.length === 0) onChange('');
-  };
-
-  return (
-    <input id={id} type="text" inputMode="numeric" placeholder="DD/MM/YYYY" value={text} maxLength={10} onChange={(e) => handle(e.target.value)} className={className} />
-  );
-});
 
 const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
   if (withTime && isEditable) {
-    const { datePart, hour12, minute, ampm } = parseDateTime(value);
+    const { datePart, hour24, minute } = parseDateTime(value);
     const timeSelectClass = "px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer bg-white";
     return (
       <div>
@@ -245,17 +206,17 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
             id={fieldId}
             type="date"
             value={datePart}
-            onChange={(e) => onChange(buildDateTime(e.target.value, hour12, minute, ampm))}
+            onChange={(e) => onChange(buildDateTime(e.target.value, hour24, minute))}
             className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
           />
           <select
             aria-label={`${label} hour`}
-            value={hour12 || ''}
-            onChange={(e) => onChange(buildDateTime(datePart, e.target.value, minute, ampm))}
+            value={hour24 || ''}
+            onChange={(e) => onChange(buildDateTime(datePart, e.target.value, minute))}
             className={timeSelectClass}
           >
             <option value="" disabled>hh</option>
-            {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((h) => (
+            {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => (
               <option key={h} value={h}>{h}</option>
             ))}
           </select>
@@ -263,22 +224,13 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
           <select
             aria-label={`${label} minute`}
             value={minute || ''}
-            onChange={(e) => onChange(buildDateTime(datePart, hour12, e.target.value, ampm))}
+            onChange={(e) => onChange(buildDateTime(datePart, hour24, e.target.value))}
             className={timeSelectClass}
           >
             <option value="" disabled>mm</option>
             {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => (
               <option key={m} value={m}>{m}</option>
             ))}
-          </select>
-          <select
-            aria-label={`${label} AM/PM`}
-            value={ampm}
-            onChange={(e) => onChange(buildDateTime(datePart, hour12, minute, e.target.value))}
-            className={timeSelectClass}
-          >
-            <option value="AM">AM</option>
-            <option value="PM">PM</option>
           </select>
         </div>
       </div>
@@ -298,25 +250,19 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
     <div>
       <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       {isEditable ? (
-        // Manual typing (DD/MM/YYYY) AND a native calendar picker — either can set the date.
-        <div className="flex gap-2 items-center">
-          <TypeableDateInput
-            id={fieldId}
-            value={value || ''}
-            onChange={onChange}
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
-          />
-          <input
-            type="date"
-            aria-label={`${label} calendar`}
-            value={nativeValue}
-            onChange={(e) => onChange(e.target.value)}
-            className="px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer bg-white"
-          />
-        </div>
+        // Single field: a native date input supports BOTH manual typing and the calendar picker.
+        <input
+          id={fieldId}
+          type="date"
+          value={nativeValue}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer"
+        />
       ) : (
         <div id={fieldId} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">
-          {withTime ? formatDateTime(value) : formatDate(value)}
+          {withTime
+            ? (value ? `${formatDate(value)}${parseDateTime(value).hour24 ? ` ${parseDateTime(value).hour24}:${parseDateTime(value).minute || '00'}` : ''}` : '-')
+            : formatDate(value)}
         </div>
       )}
     </div>
@@ -946,6 +892,9 @@ function LeadFormContent() {
                 </select>
               </div>
               <DateField label="Tentative Agreement Date" value={lead.tentativeAgreementDate} onChange={(v) => updateLead('tentativeAgreementDate', v)} isEditable={isEditable} id="lead-tentativeAgreementDate" />
+              <div className="md:col-span-2">
+                <DateField label="Appointment Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
+              </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
                 <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
