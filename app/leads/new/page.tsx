@@ -6,7 +6,7 @@ import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
-import { formatDate, formatDateTime } from '@/lib/date-utils';
+import { formatDate } from '@/lib/date-utils';
 
 // ============================================================================
 // 🔹 THEME COLORS
