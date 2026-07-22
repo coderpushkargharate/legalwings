@@ -2340,8 +2340,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
               ) : displayedLeads.length === 0 ? (
                 <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
-                displayedLeads.map((lead) => (
-                  <tr key={lead.id} className={`hover:bg-slate-50/80 transition-colors ${isBackendDashboard ? rowColorRowClass(lead.rowColor) : ''}`}>
+                displayedLeads.map((lead) => {
+                  // Backend colour tag: fill the whole row (including the sticky
+                  // Actions cell) so the colour covers the entire lead.
+                  const rowColor = isBackendDashboard ? rowColorRowClass(lead.rowColor) : '';
+                  return (
+                  <tr key={lead.id} className={`transition-colors ${rowColor || 'hover:bg-slate-50/80'}`}>
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
                         {col.render ? col.render(lead) : '-'}
@@ -2358,7 +2362,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                             <span className="text-slate-400 text-xs">Team Only</span>
                           )}
                         </td>
-                        <td className="px-4 py-3 align-middle whitespace-nowrap sticky right-0 bg-white z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">
+                        <td className={`px-4 py-3 align-middle whitespace-nowrap sticky right-0 z-10 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)] ${rowColor || 'bg-white'}`}>
                           <div className="flex items-center gap-1">
                             {/* Backend Submitted/Completed: swap the view button for a downloadable files dropdown. */}
                             {isBackendDashboard && (backendView === 'submitted' || backendView === 'completed') ? (
@@ -2477,7 +2481,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                       </>
                     )}
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
