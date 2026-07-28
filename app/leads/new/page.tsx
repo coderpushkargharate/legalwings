@@ -12,8 +12,8 @@ import { formatDate } from '@/lib/date-utils';
 // 🔹 THEME COLORS
 // ============================================================================
 const THEME = {
-  primary: '#00A651',
-  primaryHover: '#008f44',
+  primary: '#00843d',
+  primaryHover: '#00622d',
   primaryLight: '#f0fdf4',
   primaryRing: 'rgba(0, 166, 81, 0.2)',
   textPrimary: '#1e293b',
@@ -75,6 +75,7 @@ interface LeadFormData {
 
 interface AgreementFormData {
   tokenNumber: string;
+  periodDays: string;
   agreementStartDate: string;
   agreementEndDate: string;
   addressLine1: string;
@@ -160,7 +161,7 @@ const Input = memo(function Input({
       <input
         id={inputId} type={type} value={value} onChange={(e) => onChange(e.target.value)}
         readOnly={readOnly} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
-        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all"
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all"
       />
     </div>
   );
@@ -192,12 +193,33 @@ const buildDateTime = (datePart: string, hour24: string, minute: string) => {
   return `${datePart}T${(hour24 || '00').padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
 };
 
+// Add days to an ISO date → YYYY-MM-DD (Period field auto-fills Agreement End Date).
+const addDaysISO = (iso?: string, days?: number | string): string => {
+  if (!iso) return '';
+  const base = new Date(/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(0, 10)}T00:00:00` : iso);
+  if (isNaN(base.getTime())) return '';
+  const n = typeof days === 'string' ? parseInt(days, 10) : days;
+  if (n == null || isNaN(n)) return '';
+  base.setDate(base.getDate() + n);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+};
+
+// Whole-day difference between two ISO dates (to display the current period).
+const diffDaysISO = (startIso?: string, endIso?: string): string => {
+  if (!startIso || !endIso) return '';
+  const s = new Date(/^\d{4}-\d{2}-\d{2}/.test(startIso) ? `${startIso.slice(0, 10)}T00:00:00` : startIso);
+  const e = new Date(/^\d{4}-\d{2}-\d{2}/.test(endIso) ? `${endIso.slice(0, 10)}T00:00:00` : endIso);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+  const d = Math.round((e.getTime() - s.getTime()) / 86400000);
+  return d >= 0 ? String(d) : '';
+};
+
 const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
   if (withTime && isEditable) {
     const { datePart, hour24, minute } = parseDateTime(value);
-    const timeSelectClass = "px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer bg-white";
+    const timeSelectClass = "px-2 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all cursor-pointer bg-white";
     return (
       <div>
         <label htmlFor={fieldId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
@@ -207,7 +229,7 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
             type="date"
             value={datePart}
             onChange={(e) => onChange(buildDateTime(e.target.value, hour24, minute))}
-            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+            className="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
           />
           <select
             aria-label={`${label} hour`}
@@ -256,7 +278,7 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
           type="date"
           value={nativeValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all cursor-pointer"
+          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all cursor-pointer"
         />
       ) : (
         <div id={fieldId} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">
@@ -279,7 +301,7 @@ const Select = memo(function Select({ label, value, onChange, options, disabled 
     <div>
       <label htmlFor={selectId} className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
       <select id={selectId} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}
-        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all cursor-pointer">
+        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all cursor-pointer">
         <option value="">Select {label}</option>
         {options.map((opt) => {
           const key = typeof opt === 'string' ? opt : opt.key;
@@ -337,7 +359,7 @@ function LeadFormContent() {
   });
 
   const [agreement, setAgreement] = useState<AgreementFormData>({
-    tokenNumber: '', agreementStartDate: '', agreementEndDate: '', addressLine1: '', addressLine2: '',
+    tokenNumber: '', periodDays: '', agreementStartDate: '', agreementEndDate: '', addressLine1: '', addressLine2: '',
     agreementStatus: '', backOfficeStatus: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
     ownerContact: '', ownerAadhar: '', ownerPan: '', ownerBirthDate: '',
     tenantFirstName: '', tenantLastName: '', tenantEmail: '', tenantContact: '',
@@ -460,7 +482,9 @@ function LeadFormContent() {
 
           if (data.agreement) {
             setAgreement({
-              tokenNumber: data.agreement.tokenNo || '', agreementStartDate: data.agreement.agreementStartDate || '',
+              tokenNumber: data.agreement.tokenNo || '',
+              periodDays: data.agreement.periodDays || diffDaysISO(data.agreement.agreementStartDate, data.agreement.agreementEndDate),
+              agreementStartDate: data.agreement.agreementStartDate || '',
               agreementEndDate: data.agreement.agreementEndDate || '', addressLine1: data.agreement.addressLine1 || '',
               addressLine2: data.agreement.addressLine2 || '', agreementStatus: data.agreement.status || '',
               backOfficeStatus: data.agreement.backOfficeStatus || '',
@@ -532,6 +556,22 @@ function LeadFormContent() {
 
   const updateAgreement = useCallback((field: keyof AgreementFormData, value: string) => {
     setAgreement(prev => prev[field] === value ? prev : { ...prev, [field]: value });
+  }, []);
+
+  // Agreement Start Date + Period(days) together drive the End Date.
+  const updateAgreementStart = useCallback((v: string) => {
+    setAgreement(prev => ({
+      ...prev,
+      agreementStartDate: v,
+      agreementEndDate: prev.periodDays ? addDaysISO(v, prev.periodDays) : prev.agreementEndDate,
+    }));
+  }, []);
+  const updateAgreementPeriod = useCallback((v: string) => {
+    setAgreement(prev => ({
+      ...prev,
+      periodDays: v,
+      agreementEndDate: prev.agreementStartDate && v ? addDaysISO(prev.agreementStartDate, v) : prev.agreementEndDate,
+    }));
   }, []);
 
   // ✅ Read uploaded agreement file as a base64 data URL so it can be stored & downloaded later
@@ -701,7 +741,7 @@ function LeadFormContent() {
       const response = await apiFetch('/api/agreements', {
         method: 'POST',
         body: JSON.stringify({
-          leadId: currentLeadId, tokenNo: agreement.tokenNumber, agreementStartDate: agreement.agreementStartDate,
+          leadId: currentLeadId, tokenNo: agreement.tokenNumber, periodDays: agreement.periodDays, agreementStartDate: agreement.agreementStartDate,
           agreementEndDate: agreement.agreementEndDate, status: agreement.agreementStatus, backOfficeStatus: agreement.backOfficeStatus,
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
           mobileNo: agreement.agreementMobileNo,
@@ -779,7 +819,7 @@ function LeadFormContent() {
   // 🔹 LOADING / ERROR STATES
   // ============================================================================
   if (authLoading) {
-    return (<AppShell><Header title="Loading..." /><div className="p-6 flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00A651]"></div></div></AppShell>);
+    return (<AppShell><Header title="Loading..." /><div className="p-6 flex items-center justify-center min-h-[400px]"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#00843d]"></div></div></AppShell>);
   }
   if (!token && !authLoading) {
     return (<AppShell><Header title="Authentication Required" /><div className="p-6 flex items-center justify-center min-h-[400px]"><p className="text-slate-600">Please log in to continue.</p></div></AppShell>);
@@ -792,7 +832,7 @@ function LeadFormContent() {
     <AppShell>
       <Header title={mode === 'view' ? 'View Lead' : mode === 'edit' ? 'Edit Lead' : 'Add New Lead'} />
       <div className="p-6 max-w-5xl mx-auto">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-4 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 rounded" type="button">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 mb-4 transition-colors focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 rounded" type="button">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
 
@@ -809,7 +849,7 @@ function LeadFormContent() {
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1 mb-6" role="tablist">
           {tabs.map((tab) => (
             <button key={tab.key} onClick={() => setActiveTab(tab.key)} role="tab" aria-selected={activeTab === tab.key}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 ${activeTab === tab.key ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 ${activeTab === tab.key ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
               {tab.label}
             </button>
           ))}
@@ -825,7 +865,7 @@ function LeadFormContent() {
                   disabled={!isEditable || !existingClientsLoaded || clientSelectLoading}
                   value={selectedClientId}
                   onChange={(e) => handleClientSelect(e.target.value)}
-                  className="w-full md:w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                  className="w-full md:w-1/3 px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
                   id="lead-selectExisting"
                 >
                   <option value="">
@@ -839,7 +879,7 @@ function LeadFormContent() {
                 </select>
                 {clientSelectLoading && (
                   <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <Loader2 className="w-4 h-4 text-[#00A651] animate-spin" />
+                    <Loader2 className="w-4 h-4 text-[#00843d] animate-spin" />
                   </div>
                 )}
               </div>
@@ -856,37 +896,37 @@ function LeadFormContent() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-                <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
+                <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                <input type="text" value={lead.lastName} onChange={(e) => updateLead('lastName', e.target.value)} disabled={!isEditable} placeholder="Last Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-lastName" />
+                <input type="text" value={lead.lastName} onChange={(e) => updateLead('lastName', e.target.value)} disabled={!isEditable} placeholder="Last Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-lastName" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Client Type</label>
-                <select value={lead.clientType} onChange={(e) => updateLead('clientType', e.target.value as any)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-clientType">
+                <select value={lead.clientType} onChange={(e) => updateLead('clientType', e.target.value as any)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-clientType">
                   <option value="">Select Client Type</option>
                   <option value="OWNER">OWNER</option><option value="TENANT">TENANT</option><option value="AGENT">AGENT</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Contact Number</label>
-                <input type="text" value={lead.contactNumber} onChange={(e) => updateLead('contactNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Contact Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-contactNumber" />
+                <input type="text" value={lead.contactNumber} onChange={(e) => updateLead('contactNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Contact Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-contactNumber" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input type="email" value={lead.email} onChange={(e) => updateLead('email', e.target.value)} disabled={!isEditable} placeholder="Email" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-email" />
+                <input type="email" value={lead.email} onChange={(e) => updateLead('email', e.target.value)} disabled={!isEditable} placeholder="Email" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-email" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Lead Source</label>
-                <select value={lead.leadSource} onChange={(e) => updateLead('leadSource', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-leadSource">
+                <select value={lead.leadSource} onChange={(e) => updateLead('leadSource', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-leadSource">
                   <option value="">Select Lead Source</option>
                   <option value="ONLINE">ONLINE</option><option value="CALL">CALL</option><option value="EXCEL">EXCEL</option><option value="REFERENCE">REFERENCE</option><option value="SHOP">SHOP</option>
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Lead Status</label>
-                <select value={lead.leadStatus} onChange={(e) => updateLead('leadStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-leadStatus">
+                <select value={lead.leadStatus} onChange={(e) => updateLead('leadStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-leadStatus">
                   <option value="">Select Lead Status</option>
                   {dropdowns.leadStatuses.map((status) => (<option key={status.key} value={status.key}>{status.value}</option>))}
                 </select>
@@ -897,34 +937,34 @@ function LeadFormContent() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
-                <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
+                <input type="text" value={lead.visitAddress} onChange={(e) => updateLead('visitAddress', e.target.value)} disabled={!isEditable} placeholder="Visit Address" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-visitAddress" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                <input type="text" value={lead.description} onChange={(e) => updateLead('description', e.target.value)} disabled={!isEditable} placeholder="Description" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-description" />
+                <input type="text" value={lead.description} onChange={(e) => updateLead('description', e.target.value)} disabled={!isEditable} placeholder="Description" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-description" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Reference Name</label>
-                <input type="text" value={lead.referenceName} onChange={(e) => updateLead('referenceName', e.target.value)} disabled={!isEditable} placeholder="Reference Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceName" />
+                <input type="text" value={lead.referenceName} onChange={(e) => updateLead('referenceName', e.target.value)} disabled={!isEditable} placeholder="Reference Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceName" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Reference Number</label>
-                <input type="text" value={lead.referenceNumber} onChange={(e) => updateLead('referenceNumber', e.target.value)} disabled={!isEditable} placeholder="Reference Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceNumber" />
+                <input type="text" value={lead.referenceNumber} onChange={(e) => updateLead('referenceNumber', e.target.value)} disabled={!isEditable} placeholder="Reference Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceNumber" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                <input type="text" value={lead.amount} onChange={(e) => updateLead('amount', e.target.value)} disabled={!isEditable} placeholder="Amount" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-amount" />
+                <input type="text" value={lead.amount} onChange={(e) => updateLead('amount', e.target.value)} disabled={!isEditable} placeholder="Amount" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-amount" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
-                <select value={lead.cityId} onChange={(e) => updateLead('cityId', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-cityId">
+                <select value={lead.cityId} onChange={(e) => updateLead('cityId', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-cityId">
                   <option value="">Select City</option>
                   {dropdowns.cities.map((city) => (<option key={city.id} value={city.id}>{city.name}</option>))}
                 </select>
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Area</label>
-                <select value={lead.areaId} onChange={(e) => updateLead('areaId', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-areaId">
+                <select value={lead.areaId} onChange={(e) => updateLead('areaId', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="lead-areaId">
                   <option value="">Select Area</option>
                   {dropdowns.areas.map((area) => (<option key={area.id} value={area.id}>{area.name}</option>))}
                 </select>
@@ -934,10 +974,10 @@ function LeadFormContent() {
             </div>
             {isEditable && (
               <div className="flex justify-end gap-3 mt-6">
-                <button onClick={saveLead} disabled={saving} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button">
+                <button onClick={saveLead} disabled={saving} className="px-6 py-2.5 bg-[#00843d] hover:bg-[#00622d] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button">
                   <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}
                 </button>
-                <button onClick={() => setActiveTab('client')} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm" type="button">
+                <button onClick={() => setActiveTab('client')} className="px-6 py-2.5 bg-[#00843d] hover:bg-[#00622d] text-white font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm" type="button">
                   Next <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1000,8 +1040,9 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Agreement Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
-                
-                <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={(v) => updateAgreement('agreementStartDate', v)} isEditable={isEditable} id="agreement-agreementStartDate" />
+
+                <Input label="Period (days)" value={agreement.periodDays} onChange={(v) => updateAgreementPeriod(v.replace(/[^0-9]/g, ''))} disabled={!isEditable} placeholder="e.g. 330" id="agreement-periodDays" />
+                <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={updateAgreementStart} isEditable={isEditable} id="agreement-agreementStartDate" />
                 <DateField label="Agreement End Date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} isEditable={isEditable} id="agreement-agreementEndDate" />
 
                 {/* ✅ EXISTING: Mobile No Field */}
@@ -1021,7 +1062,7 @@ function LeadFormContent() {
                 <Input label="Address Line 1" value={agreement.addressLine1} onChange={(v) => updateAgreement('addressLine1', v)} disabled={!isEditable} placeholder="Address Line 1" id="agreement-addressLine1" />
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
-                  <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
+                  <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
                     {['Owner Pending','Tenant Pending','Witness Pending','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -1030,7 +1071,7 @@ function LeadFormContent() {
                 {transitLevel !== 'EXECUTIVE_TEAM' && transitLevel !== 'EXECUTIVE' && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Back Office Status</label>
-                    <select value={agreement.backOfficeStatus} onChange={(e) => updateAgreement('backOfficeStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
+                    <select value={agreement.backOfficeStatus} onChange={(e) => updateAgreement('backOfficeStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-backOfficeStatus">
                       <option value="">Select Back Office Status</option>
                       {['Govt. Approval pending','Govt. Quiery','Govt. Copy send clint','Govt. Other issue','Challan Pending','DHC Pending','ReShadule visit','Payment Pending','POA Pending','PVR Pending','Cummision Sending','Document Pending','Draft Confirmation Pending','Other State Bio. Pending','NRI Bio Pending','Photo Pending','Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
@@ -1043,7 +1084,7 @@ function LeadFormContent() {
                       type="file"
                       accept="application/pdf,image/*"
                       onChange={(e) => handleAgreementFile(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
                       id="agreement-file"
                     />
                   )}
@@ -1053,7 +1094,7 @@ function LeadFormContent() {
                       <a
                         href={agreement.agreementFileData}
                         download={agreement.agreementFileName || 'agreement-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
                       >
                         <Download className="w-4 h-4" />
                         {agreement.agreementFileName || 'Download file'}
@@ -1090,7 +1131,7 @@ function LeadFormContent() {
                       type="file"
                       accept="application/pdf,image/*"
                       onChange={(e) => handleExtraFile('pvrFileName', 'pvrFileData', e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
                       id="agreement-pvrFile"
                     />
                   )}
@@ -1099,7 +1140,7 @@ function LeadFormContent() {
                       <a
                         href={agreement.pvrFileData}
                         download={agreement.pvrFileName || 'pvr-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
                       >
                         <Download className="w-4 h-4" />
                         {agreement.pvrFileName || 'Download file'}
@@ -1117,7 +1158,7 @@ function LeadFormContent() {
                       type="file"
                       accept="application/pdf,image/*"
                       onChange={(e) => handleExtraFile('otherFileName', 'otherFileData', e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 transition-all"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
                       id="agreement-otherFile"
                     />
                   )}
@@ -1126,7 +1167,7 @@ function LeadFormContent() {
                       <a
                         href={agreement.otherFileData}
                         download={agreement.otherFileName || 'other-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00A651] hover:bg-[#f0fdf4] transition-colors"
+                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
                       >
                         <Download className="w-4 h-4" />
                         {agreement.otherFileName || 'Download file'}
@@ -1140,10 +1181,10 @@ function LeadFormContent() {
             </div>
             {isEditable && (
               <div className="flex justify-end gap-3">
-                <button onClick={saveAgreement} disabled={saving} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button">
+                <button onClick={saveAgreement} disabled={saving} className="px-6 py-2.5 bg-[#00843d] hover:bg-[#00622d] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" type="button">
                   <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save Agreement'}
                 </button>
-                <button onClick={() => setActiveTab('payment')} className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm" type="button">
+                <button onClick={() => setActiveTab('payment')} className="px-6 py-2.5 bg-[#00843d] hover:bg-[#00622d] text-white font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm" type="button">
                   Next <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -1181,7 +1222,7 @@ function LeadFormContent() {
                       updatePayment('totalAmount', val);
                     }} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
                 
@@ -1197,7 +1238,7 @@ function LeadFormContent() {
                       updatePayment('commissionAmount', val);
                     }} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
                 
@@ -1230,7 +1271,7 @@ function LeadFormContent() {
                       value={p.paymentAmount} 
                       onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                   <div>
@@ -1239,7 +1280,7 @@ function LeadFormContent() {
                       value={p.modeOfPayment} 
                       onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
                     >
                       <option value="">Select Mode</option>
                       <option value="CASH">Cash</option>
@@ -1255,7 +1296,7 @@ function LeadFormContent() {
                       value={p.payerName} 
                       onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                   {/* ✅ NEW: Transaction Number Field */}
@@ -1267,7 +1308,7 @@ function LeadFormContent() {
                       value={p.transactionNumber || ''} 
                       onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                 </div>
@@ -1275,7 +1316,7 @@ function LeadFormContent() {
               {isEditable && (
                 <button 
                   onClick={() => setOwnerPayments([...ownerPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }])} 
-                  className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
+                  className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
                   type="button"
                 >
                   <Plus className="w-4 h-4" /> Add Owner Payment
@@ -1283,7 +1324,7 @@ function LeadFormContent() {
               )}
               <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
                 <span className="text-sm text-slate-600 mr-2">Owner Total (A):</span>
-                <span className="text-sm font-semibold text-[#00A651]">₹ {ownerReceived.toFixed(2)}</span>
+                <span className="text-sm font-semibold text-[#00843d]">₹ {ownerReceived.toFixed(2)}</span>
               </div>
             </div>
 
@@ -1301,7 +1342,7 @@ function LeadFormContent() {
                       value={p.paymentAmount} 
                       onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                   <div>
@@ -1310,7 +1351,7 @@ function LeadFormContent() {
                       value={p.modeOfPayment} 
                       onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
                     >
                       <option value="">Select Mode</option>
                       <option value="CASH">Cash</option>
@@ -1326,7 +1367,7 @@ function LeadFormContent() {
                       value={p.payerName} 
                       onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                   {/* ✅ NEW: Transaction Number Field */}
@@ -1338,7 +1379,7 @@ function LeadFormContent() {
                       value={p.transactionNumber || ''} 
                       onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} 
                       disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                     />
                   </div>
                 </div>
@@ -1346,7 +1387,7 @@ function LeadFormContent() {
               {isEditable && (
                 <button 
                   onClick={() => setTenantPayments([...tenantPayments, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }])} 
-                  className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
+                  className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all" 
                   type="button"
                 >
                   <Plus className="w-4 h-4" /> Add Tenant Payment
@@ -1354,7 +1395,7 @@ function LeadFormContent() {
               )}
               <div className="flex justify-end mt-4 pt-3 border-t border-slate-100">
                 <span className="text-sm text-slate-600 mr-2">Tenant Total (B):</span>
-                <span className="text-sm font-semibold text-[#00A651]">₹ {tenantReceived.toFixed(2)}</span>
+                <span className="text-sm font-semibold text-[#00843d]">₹ {tenantReceived.toFixed(2)}</span>
               </div>
             </div>
 
@@ -1382,7 +1423,7 @@ function LeadFormContent() {
                     value={`₹ ${totalReceived.toFixed(2)}`}
                     readOnly
                     disabled
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00A651] font-semibold cursor-not-allowed"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-[#00843d] font-semibold cursor-not-allowed"
                   />
                   <p className="text-xs text-slate-500 mt-1">Owner (A) + Tenant (B)</p>
                 </div>
@@ -1395,7 +1436,7 @@ function LeadFormContent() {
                     value={`₹ ${balanceAmount.toFixed(2)}`}
                     readOnly
                     disabled
-                    className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00A651]'}`}
+                    className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00843d]'}`}
                   />
                   <p className="text-xs text-slate-500 mt-1">Outstanding − Received</p>
                 </div>
@@ -1411,11 +1452,12 @@ function LeadFormContent() {
                   disabled={!isEditable} 
                   placeholder="Add any payment related notes here..." 
                   rows={3} 
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" 
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-none" 
                 />
               </div>
             </div>
 
+            {transitLevel !== 'EXECUTIVE_TEAM' && transitLevel !== 'EXECUTIVE' && (
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Back Work Account</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -1428,7 +1470,7 @@ function LeadFormContent() {
                     value={payment.grnNumber} 
                     onChange={(e) => updatePayment('grnNumber', e.target.value)} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
                 <div>
@@ -1439,7 +1481,7 @@ function LeadFormContent() {
                     value={payment.grnAmount} 
                     onChange={(e) => updatePayment('grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
               </div>
@@ -1453,7 +1495,7 @@ function LeadFormContent() {
                     value={payment.dhcNumber} 
                     onChange={(e) => updatePayment('dhcNumber', e.target.value)} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
                 <div>
@@ -1464,7 +1506,7 @@ function LeadFormContent() {
                     value={payment.dhcAmount} 
                     onChange={(e) => updatePayment('dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
               </div>
@@ -1478,7 +1520,7 @@ function LeadFormContent() {
                     value={payment.commissionName} 
                     onChange={(e) => updatePayment('commissionName', e.target.value)} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
                 <div>
@@ -1489,17 +1531,18 @@ function LeadFormContent() {
                     value={payment.commissionAmount} 
                     onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
                   />
                 </div>
               </div>
             </div>
+            )}
             {isEditable && (
               <div className="flex justify-end">
-                <button 
-                  onClick={savePayment} 
+                <button
+                  onClick={savePayment}
                   disabled={saving} 
-                  className="px-6 py-2.5 bg-[#00A651] hover:bg-[#008f44] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" 
+                  className="px-6 py-2.5 bg-[#00843d] hover:bg-[#00622d] text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-sm" 
                   type="button"
                 >
                   <Save className="w-4 h-4" /> {saving ? 'Saving...' : 'Save'}

@@ -206,7 +206,7 @@ export default function PaymentStatementPage() {
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30"
             />
           </div>
           <div>
@@ -215,7 +215,7 @@ export default function PaymentStatementPage() {
               type="date"
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651] focus:ring-opacity-30"
+              className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30"
             />
           </div>
           {(fromDate || toDate) && (
@@ -239,7 +239,7 @@ export default function PaymentStatementPage() {
           <button
             onClick={handleExport}
             disabled={loading || rows.length === 0}
-            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#00A651] hover:bg-[#008f44] rounded-lg transition-colors disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-[#00843d] hover:bg-[#00622d] rounded-lg transition-colors disabled:opacity-60"
           >
             <Download className="w-4 h-4" /> Download Excel
           </button>
@@ -250,12 +250,12 @@ export default function PaymentStatementPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs text-slate-500 mb-1">Total Payments</p>
             <p className="text-xl font-semibold text-slate-800 flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-[#00A651]" /> {rows.length}
+              <Receipt className="w-5 h-5 text-[#00843d]" /> {rows.length}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs text-slate-500 mb-1">Total Amount</p>
-            <p className="text-xl font-semibold text-[#00A651]">{formatINR(total)}</p>
+            <p className="text-xl font-semibold text-[#00843d]">{formatINR(total)}</p>
           </div>
         </div>
 
@@ -302,7 +302,7 @@ export default function PaymentStatementPage() {
                       <td className={td}>{r.payerName}</td>
                       <td className={td}>{r.mode}</td>
                       <td className={td}>{r.transactionNumber}</td>
-                      <td className={`${td} text-right font-semibold text-[#00A651]`}>{formatINR(r.amount)}</td>
+                      <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(r.amount)}</td>
                     </tr>
                   ))
                 )}
@@ -311,7 +311,7 @@ export default function PaymentStatementPage() {
                 <tfoot className="bg-slate-50 border-t border-slate-200">
                   <tr>
                     <td className={`${td} font-semibold`} colSpan={8}>Total</td>
-                    <td className={`${td} text-right font-bold text-[#00A651]`}>{formatINR(total)}</td>
+                    <td className={`${td} text-right font-bold text-[#00843d]`}>{formatINR(total)}</td>
                   </tr>
                 </tfoot>
               )}

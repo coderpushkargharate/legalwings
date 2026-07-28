@@ -39,7 +39,7 @@ const monthRange = (key: string): { from: string; to: string } => {
   return { from: `${key}-01`, to: `${key}-${String(last).padStart(2, '0')}` };
 };
 
-const BAR_COLOR = '#00A651';
+const BAR_COLOR = '#00843d';
 const BAR_ACTIVE = '#f59e0b';
 
 export default function AdminOverview() {
@@ -243,7 +243,7 @@ function PersonBars({ rows, empty }: { rows: NameCount[]; empty: string }) {
         <div key={r.name} className="flex items-center gap-3">
           <span className="w-40 truncate text-sm text-slate-700">{r.name}</span>
           <div className="flex-1 h-2.5 bg-slate-100 rounded-full overflow-hidden">
-            <div className="h-full bg-[#00A651] rounded-full" style={{ width: `${(r.count / max) * 100}%` }} />
+            <div className="h-full bg-[#00843d] rounded-full" style={{ width: `${(r.count / max) * 100}%` }} />
           </div>
           <span className="w-8 text-right text-sm font-semibold text-slate-800">{r.count}</span>
         </div>

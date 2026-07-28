@@ -71,10 +71,16 @@ const columns: Column[] = [
     render: (lead: Lead) => lead.agreement?.tenant?.phoneNo || '-',
   },
   {
-    key: 'mailId',
-    label: 'Mail ID',
+    key: 'ownerMailId',
+    label: 'Owner Mail ID',
     width: '190px',
-    render: (lead: Lead) => lead.client?.email || lead.agreement?.owner?.email || lead.agreement?.tenant?.email || '-',
+    render: (lead: Lead) => lead.agreement?.owner?.email || lead.client?.email || '-',
+  },
+  {
+    key: 'tenantMailId',
+    label: 'Tenant Mail ID',
+    width: '190px',
+    render: (lead: Lead) => lead.agreement?.tenant?.email || '-',
   },
   {
     key: 'grnNumber',

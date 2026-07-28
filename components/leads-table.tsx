@@ -39,7 +39,7 @@ const buildDateTime12 = (datePart: string, hour12: string, minute: string, ampm:
 
 function DateTime12Picker({ value, onChange, inputClass }: { value?: string; onChange: (v: string) => void; inputClass: string }) {
   const { datePart, hour12, minute, ampm } = parseDateTime12(value);
-  const selectClass = "px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all cursor-pointer";
+  const selectClass = "px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all cursor-pointer";
   return (
     <div className="flex gap-2 items-center">
       <input type="date" value={datePart} onChange={(e) => onChange(buildDateTime12(e.target.value, hour12, minute, ampm))} className={`flex-1 ${inputClass}`} />
@@ -229,8 +229,8 @@ interface Column {
 
 // ==================== THEME COLORS ====================
 const THEME = {
-  primary: '#00A651',
-  primaryHover: '#008f44',
+  primary: '#00843d',
+  primaryHover: '#00622d',
   primaryLight: '#f0fdf4',
   primaryRing: 'rgba(0, 166, 81, 0.2)',
   textPrimary: '#1e293b',
@@ -259,49 +259,47 @@ const formatDateTime = (dateString?: string): string => {
   return `${formatDate(dateString)} ${timePart}`;
 };
 
-// Typeable date field in DD/MM/YYYY. Displays an ISO value as DD/MM/YYYY, lets the
-// user type digits (auto-inserting slashes), and emits an ISO yyyy-mm-dd string
-// once a full date is entered so the rest of the app keeps storing ISO dates.
-const isoToDDMMYY = (iso?: string): string => {
-  if (!iso) return '';
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(iso)) return iso;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '';
-  const dd = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const yyyy = d.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
-};
-
+// A native date input supports BOTH manual typing and the calendar picker, so the
+// user can key in the date directly (no Enter needed) or pick it from the calendar.
 const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; className?: string }> = ({ value, onChange, className }) => {
-  const [text, setText] = useState<string>(isoToDDMMYY(value));
-  useEffect(() => { setText(isoToDDMMYY(value)); }, [value]);
-
-  const handle = (raw: string) => {
-    const digits = raw.replace(/\D/g, '').slice(0, 8);
-    let out = digits;
-    if (digits.length > 4) out = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
-    else if (digits.length > 2) out = `${digits.slice(0, 2)}/${digits.slice(2)}`;
-    setText(out);
-    if (digits.length === 8) {
-      const dd = digits.slice(0, 2), mm = digits.slice(2, 4), yyyy = digits.slice(4, 8);
-      onChange(`${yyyy}-${mm}-${dd}`);
-    } else if (digits.length === 0) {
-      onChange('');
-    }
-  };
+  const nativeValue = (() => {
+    if (!value) return '';
+    if (/^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+    const d = new Date(value);
+    if (isNaN(d.getTime())) return '';
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  })();
 
   return (
     <input
-      type="text"
-      inputMode="numeric"
-      placeholder="DD/MM/YYYY"
-      value={text}
-      onChange={(e) => handle(e.target.value)}
-      maxLength={10}
+      type="date"
+      value={nativeValue}
+      onChange={(e) => onChange(e.target.value)}
       className={className}
     />
   );
+};
+
+// Add a number of days to an ISO date, returning YYYY-MM-DD (used by the Period field
+// next to Agreement Start Date to auto-fill the End Date).
+const addDaysISO = (iso?: string, days?: number | string): string => {
+  if (!iso) return '';
+  const base = new Date(/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(0, 10)}T00:00:00` : iso);
+  if (isNaN(base.getTime())) return '';
+  const n = typeof days === 'string' ? parseInt(days, 10) : days;
+  if (n == null || isNaN(n)) return '';
+  base.setDate(base.getDate() + n);
+  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
+};
+
+// Whole-day difference between two ISO dates (to display the current period).
+const diffDaysISO = (startIso?: string, endIso?: string): string => {
+  if (!startIso || !endIso) return '';
+  const s = new Date(/^\d{4}-\d{2}-\d{2}/.test(startIso) ? `${startIso.slice(0, 10)}T00:00:00` : startIso);
+  const e = new Date(/^\d{4}-\d{2}-\d{2}/.test(endIso) ? `${endIso.slice(0, 10)}T00:00:00` : endIso);
+  if (isNaN(s.getTime()) || isNaN(e.getTime())) return '';
+  const d = Math.round((e.getTime() - s.getTime()) / 86400000);
+  return d >= 0 ? String(d) : '';
 };
 
 const formatCurrency = (amount?: number | string): string => {
@@ -433,7 +431,7 @@ const FilesDropdown: React.FC<{ lead: Lead }> = ({ lead }) => {
             <div className="px-2 py-2 text-xs text-slate-400 text-center">No files uploaded</div>
           ) : files.map((f, i) => (
             <a key={i} href={f.data} download={f.name} className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md transition-colors">
-              <Download className="w-3.5 h-3.5 text-[#00A651]" /> <span className="truncate">{f.label}</span>
+              <Download className="w-3.5 h-3.5 text-[#00843d]" /> <span className="truncate">{f.label}</span>
             </a>
           ))}
         </div>,
@@ -523,8 +521,9 @@ interface EditLeadModalProps {
   onClose: () => void;
   onSave: (leadId: string, updatedData: Partial<Lead>) => Promise<void>;
   dropdowns?: DropdownData;
+  hideBackWorkAccount?: boolean;
 }
-const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave, dropdowns }) => {
+const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave, dropdowns, hideBackWorkAccount = false }) => {
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -625,6 +624,22 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     });
   };
 
+  // Agreement Start Date + Period(days) together drive the End Date.
+  const handleAgreementStartChange = (iso: string) => {
+    setFormData(prev => {
+      const period = (prev.agreement as any)?.periodDays;
+      const end = period ? addDaysISO(iso, period) : prev.agreement?.agreementEndDate;
+      return { ...prev, agreement: { ...prev.agreement, agreementStartDate: iso, agreementEndDate: end } };
+    });
+  };
+  const handlePeriodChange = (days: string) => {
+    setFormData(prev => {
+      const start = prev.agreement?.agreementStartDate || (prev.agreement as any)?.startDate;
+      const end = start && days ? addDaysISO(start, days) : prev.agreement?.agreementEndDate;
+      return { ...prev, agreement: { ...prev.agreement, periodDays: days, agreementEndDate: end } };
+    });
+  };
+
   const updateOwnerPayment = (index: number, field: keyof PaymentDetail, value: string) => {
     setOwnerPayments(prev => {
       const newArr = [...prev];
@@ -691,7 +706,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
 
   if (!isOpen || !lead) return null;
 
-  const inputClass = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all";
+  const inputClass = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all";
   const labelClass = "block text-xs font-medium text-slate-500 mb-1";
   const sectionClass = "bg-slate-50 rounded-xl p-5 border border-slate-200 mb-6";
   const sectionHeaderClass = "text-base font-semibold text-slate-800 mb-4 flex items-center gap-2";
@@ -721,7 +736,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               type="button"
               onClick={() => setActiveTab(tab)}
               className={`flex-1 py-2 text-sm font-medium rounded-md transition-all ${
-                activeTab === tab ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                activeTab === tab ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {tab === 'lead' ? 'Lead Details' : tab === 'client' ? 'Client & Agreement' : 'Payment Details'}
@@ -731,7 +746,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
 
         {activeTab === 'lead' && (
           <div className={sectionClass}>
-            <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
+            <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00843d]" /> Lead Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div><label className={labelClass}>Lead Date</label><DateInput value={formData.leadDate} onChange={(iso) => handleInputChange('general', 'leadDate', iso)} className={inputClass} /></div>
               <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
@@ -799,7 +814,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         {activeTab === 'client' && (
           <div className="space-y-6">
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4>
+              <h4 className={sectionHeaderClass}><User className="w-5 h-5 text-[#00843d]" /> Owner Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.owner?.firstName || ''} onChange={(e) => handleInputChange('owner', 'firstName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.owner?.lastName || ''} onChange={(e) => handleInputChange('owner', 'lastName', e.target.value)} className={inputClass} /></div>
@@ -815,7 +830,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
+              <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00843d]" /> Tenant Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.tenant?.firstName || ''} onChange={(e) => handleInputChange('tenant', 'firstName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.tenant?.lastName || ''} onChange={(e) => handleInputChange('tenant', 'lastName', e.target.value)} className={inputClass} /></div>
@@ -831,7 +846,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
+              <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00843d]" /> Police Verification</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div><label className={labelClass}>Name</label><input type="text" value={formData.agreement?.pvName || ''} onChange={(e) => handleInputChange('agreement', 'pvName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>Age</label><input type="number" value={formData.agreement?.pvAge || ''} onChange={(e) => handleInputChange('agreement', 'pvAge', e.target.value)} className={inputClass} /></div>
@@ -841,7 +856,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
+              <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00843d]" /> Site Visit Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={inputClass} /></div>
                 <div><label className={labelClass}>SV No.</label><input type="text" inputMode="numeric" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
@@ -850,13 +865,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
+              <h4 className={sectionHeaderClass}><FileCheck className="w-5 h-5 text-[#00843d]" /> Agreement Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>Token Number</label>
                   <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
                 </div>
-                <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={(iso) => handleInputChange('agreement', 'agreementStartDate', iso)} className={inputClass} /></div>
+                <div><label className={labelClass}>Period (days)</label><input type="number" min={0} placeholder="e.g. 330" value={(formData.agreement as any)?.periodDays ?? diffDaysISO(formData.agreement?.agreementStartDate || formData.agreement?.startDate, formData.agreement?.agreementEndDate || formData.agreement?.endDate)} onChange={(e) => handlePeriodChange(e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={handleAgreementStartChange} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement End Date</label><DateInput value={formData.agreement?.agreementEndDate || formData.agreement?.endDate} onChange={(iso) => handleInputChange('agreement', 'agreementEndDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>Execute Date</label><DateInput value={formData.agreement?.executeDate} onChange={(iso) => handleInputChange('agreement', 'executeDate', iso)} className={inputClass} /></div>
@@ -883,7 +899,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                         href={formData.agreement.fileData || formData.agreement.agreementFile}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline"
+                        className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline"
                       >
                         <FileText className="w-3.5 h-3.5" /> View current file
                       </a>
@@ -916,7 +932,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>PVR File</label>
                   {formData.agreement?.pvrFileData && (
                     <div className="flex items-center gap-3 mb-1">
-                      <a href={formData.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline">
+                      <a href={formData.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline">
                         <FileText className="w-3.5 h-3.5" /> View current file
                       </a>
                       <a href={formData.agreement.pvrFileData} download={formData.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
@@ -944,7 +960,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Other File</label>
                   {formData.agreement?.otherFileData && (
                     <div className="flex items-center gap-3 mb-1">
-                      <a href={formData.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00A651] hover:underline">
+                      <a href={formData.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline">
                         <FileText className="w-3.5 h-3.5" /> View current file
                       </a>
                       <a href={formData.agreement.otherFileData} download={formData.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
@@ -976,7 +992,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         {activeTab === 'payment' && (
           <div className="space-y-6">
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00A651]" /> Payment Summary</h4>
+              <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00843d]" /> Payment Summary</h4>
               <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
                 <label className={labelClass}>Token Number</label>
                 <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
@@ -997,19 +1013,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </div>
                 <div>
                   <label className={labelClass}>Received Amount</label>
-                  <input type="text" value={`₹ ${receivedAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-[#00A651] font-semibold cursor-not-allowed`} />
+                  <input type="text" value={`₹ ${receivedAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-[#00843d] font-semibold cursor-not-allowed`} />
                   <p className="text-xs text-slate-500 mt-1">Owner + Tenant payments</p>
                 </div>
                 <div>
                   <label className={labelClass}>Balance Amount</label>
-                  <input type="text" value={`₹ ${balanceAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00A651]'}`} />
+                  <input type="text" value={`₹ ${balanceAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 font-semibold cursor-not-allowed ${balanceAmount > 0 ? 'text-red-600' : 'text-[#00843d]'}`} />
                   <p className="text-xs text-slate-500 mt-1">Outstanding − Received</p>
                 </div>
               </div>
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
+              <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00843d]" /> Owner Payments</h4>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
                   <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateOwnerPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
@@ -1027,13 +1043,13 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
                 </div>
               ))}
-              <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
+              <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
                 <Plus className="w-4 h-4" /> Add Owner Payment
               </button>
             </div>
 
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
+              <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00843d]" /> Tenant Payments</h4>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
                   <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateTenantPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
@@ -1051,13 +1067,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
                 </div>
               ))}
-              <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00A651] hover:text-[#008f44] font-medium border border-dashed border-[#00A651] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
+              <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
                 <Plus className="w-4 h-4" /> Add Tenant Payment
               </button>
             </div>
 
+            {!hideBackWorkAccount && (
             <div className={sectionClass}>
-              <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
+              <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00843d]" /> Back Work Account</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>GRN Number</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 18))} maxLength={18} className={inputClass} /></div>
                 <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
@@ -1071,12 +1088,13 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div className="md:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
               </div>
             </div>
+            )}
           </div>
         )}
 
         <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
           <button type="button" onClick={onClose} className="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-lg font-medium hover:bg-slate-200 transition-colors">Cancel</button>
-          <button type="submit" disabled={loading} className="px-5 py-2.5 bg-[#00A651] text-white rounded-lg font-medium hover:bg-[#008f44] transition-colors disabled:opacity-50 flex items-center gap-2">
+          <button type="submit" disabled={loading} className="px-5 py-2.5 bg-[#00843d] text-white rounded-lg font-medium hover:bg-[#00622d] transition-colors disabled:opacity-50 flex items-center gap-2">
             {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Changes
           </button>
         </div>
@@ -1094,8 +1112,9 @@ interface ViewLeadModalProps {
   onLeadUpdated?: (updatedLead: Lead) => void;
   isAdmin?: boolean;
   dropdowns?: DropdownData;
+  hideBackWorkAccount?: boolean;
 }
-const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, onLeadUpdated, isAdmin = false, dropdowns }) => {
+const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, onEdit, onLeadUpdated, isAdmin = false, dropdowns, hideBackWorkAccount = false }) => {
   const { apiFetch } = useApi();
   const [lead, setLead] = useState<Lead | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1148,7 +1167,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
     <>
       <BaseModal isOpen={isOpen} onClose={onClose} title="Lead Details" size="xl">
         {loading ? (
-          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 text-[#00A651] animate-spin" /><p className="ml-2">Loading lead details...</p></div>
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 text-[#00843d] animate-spin" /><p className="ml-2">Loading lead details...</p></div>
         ) : error ? (
           <div className="text-center py-12"><AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-3" /><p className="text-red-600">{error}</p><button onClick={onClose} className="mt-4 px-4 py-2 bg-slate-100 rounded-lg">Close</button></div>
         ) : !lead ? (
@@ -1162,13 +1181,13 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   { key: 'client', label: 'Client & Agreement', icon: BadgeCheck },
                   { key: 'payment', label: 'Payment Details', icon: CreditCard }
                 ].map(tab => (
-                  <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-white text-[#00A651] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
+                  <button key={tab.key} onClick={() => setActiveTab(tab.key as any)} className={`flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-md text-sm font-medium transition-all ${activeTab === tab.key ? 'bg-white text-[#00843d] shadow-sm border border-slate-200' : 'text-slate-500 hover:text-slate-700'}`}>
                     <tab.icon className="w-4 h-4" /> {tab.label}
                   </button>
                 ))}
               </div>
               {onEdit && (
-                <button onClick={() => { setIsEditing(true); setActiveTab('lead'); }} className="flex items-center gap-2 px-4 py-2 bg-[#00A651] text-white rounded-lg text-sm font-medium hover:bg-[#008f44] transition-colors">
+                <button onClick={() => { setIsEditing(true); setActiveTab('lead'); }} className="flex items-center gap-2 px-4 py-2 bg-[#00843d] text-white rounded-lg text-sm font-medium hover:bg-[#00622d] transition-colors">
                   <Edit className="w-4 h-4" /> Edit Lead
                 </button>
               )}
@@ -1177,7 +1196,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
             {activeTab === 'lead' && (
               <div className="space-y-6">
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-[#00A651]" /> Lead Details</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileText className="w-5 h-5 text-[#00843d]" /> Lead Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <InfoItem label="Lead Date" value={formatDate(lead.leadDate)} icon={CalendarDays} />
                     <InfoItem label="First Name" value={lead.client?.firstName || '-'} />
@@ -1206,12 +1225,12 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                 </div>
                 {lead.forwardedHistory && lead.forwardedHistory.length > 0 && (
                   <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                    <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><CalendarClock className="w-5 h-5 text-[#00A651]" /> Forwarding History</h4>
+                    <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><CalendarClock className="w-5 h-5 text-[#00843d]" /> Forwarding History</h4>
                     <div className="space-y-3">
                       {lead.forwardedHistory.map((history, index) => (
                         <div key={index} className="p-3 bg-white rounded-lg border border-slate-200">
                           <div className="flex items-center justify-between flex-wrap gap-2">
-                            <span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00A651]">{history.toTeam}</span></span>
+                            <span className="font-medium text-slate-700 text-sm"><span className="text-slate-500">{history.fromTeam}</span><ChevronRight className="w-3 h-3 inline mx-1 text-slate-400" /><span className="text-[#00843d]">{history.toTeam}</span></span>
                             <span className="text-slate-500 text-xs flex items-center gap-1"><Clock className="w-3 h-3" />{formatDateTime(history.forwardedAt)}</span>
                           </div>
                           <p className="text-xs text-slate-600 mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -1231,7 +1250,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
             {activeTab === 'client' && (
               <div className="space-y-6">
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-5 h-5 text-[#00A651]" /> Owner Details</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><User className="w-5 h-5 text-[#00843d]" /> Owner Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <InfoItem label="First Name" value={lead.agreement?.owner?.firstName || '-'} />
                     <InfoItem label="Last Name" value={lead.agreement?.owner?.lastName || '-'} />
@@ -1243,7 +1262,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-[#00A651]" /> Tenant Details</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users className="w-5 h-5 text-[#00843d]" /> Tenant Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <InfoItem label="First Name" value={lead.agreement?.tenant?.firstName || '-'} />
                     <InfoItem label="Last Name" value={lead.agreement?.tenant?.lastName || '-'} />
@@ -1255,7 +1274,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><BadgeCheck className="w-5 h-5 text-[#00A651]" /> Police Verification</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><BadgeCheck className="w-5 h-5 text-[#00843d]" /> Police Verification</h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <InfoItem label="Name" value={lead.agreement?.pvName || '-'} />
                     <InfoItem label="Age" value={lead.agreement?.pvAge || '-'} />
@@ -1264,7 +1283,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><MapPinned className="w-5 h-5 text-[#00A651]" /> Site Visit Details</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><MapPinned className="w-5 h-5 text-[#00843d]" /> Site Visit Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     <InfoItem label="SV Name" value={lead.agreement?.svName || '-'} />
                     <InfoItem label="SV No." value={lead.agreement?.svNo || '-'} icon={Hash} />
@@ -1273,7 +1292,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileCheck className="w-5 h-5 text-[#00A651]" /> Agreement Details</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><FileCheck className="w-5 h-5 text-[#00843d]" /> Agreement Details</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <InfoItem label="Token Number" value={lead.agreement?.tokenNo || '-'} />
                     <InfoItem label="Agreement Status" value={lead.agreement?.status || '-'} badge />
@@ -1289,7 +1308,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                       </label>
                       {(lead.agreement?.fileData || lead.agreement?.agreementFile) ? (
                         <div className="flex items-center gap-3">
-                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
                             <Eye className="w-3.5 h-3.5" /> View
                           </a>
                           <a href={lead.agreement.fileData || lead.agreement.agreementFile} download={lead.agreement.fileName || lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
@@ -1306,7 +1325,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                       </label>
                       {lead.agreement?.pvrFileData ? (
                         <div className="flex items-center gap-3">
-                          <a href={lead.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                          <a href={lead.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
                             <Eye className="w-3.5 h-3.5" /> View
                           </a>
                           <a href={lead.agreement.pvrFileData} download={lead.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
@@ -1323,7 +1342,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                       </label>
                       {lead.agreement?.otherFileData ? (
                         <div className="flex items-center gap-3">
-                          <a href={lead.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00A651] hover:underline">
+                          <a href={lead.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
                             <Eye className="w-3.5 h-3.5" /> View
                           </a>
                           <a href={lead.agreement.otherFileData} download={lead.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
@@ -1341,7 +1360,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
 
             {activeTab === 'payment' && (
               <div className="space-y-6">
-                <div className="bg-gradient-to-r from-[#00A651] to-[#008f44] rounded-xl p-5 text-white">
+                <div className="bg-gradient-to-r from-[#00843d] to-[#00622d] rounded-xl p-5 text-white">
                   <h4 className="text-base font-semibold mb-4 flex items-center gap-2"><CreditCard className="w-5 h-5" /> Payment Summary</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SummaryCard label="Total Amount" value={formatCurrency(lead.payment?.totalAmount)} />
@@ -1350,7 +1369,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-[#00A651]" /> Owner Payments</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-[#00843d]" /> Owner Payments</h4>
                   {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -1359,7 +1378,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                           {lead.paymentDetails?.filter(p => p.clientType === 'OWNER').map((p, i) => (
                             <tr key={i} className="border-b border-slate-100 last:border-0">
                               <td className="py-2 px-3">{formatDate(p.paymentDate)}</td>
-                              <td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td>
+                              <td className="py-2 px-3 font-medium text-[#00843d]">{formatCurrency(p.paymentAmount)}</td>
                               <td className="py-2 px-3">{p.modeOfPayment || '-'}</td>
                               <td className="py-2 px-3">{p.payerName || '-'}</td>
                               <td className="py-2 px-3">{p.transactionNumber || '-'}</td>
@@ -1371,7 +1390,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   ) : <p className="text-slate-500 text-sm">No owner payments recorded</p>}
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users2 className="w-5 h-5 text-[#00A651]" /> Tenant Payments</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Users2 className="w-5 h-5 text-[#00843d]" /> Tenant Payments</h4>
                   {lead.paymentDetails?.filter(p => p.clientType === 'TENANT')?.length ? (
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
@@ -1380,7 +1399,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                           {lead.paymentDetails?.filter(p => p.clientType === 'TENANT').map((p, i) => (
                             <tr key={i} className="border-b border-slate-100 last:border-0">
                               <td className="py-2 px-3">{formatDate(p.paymentDate)}</td>
-                              <td className="py-2 px-3 font-medium text-[#00A651]">{formatCurrency(p.paymentAmount)}</td>
+                              <td className="py-2 px-3 font-medium text-[#00843d]">{formatCurrency(p.paymentAmount)}</td>
                               <td className="py-2 px-3">{p.modeOfPayment || '-'}</td>
                               <td className="py-2 px-3">{p.payerName || '-'}</td>
                               <td className="py-2 px-3">{p.transactionNumber || '-'}</td>
@@ -1391,8 +1410,9 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     </div>
                   ) : <p className="text-slate-500 text-sm">No tenant payments recorded</p>}
                 </div>
+                {!hideBackWorkAccount && (
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
-                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Banknote className="w-5 h-5 text-[#00A651]" /> Back Work Account</h4>
+                  <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><Banknote className="w-5 h-5 text-[#00843d]" /> Back Work Account</h4>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <InfoItem label="GRN Number" value={lead.payment?.grnNumber || '-'} />
                     <InfoItem label="GRN Amount" value={formatCurrency(lead.payment?.grnAmount)} />
@@ -1406,12 +1426,13 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Description" value={lead.payment?.description || '-'} multiline />
                   </div>
                 </div>
+                )}
               </div>
             )}
           </>
         )}
       </BaseModal>
-      <EditLeadModal isOpen={isEditing} lead={lead} onClose={() => setIsEditing(false)} onSave={handleSaveEdit} dropdowns={dropdowns} />
+      <EditLeadModal isOpen={isEditing} lead={lead} onClose={() => setIsEditing(false)} onSave={handleSaveEdit} dropdowns={dropdowns} hideBackWorkAccount={hideBackWorkAccount} />
     </>
   );
 };
@@ -1571,6 +1592,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
   // Filter states
   const [executiveSearch, setExecutiveSearch] = useState('');
+  // Calling dashboard: keep only the common filters visible, tuck the rest behind a toggle.
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
   const [fromDate, setFromDate] = useState(today);
   const [toDate, setToDate] = useState(today);
   const [filterOn, setFilterOn] = useState('Created Date');
@@ -1739,7 +1762,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'tenantName', label: 'Tenant Name', width: '150px', render: (lead) => `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim() || '-' },
         { key: 'tenantMobile', label: 'Mobile Number', width: '130px', render: (lead) => lead.agreement?.tenant?.phoneNo || '-' },
         { key: 'tenantDob', label: 'Birth Date Tenant', width: '130px', render: (lead) => formatDate(lead.agreement?.tenant?.birthDate || lead.agreement?.tenant?.dateOfBirth) },
-        { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (<button onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00A651] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"><Eye className="w-3.5 h-3.5" /> View Details</button>) },
+        { key: 'viewAll', label: 'View All Old Information', width: '180px', render: (lead) => (<button onClick={(e) => { e.stopPropagation(); setViewModal({ isOpen: true, leadId: lead.id }); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-[#00843d] bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors border border-emerald-200"><Eye className="w-3.5 h-3.5" /> View Details</button>) },
         { key: 'adminDownload', label: 'Download', width: '100px', render: (lead) => { return isAdmin ? (<button onClick={(e) => { e.stopPropagation(); handleExportSingleLead(lead); }} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-amber-500 hover:bg-amber-600 rounded-lg transition-colors"><FileDown className="w-3.5 h-3.5" /> Download</button>) : (<span className="text-xs text-slate-400 italic">Admin Only</span>); } },
       ];
     }
@@ -1816,6 +1839,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (selectedArea) params.set('areaId', selectedArea);
         if (areaText) params.set('areaText', areaText);
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
+        if (clientName) params.set('clientName', clientName);
         if (searchText) params.set('searchText', searchText);
       }
       if (isShopDashboard) {
@@ -2093,43 +2117,55 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     if (isCallingDashboard) {
       return (
         <>
+          {/* Common filters — always visible so leads stay near the top. */}
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="tel" placeholder="Search by mobile" value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Name</label><input type="text" placeholder="Client name" value={clientName} onChange={(e) => setClientName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Employees</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">From Date</label><div className="relative"><input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /></div></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">To Date</label><div className="relative"><input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full pl-3 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /><Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /></div></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Filter On</label><select value={filterOn} onChange={(e) => setFilterOn(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option>Created Date</option><option>Updated Date</option><option>Appointment Date</option><option>Agreement Date</option></select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Employees</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment From</label><input type="date" value={appointmentFromDate} onChange={(e) => setAppointmentFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Appointment To</label><input type="date" value={appointmentToDate} onChange={(e) => setAppointmentToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Location (Appointment)</label><input type="text" placeholder="e.g. Pune, Mumbai" value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label><input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Mobile Number</label><input type="tel" placeholder="Search by mobile" value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value.replace(/[^0-9]/g, ''))} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label><input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp To</label><input type="date" value={nextFollowUpToDate} onChange={(e) => setNextFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp From</label><input type="date" value={lastFollowUpFromDate} onChange={(e) => setLastFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp To</label><input type="date" value={lastFollowUpToDate} onChange={(e) => setLastFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">City</label><select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select City</option>{dropdowns.cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area</label><select value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select Area</option>{dropdowns.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label><input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-          </div>
-          <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
-            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && setPage(0)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <button onClick={handleApplyFilters} className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
-              <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
-              {canExport && (<button onClick={handleExportExcel} className="flex-1 sm:flex-none px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Download className="w-4 h-4" /> Export</button>)}
-            </div>
+
+          {/* Toggle for the less-used filters. */}
+          <button type="button" onClick={() => setShowMoreFilters((v) => !v)} className="inline-flex items-center gap-1.5 text-sm font-medium text-amber-600 hover:text-amber-700 mb-4">
+            <Filter className="w-4 h-4" /> {showMoreFilters ? 'Hide' : 'More'} Filters
+          </button>
+
+          {showMoreFilters && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Filter On</label><select value={filterOn} onChange={(e) => setFilterOn(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option>Created Date</option><option>Updated Date</option><option>Appointment Date</option><option>Agreement Date</option></select></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Location (Appointment)</label><input type="text" placeholder="e.g. Pune, Mumbai" value={appointmentLocation} onChange={(e) => setAppointmentLocation(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Visit Count</label><input type="number" placeholder="e.g. 1, 2, 3" value={visitCount} onChange={(e) => setVisitCount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Client Type</label><select value={clientType} onChange={(e) => setClientType(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option><option value="OWNER">Owner</option><option value="TENANT">Tenant</option><option value="AGENT">Agent</option></select></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Lead Status</label><select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All Status</option>{dropdowns.leadStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area (Text)</label><input type="text" placeholder="e.g. Sector 45" value={areaText} onChange={(e) => setAreaText(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp From</label><input type="date" value={nextFollowUpFromDate} onChange={(e) => setNextFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Next FollowUp To</label><input type="date" value={nextFollowUpToDate} onChange={(e) => setNextFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp From</label><input type="date" value={lastFollowUpFromDate} onChange={(e) => setLastFollowUpFromDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Last FollowUp To</label><input type="date" value={lastFollowUpToDate} onChange={(e) => setLastFollowUpToDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">City</label><select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select City</option>{dropdowns.cities.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Area</label><select value={selectedArea} onChange={(e) => setSelectedArea(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">Select Area</option>{dropdowns.areas.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
+                <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Search</label><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+              </div>
+            </>
+          )}
+
+          <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
+            <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
+            <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
+            {canExport && (<button onClick={handleExportExcel} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm"><Download className="w-4 h-4" /> Export</button>)}
           </div>
         </>
       );
@@ -2306,7 +2342,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
               type="button"
               onClick={() => setCallingView(view)}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
-                callingView === view ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                callingView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {view === 'leads' ? 'Lead' : 'Appointment'}
@@ -2323,7 +2359,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
               type="button"
               onClick={() => setBackendView(view)}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
-                backendView === view ? 'bg-white text-[#00A651] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                backendView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {label}
@@ -2339,7 +2375,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           <select
             value={appointmentSort}
             onChange={(e) => setAppointmentSort(e.target.value as 'none' | 'asc' | 'desc')}
-            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00A651] focus:border-transparent transition-all cursor-pointer"
+            className="px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all cursor-pointer"
           >
             <option value="none">Default</option>
             <option value="asc">Ascending (Oldest first)</option>
@@ -2418,7 +2454,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                                 <button
                                   onClick={() => handleToggleAppointment(lead.id, true)}
                                   disabled={forwardingId === lead.id}
-                                  className="p-2 text-slate-400 hover:text-[#00A651] hover:bg-[#f0fdf4] rounded-lg transition-all disabled:opacity-40"
+                                  className="p-2 text-slate-400 hover:text-[#00843d] hover:bg-[#f0fdf4] rounded-lg transition-all disabled:opacity-40"
                                   title="Forward to Appointment"
                                 >
                                   {forwardingId === lead.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarClock className="w-4 h-4" />}
@@ -2539,6 +2575,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         onLeadUpdated={handleLeadUpdatedFromView}
         isAdmin={isAdmin}
         dropdowns={dropdowns}
+        hideBackWorkAccount={isExecutiveDashboard}
       />
       <TeamSelectionModal isOpen={sendModal.isOpen} leadId={sendModal.leadId} onSend={handleSendToTeam} onClose={() => setSendModal({ isOpen: false, leadId: '' })} restrictTeams={!isAdmin} excludeTeam={!isAdmin && transitLevel && transitLevel !== 'ALL' ? transitLevel.toUpperCase().replace('_TEAM', '') : undefined} />
       <BaseModal isOpen={cancelModal.isOpen} onClose={() => setCancelModal({ isOpen: false, leadId: '' })}>
@@ -2561,6 +2598,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           onClose={() => setEditLead(null)}
           onSave={handleSaveLeadEdit}
           dropdowns={dropdowns}
+          hideBackWorkAccount={isExecutiveDashboard}
         />
       )}
     </div>

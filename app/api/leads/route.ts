@@ -95,7 +95,13 @@ export async function GET(request: Request) {
       // accounting / "All" dashboards) only.
       const ownId = toObjectId(user.userId);
       addOrGroup(andConditions, [
-        { createdByUserId: user.userId },
+        // Leads I created — but once I forward/assign one to a DIFFERENT employee it
+        // leaves my dashboard (it stays with admins via the shared team view).
+        { $and: [
+          { createdByUserId: user.userId },
+          { $or: [{ assignedToUserId: null }, { assignedToUserId: ownId }] },
+        ] },
+        // Leads forwarded/assigned specifically to me.
         { assignedToUserId: ownId },
       ]);
     }

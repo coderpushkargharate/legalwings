@@ -38,7 +38,7 @@ function CountTable({ title, icon: Icon, rows, label = 'Name', unit = 'Leads', m
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-200 bg-slate-50">
-        <Icon className="w-5 h-5 text-[#00A651]" />
+        <Icon className="w-5 h-5 text-[#00843d]" />
         <h3 className="font-semibold text-slate-800">{title}</h3>
         <span className="ml-auto text-xs text-slate-500">{total} total</span>
       </div>
@@ -59,7 +59,7 @@ function CountTable({ title, icon: Icon, rows, label = 'Name', unit = 'Leads', m
                 <td className="px-5 py-2.5">
                   <div className="flex items-center justify-end gap-2">
                     <div className="hidden sm:block w-24 h-2 bg-slate-100 rounded-full overflow-hidden">
-                      <div className="h-full bg-[#00A651] rounded-full" style={{ width: `${(r.count / max) * 100}%` }} />
+                      <div className="h-full bg-[#00843d] rounded-full" style={{ width: `${(r.count / max) * 100}%` }} />
                     </div>
                     <span className="font-semibold text-slate-800 w-8 text-right">{r.count}</span>
                   </div>
@@ -111,13 +111,13 @@ export default function ReportsPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-end gap-4">
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">From Date</label>
-            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651]" />
+            <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d]" />
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-500 mb-1">To Date</label>
-            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00A651]" />
+            <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d]" />
           </div>
-          <button onClick={fetchReports} className="px-5 py-2 bg-[#00A651] text-white rounded-lg text-sm font-medium hover:bg-[#008f44] transition-colors">Apply</button>
+          <button onClick={fetchReports} className="px-5 py-2 bg-[#00843d] text-white rounded-lg text-sm font-medium hover:bg-[#00622d] transition-colors">Apply</button>
           {(from || to) && (
             <button onClick={() => { setFrom(''); setTo(''); }} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-colors">Clear</button>
           )}
@@ -131,7 +131,7 @@ export default function ReportsPage() {
           <>
             {/* Summary cards */}
             <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-              <SummaryCard icon={BarChart3} label="Total Leads" value={data.totalLeads.toString()} color="text-[#00A651]" />
+              <SummaryCard icon={BarChart3} label="Total Leads" value={data.totalLeads.toString()} color="text-[#00843d]" />
               <SummaryCard icon={CreditCard} label="Received" value={inr(data.payments.totalReceived)} color="text-emerald-600" />
               <SummaryCard icon={CreditCard} label="Pending" value={inr(data.payments.totalPending)} color="text-amber-600" />
               <SummaryCard icon={CreditCard} label="Commission" value={inr(data.payments.totalCommission)} color="text-blue-600" />
