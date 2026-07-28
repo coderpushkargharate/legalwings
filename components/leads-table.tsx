@@ -325,13 +325,15 @@ const getStatusBadge = (status?: string): React.ReactNode => {
 
 // ==================== ROW COLOUR TAGS (Backend team) ====================
 // Colour options used by the Backend team to highlight leads in the table.
+// Backend team's row-colour tags. The `row` shades are kept a bit darker so a tagged
+// lead stands out clearly against the plain white rows.
 const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] = [
-  { key: 'red', label: 'Red', swatch: 'bg-red-500', row: 'bg-red-50' },
-  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-700', row: 'bg-green-100' },
-  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-300', row: 'bg-emerald-50' },
-  { key: 'orange', label: 'Orange', swatch: 'bg-orange-500', row: 'bg-orange-50' },
-  { key: 'yellow', label: 'Yellow', swatch: 'bg-yellow-400', row: 'bg-yellow-50' },
-  { key: 'purple', label: 'Purple', swatch: 'bg-purple-500', row: 'bg-purple-50' },
+  { key: 'red', label: 'Red', swatch: 'bg-red-500', row: 'bg-red-200' },
+  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-700', row: 'bg-green-300' },
+  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-300', row: 'bg-emerald-200' },
+  { key: 'orange', label: 'Orange', swatch: 'bg-orange-500', row: 'bg-orange-200' },
+  { key: 'yellow', label: 'Yellow', swatch: 'bg-yellow-400', row: 'bg-yellow-200' },
+  { key: 'purple', label: 'Purple', swatch: 'bg-purple-500', row: 'bg-purple-200' },
 ];
 const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
 
@@ -2293,8 +2295,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
   }
-  // Backend team: each bucket shows only its own leads. Once a lead is forwarded to
-  // Submitted (or Completed) it leaves All Work; forwarding to Completed removes it from Submitted.
+  // Backend team: each bucket shows only its own leads, so a searched lead surfaces in
+  // whichever tab it actually belongs to (e.g. a Completed lead appears under Completed).
   if (isBackendDashboard) {
     displayedLeads = displayedLeads.filter((l) => {
       if (backendView === 'submitted') return l.backendStatus === 'SUBMITTED';
