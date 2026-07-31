@@ -933,7 +933,7 @@ function LeadFormContent() {
               </div>
               <DateField label="Tentative Agreement Date" value={lead.tentativeAgreementDate} onChange={(v) => updateLead('tentativeAgreementDate', v)} isEditable={isEditable} id="lead-tentativeAgreementDate" />
               <div className="md:col-span-2">
-                <DateField label="Appointment Date" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} id="lead-appointmentTime" />
+                <DateField label="Appointment Date & Time" value={lead.appointmentTime} onChange={(v) => updateLead('appointmentTime', v)} isEditable={isEditable} withTime id="lead-appointmentTime" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Visit Address</label>
