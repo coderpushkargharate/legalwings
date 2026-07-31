@@ -17,7 +17,7 @@ interface ReportData {
   forwardedByPerson: NameCount[];
   perDay: NameCount[];
   perMonth: NameCount[];
-  payments: { totalReceived: number; totalPending: number; totalCommission: number; totalAgreement: number };
+  payments: { totalReceived: number; totalPending: number; totalCommission: number; totalAgreement: number; backendReceived?: number; backendCommission?: number };
 }
 
 const inr = (n: number) =>
@@ -128,6 +128,8 @@ export default function AdminOverview() {
         <SummaryCard icon={IndianRupee} label="Revenue (Received)" value={inr(data.payments.totalReceived)} color="text-emerald-600" bg="bg-emerald-50" />
         <SummaryCard icon={Clock} label="Pending" value={inr(data.payments.totalPending)} color="text-amber-600" bg="bg-amber-50" />
         <SummaryCard icon={IndianRupee} label="Commission" value={inr(data.payments.totalCommission)} color="text-blue-600" bg="bg-blue-50" />
+        <SummaryCard icon={IndianRupee} label="Backend Team Revenue" value={inr(data.payments.backendReceived || 0)} color="text-indigo-600" bg="bg-indigo-50" />
+        <SummaryCard icon={IndianRupee} label="Backend Team Commission" value={inr(data.payments.backendCommission || 0)} color="text-purple-600" bg="bg-purple-50" />
       </div>
 
       {/* Leads per month — clickable */}

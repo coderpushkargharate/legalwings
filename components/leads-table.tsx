@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import {
-  Eye, Trash2, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
+  Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
   User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
   Users, IndianRupee, BadgeCheck, AlertCircle, CalendarClock, FileDown, Edit, Save,
   ChevronDown, ChevronUp, Receipt, Banknote, FileCheck, UserCheck, Users2, MapPinned,
@@ -1571,6 +1571,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [searchText, setSearchText] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [tenantName, setTenantName] = useState('');
+  // Backend team: single field that searches Owner OR Tenant name (merged filter).
+  const [ownerTenantName, setOwnerTenantName] = useState('');
   const [agreementStatus, setAgreementStatus] = useState('');
   const [backOfficeStatus, setBackOfficeStatus] = useState('');
   const [grnNo, setGrnNo] = useState('');
@@ -1810,14 +1812,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       }
       if (isExecutiveDashboard && executiveSearch) params.set('searchText', executiveSearch);
       if (isBackendDashboard) {
-        if (ownerName) params.set('ownerName', ownerName);
-        if (tenantName) params.set('tenantName', tenantName);
+        if (ownerTenantName) params.set('ownerTenantName', ownerTenantName);
         if (tokenNumber) params.set('tokenNumber', tokenNumber);
         if (agreementStatus) params.set('agreementStatus', agreementStatus);
         if (backOfficeStatus) params.set('backOfficeStatus', backOfficeStatus);
         if (grnNo) params.set('grnNo', grnNo);
         if (dhcNo) params.set('dhcNo', dhcNo);
-        if (commissionDate) params.set('commissionDate', commissionDate);
         if (commissionAmount) params.set('commissionAmount', commissionAmount);
         if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
       }
@@ -1860,7 +1860,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -1889,6 +1889,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     setExecutiveSearch('');
     setOwnerName('');
     setTenantName('');
+    setOwnerTenantName('');
     setAgreementStatus('');
     setBackOfficeStatus('');
     setGrnNo('');
@@ -2156,16 +2157,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner Name</label><input type="text" placeholder="Search owner" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Tenant Name</label><input type="text" placeholder="Search tenant" value={tenantName} onChange={(e) => setTenantName(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner / Tenant Name</label><input type="text" placeholder="Search owner or tenant" value={ownerTenantName} onChange={(e) => setOwnerTenantName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Agreement Status</label><select value={agreementStatus} onChange={(e) => setAgreementStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Back Office Status</label><select value={backOfficeStatus} onChange={(e) => setBackOfficeStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.backOfficeStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Back Office Status</label><select value={backOfficeStatus} onChange={(e) => setBackOfficeStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.backOfficeStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">GRN No.</label><input type="text" placeholder="GRN number" value={grnNo} onChange={(e) => setGrnNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">DHC No.</label><input type="text" placeholder="DHC number" value={dhcNo} onChange={(e) => setDhcNo(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Date</label><input type="date" value={commissionDate} onChange={(e) => setCommissionDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
@@ -2246,9 +2245,14 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
   }
-  // Backend team: each bucket shows only its own leads, so a searched lead surfaces in
-  // whichever tab it actually belongs to (e.g. a Completed lead appears under Completed).
-  if (isBackendDashboard) {
+  // Backend team: each bucket normally shows only its own leads. But when a filter/search
+  // is active, we drop the bucket restriction so a match surfaces regardless of which tab
+  // it lives in — e.g. searching from All Work still finds a Completed lead.
+  const backendSearchActive = isBackendDashboard && (
+    !!ownerTenantName || !!tokenNumber || !!agreementStatus || !!backOfficeStatus ||
+    !!grnNo || !!dhcNo || !!commissionAmount || !!assignedEmployeeFilter || !!globalSearch.trim()
+  );
+  if (isBackendDashboard && !backendSearchActive) {
     displayedLeads = displayedLeads.filter((l) => {
       if (backendView === 'submitted') return l.backendStatus === 'SUBMITTED';
       if (backendView === 'completed') return l.backendStatus === 'COMPLETED';
@@ -2494,9 +2498,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                                 </button>
                               )
                             )}
-                            <button onClick={() => setCancelModal({ isOpen: true, leadId: lead.id })} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Cancel">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
                           </div>
                         </td>
                       </>

@@ -51,6 +51,7 @@ export async function GET(request: Request) {
     const perDay: Record<string, number> = {};
     const perMonth: Record<string, number> = {};
     let totalReceived = 0, totalPending = 0, totalCommission = 0, totalAgreement = 0;
+    let backendReceived = 0, backendCommission = 0;
     let totalLeads = 0;
 
     for (const lead of leads as any[]) {
@@ -85,10 +86,18 @@ export async function GET(request: Request) {
       const received = Array.isArray(lead.paymentDetails)
         ? lead.paymentDetails.reduce((s: number, p: any) => s + num(p.paymentAmount), 0)
         : 0;
-      totalReceived += received || num(lead.payment?.totalReceivedAmount) || num(lead.payment?.paidAmount);
+      const leadReceived = received || num(lead.payment?.totalReceivedAmount) || num(lead.payment?.paidAmount);
+      const leadCommission = num(lead.payment?.commissionAmount);
+      totalReceived += leadReceived;
       totalPending += num(lead.paymentPending) || num(lead.payment?.pendingAmount) || num(lead.payment?.outstandingAmount);
-      totalCommission += num(lead.payment?.commissionAmount);
+      totalCommission += leadCommission;
       totalAgreement += num(lead.payment?.totalAmount);
+
+      // Backend team's own revenue (leads currently sitting in the Backend team).
+      if (team.toUpperCase() === 'BACKEND' || team.toUpperCase() === 'BACKEND_TEAM') {
+        backendReceived += leadReceived;
+        backendCommission += leadCommission;
+      }
     }
 
     const toSortedArray = (obj: Record<string, number>, byKeyDesc = false) =>
@@ -108,6 +117,8 @@ export async function GET(request: Request) {
         totalPending,
         totalCommission,
         totalAgreement,
+        backendReceived,
+        backendCommission,
       },
     });
   } catch (error) {

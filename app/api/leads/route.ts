@@ -146,6 +146,8 @@ export async function GET(request: Request) {
     // Backend specific filters
     const ownerName = searchParams.get('ownerName');
     const tenantName = searchParams.get('tenantName');
+    // Backend team merged filter: one box that matches Owner OR Tenant name.
+    const ownerTenantName = searchParams.get('ownerTenantName');
     const tokenNumber = searchParams.get('tokenNumber');
     const agreementStatus = searchParams.get('agreementStatus');
     const backOfficeStatus = searchParams.get('backOfficeStatus');
@@ -221,6 +223,16 @@ export async function GET(request: Request) {
     // Backend filters
     if (ownerName) filter['agreement.owner.firstName'] = { $regex: ownerName, $options: 'i' };
     if (tenantName) filter['agreement.tenant.firstName'] = { $regex: tenantName, $options: 'i' };
+    // Merged Owner/Tenant name search — matches either party's first or last name.
+    if (ownerTenantName) {
+      const ot = escapeRegex(ownerTenantName);
+      addOrGroup(andConditions, [
+        { 'agreement.owner.firstName': { $regex: ot, $options: 'i' } },
+        { 'agreement.owner.lastName': { $regex: ot, $options: 'i' } },
+        { 'agreement.tenant.firstName': { $regex: ot, $options: 'i' } },
+        { 'agreement.tenant.lastName': { $regex: ot, $options: 'i' } },
+      ]);
+    }
     if (tokenNumber) filter['agreement.tokenNo'] = { $regex: tokenNumber, $options: 'i' };
     if (agreementStatus) filter['agreement.status'] = agreementStatus;
     if (backOfficeStatus) filter['agreement.backOfficeStatus'] = backOfficeStatus;
