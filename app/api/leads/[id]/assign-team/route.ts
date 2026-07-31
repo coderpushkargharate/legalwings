@@ -79,6 +79,18 @@ export async function POST(
       new Set([...(currentLead.visibleToTeams || []), destinationTransitLevel])
     );
 
+    // 🔹 Business rule: once a lead is forwarded FROM the Executive Team TO the
+    // Backend Team, it must disappear from the Calling Team completely. Calling
+    // dashboards (admin + the calling employee who created it) filter on
+    // visibleToTeams containing CALLING_TEAM, so we drop CALLING_TEAM from the
+    // visibility list here. Executive & Backend visibility is untouched, so the
+    // lead keeps showing under the Executive Team, the assigned Executive employee
+    // and the Backend team exactly as the existing logic already handles.
+    if (currentLead.transitLevel === 'EXECUTIVE_TEAM' && team === 'BACKEND') {
+      const idx = newVisibleToTeams.indexOf('CALLING_TEAM');
+      if (idx !== -1) newVisibleToTeams.splice(idx, 1);
+    }
+
     // Use $set for visibleToTeams (instead of $addToSet) because we may also need to
     // remove the source team — $addToSet and $pull cannot touch the same field in one update.
     const updateObj: any = {
