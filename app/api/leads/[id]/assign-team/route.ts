@@ -68,21 +68,16 @@ export async function POST(
     };
 
     // ✅ Compute new visibility list.
-    // - Forwarding to any team adds the destination team (bidirectional visibility),
-    //   so the lead stays visible to the source team too (e.g. CALLING → EXECUTIVE
-    //   shows in both).
-    // - EXCEPTION: forwarding to the BACKEND team removes the lead from BOTH the
-    //   Calling and Executive teams, so once it's sent to backend the appointment
-    //   disappears from the Calling and Executive sections (including the admin panel).
-    const sourceTransitLevel = currentLead.transitLevel;
-    let newVisibleToTeams = Array.from(
+    // Forwarding to ANY team simply ADDS the destination team (bidirectional visibility)
+    // and never removes a team the lead has already touched. This keeps the lead on every
+    // source team's MAIN (admin) dashboard — e.g. after an Executive employee forwards a
+    // lead back to Calling/Backend it stays visible under the Executive Team section — while
+    // the forwarding employee still loses it from their PERSONAL dashboard, because employee
+    // dashboards key off the lead's current `transitLevel` (which now points at the
+    // destination team), not off `visibleToTeams`.
+    const newVisibleToTeams = Array.from(
       new Set([...(currentLead.visibleToTeams || []), destinationTransitLevel])
     );
-    if (team === 'BACKEND') {
-      newVisibleToTeams = newVisibleToTeams.filter(
-        (t) => t !== 'CALLING_TEAM' && t !== 'EXECUTIVE_TEAM' && t !== sourceTransitLevel
-      );
-    }
 
     // Use $set for visibleToTeams (instead of $addToSet) because we may also need to
     // remove the source team — $addToSet and $pull cannot touch the same field in one update.

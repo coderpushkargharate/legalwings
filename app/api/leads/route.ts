@@ -92,40 +92,28 @@ export async function GET(request: Request) {
     // 🔐 Team-based access control — kept as its own OR-group so search/filter
     // OR-groups can never widen it back open.
     if (!isAdmin && !isAccounting && !viewAll) {
-      // 🔓 Team-wide visibility: an employee sees EVERY lead visible to their own
-      // team(s) — i.e. any lead created in the team or forwarded into it — not just
-      // the ones they personally created or that were assigned to them. Their team
-      // is derived from their ROLE (not the requested `transitLevel` param) so an
-      // employee can never widen access to another team's queue by changing the URL:
-      // a Calling employee stays scoped to CALLING_TEAM even if they request a
-      // different transitLevel. We still OR-in leads they created or are assigned to
-      // so nothing they should personally see is ever lost (e.g. a lead assigned to
-      // them that has since moved to another team).
+      // 🔐 Per-employee isolation: a regular employee sees ONLY the leads they
+      // personally created, plus any lead that was forwarded/assigned specifically
+      // to them (assignedToUserId). They do NOT see other employees' leads or the
+      // shared team queue — the full team view stays with admins (and the
+      // accounting / "All" dashboards) only.
+      //
+      // This also gives the desired forwarding behavior: when an Executive employee
+      // forwards a lead they were assigned back to Calling/Backend, the assign-team
+      // route clears assignedToUserId, so the lead drops off that employee's dashboard
+      // — while the admin's MAIN dashboard still shows it (it filters by visibleToTeams,
+      // which forwarding no longer strips).
       const ownId = toObjectId(user.userId);
-      const ROLE_TO_TRANSIT_LEVEL: Record<string, string> = {
-        calling: 'CALLING_TEAM',
-        executive: 'EXECUTIVE_TEAM',
-        backend: 'BACKEND_TEAM',
-        marketing: 'MARKETING_TEAM',
-        shop: 'SHOP_TEAM',
-        accounting: 'ACCOUNTING_TEAM',
-      };
-      const userTeams = Array.from(new Set(
-        (user.roles || [])
-          .map((r) => ROLE_TO_TRANSIT_LEVEL[String(r).toLowerCase()])
-          .filter((t): t is string => Boolean(t)),
-      ));
-
-      const accessConditions: Record<string, unknown>[] = [
-        // Leads I created.
-        { createdByUserId: user.userId },
-      ];
-      // Leads forwarded/assigned specifically to me.
-      if (ownId) accessConditions.push({ assignedToUserId: ownId });
-      // Every lead currently visible to my team(s).
-      if (userTeams.length) accessConditions.push({ visibleToTeams: { $in: userTeams } });
-
-      addOrGroup(andConditions, accessConditions);
+      addOrGroup(andConditions, [
+        // Leads I created — but once I forward/assign one to a DIFFERENT employee it
+        // leaves my dashboard (it stays with admins via the shared team view).
+        { $and: [
+          { createdByUserId: user.userId },
+          { $or: [{ assignedToUserId: null }, { assignedToUserId: ownId }] },
+        ] },
+        // Leads forwarded/assigned specifically to me.
+        { assignedToUserId: ownId },
+      ]);
     }
 
     // 🔍 Single lead view (still subject to the access-control group above)
