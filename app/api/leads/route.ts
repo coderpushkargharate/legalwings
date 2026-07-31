@@ -33,6 +33,10 @@ function escapeRegex(value: string): string {
 //   - Date-object fields (createdAt / updatedAt) stored via `new Date()` → compare with Date objects.
 //   - ISO-string fields (appointmentTime, agreement.*, follow-up dates) → compare with strings.
 // The upper bound is pushed to end-of-day so same-day records are included.
+// ⚠️ Date-object boundaries are built in UTC (trailing `Z`). The frontend derives its
+// default "today" via `new Date().toISOString()` (a UTC calendar date), so the backend
+// MUST use UTC day boundaries too — otherwise, on a server whose local timezone is not
+// UTC, a just-created lead falls outside "today" and vanishes from the team's default view.
 function addDateRange(
   filter: Record<string, unknown>,
   field: string,
@@ -42,8 +46,8 @@ function addDateRange(
 ) {
   if (!from && !to) return;
   const range: Record<string, unknown> = {};
-  if (from) range.$gte = isDateObject ? new Date(`${from}T00:00:00.000`) : from;
-  if (to) range.$lte = isDateObject ? new Date(`${to}T23:59:59.999`) : `${to}T23:59:59.999`;
+  if (from) range.$gte = isDateObject ? new Date(`${from}T00:00:00.000Z`) : from;
+  if (to) range.$lte = isDateObject ? new Date(`${to}T23:59:59.999Z`) : `${to}T23:59:59.999`;
   filter[field] = range;
 }
 
@@ -88,22 +92,40 @@ export async function GET(request: Request) {
     // 🔐 Team-based access control — kept as its own OR-group so search/filter
     // OR-groups can never widen it back open.
     if (!isAdmin && !isAccounting && !viewAll) {
-      // 🔐 Per-employee isolation: a regular employee sees ONLY the leads they
-      // personally created, plus any lead that was forwarded/assigned specifically
-      // to them (assignedToUserId). They do NOT see other employees' leads or the
-      // shared team queue — the full team view stays with admins (and the
-      // accounting / "All" dashboards) only.
+      // 🔓 Team-wide visibility: an employee sees EVERY lead visible to their own
+      // team(s) — i.e. any lead created in the team or forwarded into it — not just
+      // the ones they personally created or that were assigned to them. Their team
+      // is derived from their ROLE (not the requested `transitLevel` param) so an
+      // employee can never widen access to another team's queue by changing the URL:
+      // a Calling employee stays scoped to CALLING_TEAM even if they request a
+      // different transitLevel. We still OR-in leads they created or are assigned to
+      // so nothing they should personally see is ever lost (e.g. a lead assigned to
+      // them that has since moved to another team).
       const ownId = toObjectId(user.userId);
-      addOrGroup(andConditions, [
-        // Leads I created — but once I forward/assign one to a DIFFERENT employee it
-        // leaves my dashboard (it stays with admins via the shared team view).
-        { $and: [
-          { createdByUserId: user.userId },
-          { $or: [{ assignedToUserId: null }, { assignedToUserId: ownId }] },
-        ] },
-        // Leads forwarded/assigned specifically to me.
-        { assignedToUserId: ownId },
-      ]);
+      const ROLE_TO_TRANSIT_LEVEL: Record<string, string> = {
+        calling: 'CALLING_TEAM',
+        executive: 'EXECUTIVE_TEAM',
+        backend: 'BACKEND_TEAM',
+        marketing: 'MARKETING_TEAM',
+        shop: 'SHOP_TEAM',
+        accounting: 'ACCOUNTING_TEAM',
+      };
+      const userTeams = Array.from(new Set(
+        (user.roles || [])
+          .map((r) => ROLE_TO_TRANSIT_LEVEL[String(r).toLowerCase()])
+          .filter((t): t is string => Boolean(t)),
+      ));
+
+      const accessConditions: Record<string, unknown>[] = [
+        // Leads I created.
+        { createdByUserId: user.userId },
+      ];
+      // Leads forwarded/assigned specifically to me.
+      if (ownId) accessConditions.push({ assignedToUserId: ownId });
+      // Every lead currently visible to my team(s).
+      if (userTeams.length) accessConditions.push({ visibleToTeams: { $in: userTeams } });
+
+      addOrGroup(andConditions, accessConditions);
     }
 
     // 🔍 Single lead view (still subject to the access-control group above)
@@ -276,9 +298,10 @@ export async function GET(request: Request) {
       // created on an earlier day but forwarded into this team today is hidden
       // from the destination team's default (today) view, so forwarded leads
       // never surface in Calling/Shop/etc. until the user widens the dates.
+      // UTC boundaries (trailing `Z`) to match the frontend's UTC-based "today" — see addDateRange note.
       const range: Record<string, unknown> = {};
-      if (fromDate) range.$gte = new Date(`${fromDate}T00:00:00.000`);
-      if (toDate) range.$lte = new Date(`${toDate}T23:59:59.999`);
+      if (fromDate) range.$gte = new Date(`${fromDate}T00:00:00.000Z`);
+      if (toDate) range.$lte = new Date(`${toDate}T23:59:59.999Z`);
       addOrGroup(andConditions, [
         { createdAt: range },
         { forwardedAt: range },

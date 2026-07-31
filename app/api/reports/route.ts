@@ -32,8 +32,10 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const fromParam = searchParams.get('from');
     const toParam = searchParams.get('to');
-    const from = fromParam ? new Date(fromParam) : null;
-    const to = toParam ? new Date(`${toParam}T23:59:59`) : null;
+    // UTC boundaries so the range aligns with how days are keyed below (toISOString, UTC)
+    // and with the leads list's UTC-based date filtering.
+    const from = fromParam ? new Date(`${fromParam}T00:00:00.000Z`) : null;
+    const to = toParam ? new Date(`${toParam}T23:59:59.999Z`) : null;
 
     const leads = await db.collection('leads').find({}, {
       projection: {

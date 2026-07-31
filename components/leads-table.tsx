@@ -15,51 +15,6 @@ import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import * as XLSX from 'xlsx';
 
-// ==================== 12-HOUR DATETIME PICKER ====================
-// Native datetime-local follows the OS locale, so it may show 24-hour time.
-// This picker always uses a 12-hour clock with an explicit AM/PM selector.
-const parseDateTime12 = (value?: string) => {
-  const [datePart = '', timePart = ''] = (value || '').split('T');
-  const [hStr = '', mStr = ''] = timePart.split(':');
-  const h24 = hStr === '' ? null : parseInt(hStr, 10);
-  return {
-    datePart,
-    minute: mStr === '' ? '' : mStr.padStart(2, '0'),
-    hour12: h24 === null ? '' : String(h24 % 12 || 12).padStart(2, '0'),
-    ampm: h24 === null ? 'AM' : h24 >= 12 ? 'PM' : 'AM',
-  };
-};
-
-const buildDateTime12 = (datePart: string, hour12: string, minute: string, ampm: string) => {
-  if (!datePart) return '';
-  const h12 = parseInt(hour12 || '12', 10) % 12;
-  const h24 = ampm === 'PM' ? h12 + 12 : h12;
-  return `${datePart}T${String(h24).padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
-};
-
-function DateTime12Picker({ value, onChange, inputClass }: { value?: string; onChange: (v: string) => void; inputClass: string }) {
-  const { datePart, hour12, minute, ampm } = parseDateTime12(value);
-  const selectClass = "px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all cursor-pointer";
-  return (
-    <div className="flex gap-2 items-center">
-      <input type="date" value={datePart} onChange={(e) => onChange(buildDateTime12(e.target.value, hour12, minute, ampm))} className={`flex-1 ${inputClass}`} />
-      <select aria-label="Hour" value={hour12 || ''} onChange={(e) => onChange(buildDateTime12(datePart, e.target.value, minute, ampm))} className={selectClass}>
-        <option value="" disabled>hh</option>
-        {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0')).map((h) => <option key={h} value={h}>{h}</option>)}
-      </select>
-      <span className="text-slate-400">:</span>
-      <select aria-label="Minute" value={minute || ''} onChange={(e) => onChange(buildDateTime12(datePart, hour12, e.target.value, ampm))} className={selectClass}>
-        <option value="" disabled>mm</option>
-        {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
-      <select aria-label="AM/PM" value={ampm} onChange={(e) => onChange(buildDateTime12(datePart, hour12, minute, e.target.value))} className={selectClass}>
-        <option value="AM">AM</option>
-        <option value="PM">PM</option>
-      </select>
-    </div>
-  );
-}
-
 // ==================== INTERFACES ====================
 interface PaymentDetail {
   paymentDate: string;
@@ -250,13 +205,9 @@ const formatDate = (dateString?: string): string => {
   return `${dd}/${mm}/${date.getFullYear()}`;
 };
 
-// DD.MM.YYYY hh:mm AM/PM (12-hour) for fields that carry a time (appointments, forwarding history).
+// Date only (DD/MM/YYYY) — time is intentionally never shown anywhere.
 const formatDateTime = (dateString?: string): string => {
-  if (!dateString) return '-';
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '-';
-  const timePart = date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
-  return `${formatDate(dateString)} ${timePart}`;
+  return formatDate(dateString);
 };
 
 // A native date input supports BOTH manual typing and the calendar picker, so the
@@ -787,7 +738,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </select>
               </div>
               <div><label className={labelClass}>Tentative Agreement Date</label><DateInput value={formData.tentativeAgreementDate} onChange={(iso) => handleInputChange('general', 'tentativeAgreementDate', iso)} className={inputClass} /></div>
-              <div className="md:col-span-2"><label className={labelClass}>Appointment Time</label><DateTime12Picker value={formData.appointmentTime?.slice(0, 16)} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} inputClass={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Appointment Date</label><DateInput value={formData.appointmentTime} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} className={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
@@ -886,6 +837,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                {!hideBackWorkAccount && (
                 <div>
                   <label className={labelClass}>Back Office Status</label>
                   <select value={formData.agreement?.backOfficeStatus || ''} onChange={(e) => handleInputChange('agreement', 'backOfficeStatus', e.target.value)} className={inputClass}>
@@ -893,6 +845,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     {['Govt. Approval pending', 'Govt. Quiery', 'Govt. Copy send clint', 'Govt. Other issue', 'Challan Pending', 'DHC Pending', 'ReShadule visit', 'Payment Pending', 'POA Pending', 'PVR Pending', 'Cummision Sending', 'Document Pending', 'Draft Confirmation Pending', 'Other State Bio. Pending', 'NRI Bio Pending', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
+                )}
                 <div className="md:col-span-3">
                   <label className={labelClass}>Agreement File (PDF)</label>
                   {(formData.agreement?.fileData || formData.agreement?.agreementFile) && (
@@ -1729,7 +1682,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'grnNo', label: 'GRN No', width: '120px', render: (lead) => lead.payment?.grnNumber || '-' },
         { key: 'dhcNo', label: 'DHC No', width: '120px', render: (lead) => lead.payment?.dhcNumber || '-' },
         { key: 'commissionDate', label: 'Commission Date', width: '120px', render: (lead) => formatDate(lead.payment?.commissionDate) },
-        { key: 'commissionAmount', label: 'Commission Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
       ];
     }
     if (isAccountingDashboard) {
@@ -2216,9 +2168,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Date</label><input type="date" value={commissionDate} onChange={(e) => setCommissionDate(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Commission Amt</label><input type="number" placeholder="Amount" value={commissionAmount} onChange={(e) => setCommissionAmount(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Assigned To</label><select value={assignedEmployeeFilter} onChange={(e) => setAssignedEmployeeFilter(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{availableEmployees.map((emp) => (<option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>))}</select></div>
-            <div className="col-span-1 md:col-span-2"></div>
+            <div className="col-span-1 md:col-span-3"></div>
           </div>
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>

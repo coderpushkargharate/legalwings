@@ -100,17 +100,6 @@ const columns: Column[] = [
     width: '120px',
     render: (lead: Lead) => formatDate(lead.payment?.commissionDate),
   },
-  {
-    key: 'commissionAmount',
-    label: 'Commission Amt',
-    width: '120px',
-    render: (lead: Lead) => {
-      const amount = lead.payment?.commissionAmount;
-      if (amount == null) return '-';
-      const num = typeof amount === 'string' ? parseFloat(amount) : amount;
-      return isNaN(num) ? '-' : `₹${num.toLocaleString('en-IN')}`;
-    },
-  },
 ];
 
 function getStatusClass(status: string) {
