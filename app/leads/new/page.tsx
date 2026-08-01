@@ -214,6 +214,17 @@ const diffDaysISO = (startIso?: string, endIso?: string): string => {
   return d >= 0 ? String(d) : '';
 };
 
+// Agreement period is ENTERED/SHOWN in months but STORED in days (≈30 days/month)
+// so the end-date math and the saved value stay day-based. Convert at the input boundary.
+const daysToMonthsStr = (days?: string | number): string => {
+  const n = typeof days === 'string' ? parseInt(days, 10) : days;
+  return n == null || isNaN(n) || n === 0 ? '' : String(Math.round(n / 30));
+};
+const monthsToDaysStr = (months: string): string => {
+  const n = parseInt((months || '').replace(/[^0-9]/g, ''), 10);
+  return isNaN(n) ? '' : String(n * 30);
+};
+
 const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
@@ -1041,7 +1052,7 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
 
-                <Input label="Period (days)" value={agreement.periodDays} onChange={(v) => updateAgreementPeriod(v.replace(/[^0-9]/g, ''))} disabled={!isEditable} placeholder="e.g. 330" id="agreement-periodDays" />
+                <Input label="Period (Month)" value={daysToMonthsStr(agreement.periodDays)} onChange={(v) => updateAgreementPeriod(monthsToDaysStr(v))} disabled={!isEditable} placeholder="e.g. 11" id="agreement-periodDays" />
                 <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={updateAgreementStart} isEditable={isEditable} id="agreement-agreementStartDate" />
                 <DateField label="Agreement End Date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} isEditable={isEditable} id="agreement-agreementEndDate" />
 

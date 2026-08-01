@@ -253,6 +253,17 @@ const diffDaysISO = (startIso?: string, endIso?: string): string => {
   return d >= 0 ? String(d) : '';
 };
 
+// Agreement period is ENTERED/SHOWN in months but STORED in days (≈30 days/month)
+// so the end-date math and the saved value stay day-based. Convert at the input boundary.
+const daysToMonthsStr = (days?: string | number): string => {
+  const n = typeof days === 'string' ? parseInt(days, 10) : days;
+  return n == null || isNaN(n) || n === 0 ? '' : String(Math.round(n / 30));
+};
+const monthsToDaysStr = (months: string): string => {
+  const n = parseInt((months || '').replace(/[^0-9]/g, ''), 10);
+  return isNaN(n) ? '' : String(n * 30);
+};
+
 const formatCurrency = (amount?: number | string): string => {
   if (!amount) return '₹ 0';
   const num = typeof amount === 'string' ? parseFloat(amount) : amount;
@@ -824,7 +835,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Token Number</label>
                   <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
                 </div>
-                <div><label className={labelClass}>Period (days)</label><input type="number" min={0} placeholder="e.g. 330" value={(formData.agreement as any)?.periodDays ?? diffDaysISO(formData.agreement?.agreementStartDate || formData.agreement?.startDate, formData.agreement?.agreementEndDate || formData.agreement?.endDate)} onChange={(e) => handlePeriodChange(e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Period (Month)</label><input type="number" min={0} placeholder="e.g. 11" value={daysToMonthsStr((formData.agreement as any)?.periodDays ?? diffDaysISO(formData.agreement?.agreementStartDate || formData.agreement?.startDate, formData.agreement?.agreementEndDate || formData.agreement?.endDate))} onChange={(e) => handlePeriodChange(monthsToDaysStr(e.target.value))} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={handleAgreementStartChange} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement End Date</label><DateInput value={formData.agreement?.agreementEndDate || formData.agreement?.endDate} onChange={(iso) => handleInputChange('agreement', 'agreementEndDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>

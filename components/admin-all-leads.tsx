@@ -117,6 +117,15 @@ const fmtDateTime = (d?: string): string => {
   });
 };
 
+// Agreement period is stored in days; the panel shows it in months (days ÷ 30,
+// rounded to the nearest whole month — e.g. 330 → 11).
+const daysToMonths = (days?: string | number): string | number => {
+  if (days === '' || days == null) return '';
+  const n = typeof days === 'string' ? parseFloat(days) : days;
+  if (isNaN(n)) return '';
+  return Math.round(n / 30);
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Single source of truth for EVERY field the new-lead form captures (Lead +
 // Agreement + Owner/Tenant + PV/SV + Payment). Both the on-screen table and the
@@ -148,7 +157,7 @@ const COLUMNS: Col[] = [
   { header: 'Next Follow Up', value: (l) => fmtDate(l.nextFollowUpDate) },
   // Agreement
   { header: 'Token Number', value: (l) => l.agreement?.tokenNo || '' },
-  { header: 'Period (Days)', value: (l) => l.agreement?.periodDays ?? '' },
+  { header: 'Period (Month)', value: (l) => daysToMonths(l.agreement?.periodDays) },
   { header: 'Agreement Start', value: (l) => fmtDate(l.agreement?.agreementStartDate) },
   { header: 'Agreement End', value: (l) => fmtDate(l.agreement?.agreementEndDate) },
   { header: 'Agreement Address 1', value: (l) => l.agreement?.addressLine1 || '' },
@@ -385,7 +394,7 @@ export default function AdminAllLeads() {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search name, phone, status, source, created by…"
+                  placeholder="Search name, phone, status, source, created by… (scroll right for all fields)"
                   className="w-full rounded-lg border border-slate-200 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]/30"
                 />
               </div>
@@ -448,9 +457,9 @@ export default function AdminAllLeads() {
               ) : (
                 <div className="overflow-x-auto max-h-[65vh] overflow-y-auto rounded-lg border border-slate-100">
                   <table className="w-full text-sm">
-                    <thead className="sticky top-0 bg-slate-50 text-slate-500">
+                    <thead className="sticky top-0 z-10 bg-slate-50 text-slate-500">
                       <tr className="text-left">
-                        <th className="px-3 py-2 w-10">
+                        <th className="sticky left-0 z-20 bg-slate-50 px-3 py-2 w-10">
                           <input
                             type="checkbox"
                             checked={allVisibleSelected}
@@ -459,21 +468,18 @@ export default function AdminAllLeads() {
                             aria-label="Select all"
                           />
                         </th>
-                        <th className="px-3 py-2 font-medium">Name</th>
-                        <th className="px-3 py-2 font-medium">Phone</th>
-                        <th className="px-3 py-2 font-medium">Type</th>
-                        <th className="px-3 py-2 font-medium">Status</th>
-                        <th className="px-3 py-2 font-medium">Source</th>
-                        <th className="px-3 py-2 font-medium">City</th>
-                        <th className="px-3 py-2 font-medium">Created By</th>
-                        <th className="px-3 py-2 font-medium">Date</th>
-                        <th className="px-3 py-2 font-medium text-right">Actions</th>
+                        {COLUMNS.map((c) => (
+                          <th key={c.header} className="px-3 py-2 font-medium whitespace-nowrap">{c.header}</th>
+                        ))}
+                        <th className="sticky right-0 z-20 bg-slate-50 px-3 py-2 font-medium text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {filtered.map((l) => (
-                        <tr key={l.id} className={selected.has(l.id) ? 'bg-teal-50/40' : 'hover:bg-slate-50'}>
-                          <td className="px-3 py-2">
+                      {filtered.map((l) => {
+                        const rowBg = selected.has(l.id) ? 'bg-teal-50' : 'bg-white group-hover:bg-slate-50';
+                        return (
+                        <tr key={l.id} className={`group ${selected.has(l.id) ? 'bg-teal-50/40' : 'hover:bg-slate-50'}`}>
+                          <td className={`sticky left-0 z-10 px-3 py-2 ${rowBg}`}>
                             <input
                               type="checkbox"
                               checked={selected.has(l.id)}
@@ -482,21 +488,12 @@ export default function AdminAllLeads() {
                               aria-label={`Select ${l.client?.firstName || 'lead'}`}
                             />
                           </td>
-                          <td className="px-3 py-2 font-medium text-slate-800">
-                            {`${l.client?.firstName || ''} ${l.client?.lastName || ''}`.trim() || '-'}
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{l.client?.phoneNo || '-'}</td>
-                          <td className="px-3 py-2 text-slate-600">{l.client?.clientType || '-'}</td>
-                          <td className="px-3 py-2">
-                            <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                              {l.leadStatus || '-'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2 text-slate-600">{l.leadSource || '-'}</td>
-                          <td className="px-3 py-2 text-slate-600">{cityLabel(l.city)}</td>
-                          <td className="px-3 py-2 text-slate-600">{l.createdByUserName || '-'}</td>
-                          <td className="px-3 py-2 text-slate-500">{fmtDate(l.createdAt || l.createdDate)}</td>
-                          <td className="px-3 py-2">
+                          {COLUMNS.map((c) => (
+                            <td key={c.header} className="px-3 py-2 text-slate-600 whitespace-nowrap">
+                              {cellText(c.value(l))}
+                            </td>
+                          ))}
+                          <td className={`sticky right-0 z-10 px-3 py-2 ${rowBg}`}>
                             <div className="flex items-center justify-end gap-1">
                               <Link
                                 href={`/leads/${l.id}`}
@@ -522,7 +519,8 @@ export default function AdminAllLeads() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
