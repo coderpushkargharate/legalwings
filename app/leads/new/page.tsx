@@ -193,16 +193,6 @@ const buildDateTime = (datePart: string, hour24: string, minute: string) => {
   return `${datePart}T${(hour24 || '00').padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
 };
 
-// Add days to an ISO date → YYYY-MM-DD (Period field auto-fills Agreement End Date).
-const addDaysISO = (iso?: string, days?: number | string): string => {
-  if (!iso) return '';
-  const base = new Date(/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(0, 10)}T00:00:00` : iso);
-  if (isNaN(base.getTime())) return '';
-  const n = typeof days === 'string' ? parseInt(days, 10) : days;
-  if (n == null || isNaN(n)) return '';
-  base.setDate(base.getDate() + n);
-  return `${base.getFullYear()}-${String(base.getMonth() + 1).padStart(2, '0')}-${String(base.getDate()).padStart(2, '0')}`;
-};
 
 // Whole-day difference between two ISO dates (to display the current period).
 const diffDaysISO = (startIso?: string, endIso?: string): string => {
@@ -569,20 +559,12 @@ function LeadFormContent() {
     setAgreement(prev => prev[field] === value ? prev : { ...prev, [field]: value });
   }, []);
 
-  // Agreement Start Date + Period(days) together drive the End Date.
+  // Agreement End Date is entered manually — Start Date and Period no longer auto-fill it.
   const updateAgreementStart = useCallback((v: string) => {
-    setAgreement(prev => ({
-      ...prev,
-      agreementStartDate: v,
-      agreementEndDate: prev.periodDays ? addDaysISO(v, prev.periodDays) : prev.agreementEndDate,
-    }));
+    setAgreement(prev => ({ ...prev, agreementStartDate: v }));
   }, []);
   const updateAgreementPeriod = useCallback((v: string) => {
-    setAgreement(prev => ({
-      ...prev,
-      periodDays: v,
-      agreementEndDate: prev.agreementStartDate && v ? addDaysISO(prev.agreementStartDate, v) : prev.agreementEndDate,
-    }));
+    setAgreement(prev => ({ ...prev, periodDays: v }));
   }, []);
 
   // ✅ Read uploaded agreement file as a base64 data URL so it can be stored & downloaded later
