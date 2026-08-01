@@ -503,3 +503,59 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Failed to update lead' }, { status: 500 });
   }
 }
+
+// 🗑️ DELETE — admin-only. Powers the admin dashboard's "All Data Overview" panel.
+// Supports three modes:
+//   • Single delete  → ?id=<leadId>  (or body { id })
+//   • Bulk delete    → body { ids: ["..","..."] }
+//   • Delete ALL     → body { all: true }   (wipes every lead — use with care)
+export async function DELETE(request: Request) {
+  const user = getAuth(request);
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  // Only admins may delete leads from the CRM.
+  const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
+  if (!isAdmin) return NextResponse.json({ error: 'Forbidden — admin only' }, { status: 403 });
+
+  try {
+    const { db } = await connectToDatabase();
+    const { searchParams } = new URL(request.url);
+    const idFromQuery = searchParams.get('id');
+
+    // Body is optional (single delete can come purely from the query string).
+    let body: { id?: string; ids?: string[]; all?: boolean } = {};
+    try { body = await request.json(); } catch { /* no body */ }
+
+    // Delete every lead in the collection.
+    if (body.all === true) {
+      const result = await db.collection('leads').deleteMany({});
+      return NextResponse.json({ message: 'All leads deleted', deletedCount: result.deletedCount });
+    }
+
+    // Bulk delete a specific set of ids.
+    if (Array.isArray(body.ids) && body.ids.length > 0) {
+      const objectIds = body.ids
+        .map((v) => toObjectId(v))
+        .filter((v): v is ObjectId => v !== null);
+      if (objectIds.length === 0) {
+        return NextResponse.json({ error: 'No valid lead ids provided' }, { status: 400 });
+      }
+      const result = await db.collection('leads').deleteMany({ _id: { $in: objectIds } });
+      return NextResponse.json({ message: 'Leads deleted', deletedCount: result.deletedCount });
+    }
+
+    // Single delete.
+    const singleId = idFromQuery || body.id;
+    const objId = toObjectId(singleId ?? null);
+    if (!objId) return NextResponse.json({ error: 'A valid lead id is required' }, { status: 400 });
+
+    const result = await db.collection('leads').deleteOne({ _id: objId });
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    }
+    return NextResponse.json({ message: 'Lead deleted', deletedCount: result.deletedCount });
+  } catch (error) {
+    console.error('Lead DELETE error:', error);
+    return NextResponse.json({ error: 'Failed to delete lead(s)' }, { status: 500 });
+  }
+}
