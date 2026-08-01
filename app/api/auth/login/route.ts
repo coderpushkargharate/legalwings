@@ -18,6 +18,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });
     }
 
+    // Block deactivated/deleted employees from logging in
+    if (user.isActive === false) {
+      return NextResponse.json({ error: 'Account has been deactivated' }, { status: 403 });
+    }
+
     const isValid = await bcrypt.compare(password, user.password);
     if (!isValid) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });

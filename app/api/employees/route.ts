@@ -152,25 +152,16 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Valid Employee ID required' }, { status: 400 });
     }
 
-    // Soft delete: mark as inactive
-    const result = await db.collection('users').updateOne(
-      { _id: new ObjectId(id) },
-      { 
-        $set: { 
-          isActive: false, 
-          updatedAt: new Date(),
-          deletedAt: new Date()
-        } 
-      }
-    );
-    
-    if (result.matchedCount === 0) {
+    // Hard delete: permanently remove the user (email + password gone)
+    const result = await db.collection('users').deleteOne({ _id: new ObjectId(id) });
+
+    if (result.deletedCount === 0) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
     }
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
-      message: 'Employee deactivated successfully' 
+      message: 'Employee deleted successfully'
     });
   } catch (error) {
     console.error('Employee DELETE error:', error);
