@@ -107,14 +107,19 @@ const fmtDate = (d?: string): string => {
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
-// Date + time variant for fields like the appointment slot.
+// Date + time variant for fields like the appointment slot. Shows HH:mm in
+// 24-hour form (no AM/PM). The time is read directly from the ISO string parts
+// so a UTC/`Z` suffix can't shift it by the IST offset (which flips the clock).
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const fmtDateTime = (d?: string): string => {
   if (!d) return '-';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return '-';
-  return dt.toLocaleString('en-IN', {
-    day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-  });
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(d.trim());
+  if (m) {
+    const [, yyyy, mm, dd, hStr, minStr] = m;
+    const datePart = `${dd} ${MONTHS[parseInt(mm, 10) - 1]} ${yyyy}`;
+    return hStr === undefined ? datePart : `${datePart} ${hStr}:${minStr}`;
+  }
+  return fmtDate(d);
 };
 
 // Agreement period is stored in days; the panel shows it in months (days ÷ 30,

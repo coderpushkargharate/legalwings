@@ -210,6 +210,19 @@ const formatDateTime = (dateString?: string): string => {
   return formatDate(dateString);
 };
 
+// Appointment: DD/MM/YYYY HH:mm (24-hour, no AM/PM). The time is read directly
+// from the ISO string parts so a UTC/`Z` suffix can't shift it by the IST offset.
+const formatAppointment = (dateString?: string): string => {
+  if (!dateString) return '-';
+  const m = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2}))?/.exec(dateString.trim());
+  if (m) {
+    const [, yyyy, mm, dd, hStr, minStr] = m;
+    const datePart = `${dd}/${mm}/${yyyy}`;
+    return hStr === undefined ? datePart : `${datePart} ${hStr}:${minStr}`;
+  }
+  return formatDate(dateString);
+};
+
 // A native date input supports BOTH manual typing and the calendar picker, so the
 // user can key in the date directly (no Enter needed) or pick it from the calendar.
 const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; className?: string }> = ({ value, onChange, className }) => {
@@ -1173,7 +1186,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Lead Source" value={lead.leadSource || '-'} />
                     <InfoItem label="Lead Status" value={lead.leadStatus || '-'} badge />
                     <InfoItem label="Tentative Agreement Date" value={formatDate(lead.tentativeAgreementDate)} icon={CalendarDays} />
-                    <InfoItem label="Appointment Time" value={formatDateTime(lead.appointmentTime)} icon={Clock} />
+                    <InfoItem label="Appointment Time" value={formatAppointment(lead.appointmentTime)} icon={Clock} />
                     <InfoItem label="Visit Address" value={lead.visitAddress || '-'} icon={MapPin} />
                     <InfoItem label="Description" value={lead.description || '-'} multiline />
                     <InfoItem label="Reference Name" value={lead.referenceName || '-'} />
