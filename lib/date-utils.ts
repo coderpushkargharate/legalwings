@@ -42,10 +42,9 @@ export const formatAppointment = (dateString?: string | null): string => {
 
       let hours = parseInt(hStr, 10);
       const minutes = minStr;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
       hours = hours % 12 || 12;
       const hh = String(hours).padStart(2, '0');
-      return `${datePart} ${hh}:${minutes} ${ampm}`;
+      return `${datePart} ${hh}:${minutes}`;
     }
 
     // Fallback for any non-ISO value.
@@ -58,11 +57,10 @@ export const formatAppointment = (dateString?: string | null): string => {
 
     let hours = date.getHours();
     const minutes = String(date.getMinutes()).padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
     hours = hours % 12 || 12;
     const hh = String(hours).padStart(2, '0');
 
-    return `${dd}/${mm}/${yyyy} ${hh}:${minutes} ${ampm}`;
+    return `${dd}/${mm}/${yyyy} ${hh}:${minutes}`;
   } catch {
     return '-';
   }
