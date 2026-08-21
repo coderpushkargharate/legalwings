@@ -5,7 +5,7 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
 import type { Column, Lead } from '@/components/leads-table';
-import { formatDate, formatDateTime } from '@/lib/date-utils';
+import { formatDate, formatAppointment } from '@/lib/date-utils';
 
 const columns: Column[] = [
   {
@@ -51,7 +51,7 @@ const columns: Column[] = [
     key: 'appointment',
     label: 'Appointment',
     width: '140px',
-    render: (lead: Lead) => formatDateTime(lead.appointmentTime),
+    render: (lead: Lead) => formatAppointment(lead.appointmentTime),
   },
   {
     key: 'visitAddress',

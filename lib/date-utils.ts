@@ -21,6 +21,30 @@ export const formatDateTime = (dateString?: string | null): string => {
   return formatDate(dateString);
 };
 
+// ✅ Appointment display: shows both date (DD/MM/YYYY) and time (hh:mm AM/PM).
+// Appointments need the time slot, unlike other date columns.
+export const formatAppointment = (dateString?: string | null): string => {
+  if (!dateString) return '-';
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '-';
+
+    const dd = String(date.getDate()).padStart(2, '0');
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const yyyy = date.getFullYear();
+
+    let hours = date.getHours();
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12;
+    const hh = String(hours).padStart(2, '0');
+
+    return `${dd}/${mm}/${yyyy} ${hh}:${minutes} ${ampm}`;
+  } catch {
+    return '-';
+  }
+};
+
 // ✅ Get display date from lead with fallback chain
 export const getLeadDisplayDate = (lead: any): string | null => {
   const dates = [
