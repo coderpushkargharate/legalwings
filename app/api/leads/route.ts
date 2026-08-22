@@ -178,6 +178,10 @@ export async function GET(request: Request) {
     const filterOn = searchParams.get('filterOn') || 'Created Date';
     const appointmentFromDate = searchParams.get('appointmentFromDate');
     const appointmentToDate = searchParams.get('appointmentToDate');
+    // Calling team's Appointments tab: show every appointment lead regardless of
+    // creation date (so appointments booked on earlier days don't vanish once
+    // "today" rolls over past the default Created Date range).
+    const isAppointment = searchParams.get('isAppointment');
     const nextFollowUpFromDate = searchParams.get('nextFollowUpFromDate');
     const nextFollowUpToDate = searchParams.get('nextFollowUpToDate');
     const lastFollowUpFromDate = searchParams.get('lastFollowUpFromDate');
@@ -271,6 +275,7 @@ export async function GET(request: Request) {
       }
     }
     if (paymentDate) filter['payment.paymentDate'] = paymentDate;
+    if (isAppointment === 'true') filter.isAppointment = true;
 
     // Marketing filters
     if (executeDate) filter['agreement.executeDate'] = executeDate;

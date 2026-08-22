@@ -1798,9 +1798,16 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     try {
       const params = new URLSearchParams({ page: page.toString(), pageSize: pageSize.toString(), transitLevel });
       if (isCallingDashboard) {
-        if (fromDate) params.set('fromDate', fromDate);
-        if (toDate) params.set('toDate', toDate);
-        if (filterOn) params.set('filterOn', filterOn);
+        if (callingView === 'appointments') {
+          // Appointments tab: pull ALL appointment leads (server-filtered), not just
+          // ones created today — otherwise an appointment booked on an earlier day
+          // disappears once the date rolls over (default Created Date range = today).
+          params.set('isAppointment', 'true');
+        } else {
+          if (fromDate) params.set('fromDate', fromDate);
+          if (toDate) params.set('toDate', toDate);
+          if (filterOn) params.set('filterOn', filterOn);
+        }
         if (appointmentFromDate) params.set('appointmentFromDate', appointmentFromDate);
         if (appointmentToDate) params.set('appointmentToDate', appointmentToDate);
         if (appointmentLocation) params.set('appointmentLocation', appointmentLocation);
@@ -1884,7 +1891,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, callingView, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -2321,7 +2328,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <button
               key={view}
               type="button"
-              onClick={() => setCallingView(view)}
+              onClick={() => { setCallingView(view); setPage(0); }}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
                 callingView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
