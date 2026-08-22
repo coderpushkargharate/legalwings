@@ -115,14 +115,23 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
     }
   }, [isOpen]);
 
+  // Search across ALL leads (the enquiries that come in from the website), matching
+  // client/owner/tenant name + phone. We map each lead's primary contact into the
+  // suggestion list so the biller can pick any website lead by name.
   const searchClients = useCallback((q: string) => {
     if (searchTimer.current) clearTimeout(searchTimer.current);
     if (!q.trim()) { setSuggestions([]); setShowSuggest(false); return; }
     searchTimer.current = setTimeout(async () => {
       try {
-        const res = await apiFetch(`/api/clients?pageSize=6&searchText=${encodeURIComponent(q)}`);
+        const res = await apiFetch(`/api/leads?pageSize=8&searchText=${encodeURIComponent(q)}`);
         const data = await res.json();
-        setSuggestions(data?.clientPage?.content || []);
+        const leads = data?.leadPage?.content || [];
+        setSuggestions(leads.map((l: any) => ({
+          id: l.id,
+          firstName: l.client?.firstName || l.agreement?.owner?.firstName || '',
+          lastName: l.client?.lastName || l.agreement?.owner?.lastName || '',
+          phoneNo: l.client?.phoneNo || l.agreement?.mobileNo || l.agreement?.owner?.phoneNo || '',
+        })));
         setShowSuggest(true);
       } catch {
         setSuggestions([]);
@@ -193,7 +202,7 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
                 value={clientName}
                 onChange={(e) => { setClientName(e.target.value); setClientId(null); searchClients(e.target.value); }}
                 onFocus={() => clientName && suggestions.length > 0 && setShowSuggest(true)}
-                placeholder="Search saved user or type a name"
+                placeholder="Search lead by name or phone, or type a name"
                 className={`${inputClass} pl-9`}
                 required
                 autoComplete="off"
