@@ -858,7 +858,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Agreement Status</label>
                   <select value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass}>
                     <option value="">Select Status</option>
-                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme', 'Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 {!hideBackWorkAccount && (
