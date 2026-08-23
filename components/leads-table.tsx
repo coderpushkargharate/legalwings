@@ -2377,6 +2377,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
+                <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-16">No.</th>
                 {columns.map((col) => (
                   <th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>
                     {col.label}
@@ -2392,16 +2393,19 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
+                <tr><td colSpan={1 + columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400"><div className="flex flex-col items-center gap-3"><div className="w-6 h-6 border-2 border-teal-500 border-t-transparent rounded-full animate-spin"></div><span>Loading leads...</span></div></td></tr>
               ) : displayedLeads.length === 0 ? (
-                <tr><td colSpan={columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
+                <tr><td colSpan={1 + columns.length + (shouldShowExtraColumns ? 2 : 0)} className="text-center py-12 text-slate-400">No records found matching your filters</td></tr>
               ) : (
-                displayedLeads.map((lead) => {
+                displayedLeads.map((lead, index) => {
                   // Backend colour tag: fill the whole row (including the sticky
                   // Actions cell) so the colour covers the entire lead.
                   const rowColor = isBackendDashboard ? rowColorRowClass(lead.rowColor) : '';
+                  // Continuous serial number across server-side pages (1-based).
+                  const serialNo = page * pageSize + index + 1;
                   return (
                   <tr key={lead.id} className={`transition-colors ${rowColor || 'hover:bg-slate-50/80'}`}>
+                    <td className="px-4 py-3 text-slate-500 whitespace-nowrap align-middle font-medium">{serialNo}</td>
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>
                         {col.render ? col.render(lead) : '-'}
