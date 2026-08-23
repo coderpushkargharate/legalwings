@@ -28,12 +28,18 @@ export async function GET(request: Request) {
       ? leadStatuses
       : [...leadStatuses, { key: 'COMPLETED', value: 'Completed', color: '#059669', order: 16 }];
 
+    // Safety net: guarantee the "Cancelled" agreement status is always available
+    // even if the database was seeded before it was introduced.
+    const normalizedAgreementStatuses = agreementStatuses.some(s => s.key === 'CANCELLED')
+      ? agreementStatuses
+      : [...agreementStatuses, { key: 'CANCELLED', value: 'Cancelled', color: '#EF4444', order: 6 }];
+
     return jsonResponse(request, {
       success: true,
       cities: cities.map(c => ({ id: c._id.toString(), name: c.name, state: c.state })),
       areas: areas.map(a => ({ id: a._id.toString(), name: a.name, cityId: a.cityId?.toString(), cityName: a.cityName })),
       leadStatuses: normalizedLeadStatuses,
-      agreementStatuses,
+      agreementStatuses: normalizedAgreementStatuses,
       backOfficeStatuses,
       // Static enums that developers commonly need for their own dropdowns.
       clientTypes: ['OWNER', 'TENANT', 'AGENT'],
