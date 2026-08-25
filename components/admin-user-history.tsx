@@ -4,9 +4,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/components/api-client';
 import { formatDate, formatDateTime } from '@/lib/date-utils';
 import Link from 'next/link';
-import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit, LayoutGrid } from 'lucide-react';
+import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit, LayoutGrid, Eye } from 'lucide-react';
 import { getTeamColumns } from '@/components/team-columns';
 import type { Lead } from '@/components/leads-table';
+import TeamSelectionModal from '@/components/TeamSelectionModal';
+
+// Map the modal's transitLevel (e.g. CALLING_TEAM) to the short team key the
+// assign-team API expects (CALLING / EXECUTIVE / BACKEND / ACCOUNTING / MARKETING / SHOP).
+const toTeamKey = (transit: string) => {
+  const base = (transit || '').replace(/_TEAM$/, '').toUpperCase();
+  return base === 'ACCOUNTS' ? 'ACCOUNTING' : base;
+};
 
 interface Employee {
   id: string;
@@ -362,6 +370,34 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
   const [history, setHistory] = useState<LeadHistoryData | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [tab, setTab] = useState<LeadTab>('forwards');
+  // Forward-from-history: the lead id whose "Forward" modal is open.
+  const [forwardLeadId, setForwardLeadId] = useState<string | null>(null);
+
+  // Re-fetch a lead's history (used after forwarding so the row reflects the new team).
+  const reloadHistory = async (leadId: string) => {
+    try {
+      const res = await apiFetch(`/api/admin/lead-history?leadId=${leadId}`);
+      if (res.ok) setHistory(await res.json());
+    } catch (err) {
+      console.error('Failed to reload lead history:', err);
+    }
+  };
+
+  // Forward the lead to a team/employee straight from User History.
+  const handleForward = async (leadId: string, team: string, employeeId?: string) => {
+    try {
+      const res = await apiFetch(`/api/leads/${leadId}/assign-team`, {
+        method: 'POST',
+        body: JSON.stringify({ team: toTeamKey(team), assignedToUserId: employeeId || null }),
+      });
+      if (!res.ok) throw new Error('Forward failed');
+      setForwardLeadId(null);
+      await reloadHistory(leadId);
+    } catch (err) {
+      console.error('Forward from history failed:', err);
+      alert('Failed to forward lead. Please try again.');
+    }
+  };
 
   // Debounced server-side lead search.
   useEffect(() => {
@@ -488,6 +524,51 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
             </div>
           </div>
 
+          {/* Current team row — the lead shown exactly as in its team's table.
+              Placed above the meta ("Created by") grid. */}
+          {history.fullLead && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-2">
+                <LayoutGrid className="w-4 h-4 text-teal-600" />
+                <span className="text-sm font-semibold text-slate-700">In {teamLabel(history.lead.transitLevel)} — full row</span>
+              </div>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gradient-to-r from-[#00843d] via-[#0d9488] to-[#0e7490]">
+                      <tr>
+                        {getTeamColumns(history.lead.transitLevel).map((c) => (
+                          <th key={c.key} className="text-left px-4 py-3 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider" style={c.width ? { width: c.width, minWidth: c.width } : undefined}>{c.label}</th>
+                        ))}
+                        <th className="text-left px-4 py-3 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        {getTeamColumns(history.lead.transitLevel).map((c) => (
+                          <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle">{c.render ? c.render(history.fullLead as Lead) : '-'}</td>
+                        ))}
+                        <td className="px-4 py-3 whitespace-nowrap align-middle">
+                          <div className="flex items-center gap-1">
+                            <Link href={`/leads/new?mode=view&id=${history.lead.id}`} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="View Lead">
+                              <Eye className="w-4 h-4" />
+                            </Link>
+                            <Link href={`/leads/new?mode=edit&id=${history.lead.id}`} className="p-2 text-slate-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all" title="Edit Lead">
+                              <Edit className="w-4 h-4" />
+                            </Link>
+                            <button onClick={() => setForwardLeadId(history.lead.id)} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all" title="Forward to Team/Employee">
+                              <Send className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Meta grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <MetaCard label="Created by" value={history.lead.createdByUserName || '-'} sub={formatDateTime(history.lead.createdAt)} />
@@ -558,38 +639,15 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
                 )
             )}
           </div>
-
-          {/* Current team row — the lead shown exactly as in its team's table. */}
-          {history.fullLead && (
-            <div className="mt-5">
-              <div className="flex items-center gap-2 mb-2">
-                <LayoutGrid className="w-4 h-4 text-teal-600" />
-                <span className="text-sm font-semibold text-slate-700">In {teamLabel(history.lead.transitLevel)} — full row</span>
-              </div>
-              <div className="border border-slate-200 rounded-lg overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gradient-to-r from-[#00843d] via-[#00934a] to-[#00a651]">
-                      <tr>
-                        {getTeamColumns(history.lead.transitLevel).map((c) => (
-                          <th key={c.key} className="text-left px-4 py-3 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider" style={c.width ? { width: c.width, minWidth: c.width } : undefined}>{c.label}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="hover:bg-slate-50 transition-colors">
-                        {getTeamColumns(history.lead.transitLevel).map((c) => (
-                          <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle">{c.render ? c.render(history.fullLead as Lead) : '-'}</td>
-                        ))}
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       )}
+
+      <TeamSelectionModal
+        isOpen={!!forwardLeadId}
+        leadId={forwardLeadId || ''}
+        onClose={() => setForwardLeadId(null)}
+        onSend={handleForward}
+      />
     </>
   );
 }
