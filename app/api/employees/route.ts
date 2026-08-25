@@ -152,8 +152,22 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Valid Employee ID required' }, { status: 400 });
     }
 
+    const employeeId = new ObjectId(id);
+
+    // 🔒 Preserve all lead data when an employee is removed. We ONLY delete the user
+    // account — never the leads. Any lead currently ASSIGNED to this employee is
+    // detached (assignedToUserId cleared) so it returns to the team pool instead of
+    // pointing at a deleted user, while keeping every other field intact. The
+    // `assignedToUserName` string is kept so the table still shows who last held it.
+    // `createdByUserId`/`createdByUserName` are left untouched so authorship is preserved.
+    const detach = await db.collection('leads').updateMany(
+      // Match whether the id was stored as an ObjectId or (legacy) as a string.
+      { $or: [{ assignedToUserId: employeeId }, { assignedToUserId: id }] },
+      { $set: { assignedToUserId: null, assignedAt: null } }
+    );
+
     // Hard delete: permanently remove the user (email + password gone)
-    const result = await db.collection('users').deleteOne({ _id: new ObjectId(id) });
+    const result = await db.collection('users').deleteOne({ _id: employeeId });
 
     if (result.deletedCount === 0) {
       return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
@@ -161,7 +175,8 @@ export async function DELETE(request: Request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Employee deleted successfully'
+      message: 'Employee deleted successfully. All lead data was preserved.',
+      leadsPreserved: detach.modifiedCount,
     });
   } catch (error) {
     console.error('Employee DELETE error:', error);

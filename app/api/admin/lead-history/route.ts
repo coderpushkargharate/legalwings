@@ -108,7 +108,29 @@ export async function GET(request: Request) {
 
     const name = `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim();
 
+    // Full lead row used by User History to preview the lead exactly as it appears
+    // in its current team's table (client / agreement / payment / appointment, etc.).
+    const fullLead = {
+      id: lead._id.toString(),
+      client: lead.client || {},
+      agreement: lead.agreement || {},
+      payment: lead.payment || {},
+      leadDate: lead.leadDate || null,
+      createdDate: lead.createdAt || null,
+      createdByUserName: lead.createdByUserName || '',
+      leadStatus: lead.leadStatus || '',
+      leadSource: lead.leadSource || '',
+      transitLevel: lead.transitLevel || '',
+      appointmentTime: lead.appointmentTime || null,
+      visitAddress: lead.visitAddress || '',
+      visitCount: lead.visitCount || 0,
+      area: lead.area || null,
+      city: lead.city || null,
+      assignedToUserName: lead.assignedToUserName || '',
+    };
+
     return NextResponse.json({
+      fullLead,
       lead: {
         id: lead._id.toString(),
         leadName: name || 'Unnamed lead',

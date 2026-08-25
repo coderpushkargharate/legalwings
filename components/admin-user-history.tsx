@@ -4,7 +4,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useApi } from '@/components/api-client';
 import { formatDate, formatDateTime } from '@/lib/date-utils';
 import Link from 'next/link';
-import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit } from 'lucide-react';
+import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit, LayoutGrid } from 'lucide-react';
+import { getTeamColumns } from '@/components/team-columns';
+import type { Lead } from '@/components/leads-table';
 
 interface Employee {
   id: string;
@@ -87,6 +89,8 @@ interface LeadHistoryData {
   stats: { forwarded: number; payments: number };
   forwards: ForwardItem[];
   payments: PaymentItem[];
+  // Full lead row for the "current team" preview table.
+  fullLead?: Lead;
 }
 
 type Tab = 'forwards' | 'created' | 'assigned';
@@ -554,6 +558,36 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
                 )
             )}
           </div>
+
+          {/* Current team row — the lead shown exactly as in its team's table. */}
+          {history.fullLead && (
+            <div className="mt-5">
+              <div className="flex items-center gap-2 mb-2">
+                <LayoutGrid className="w-4 h-4 text-teal-600" />
+                <span className="text-sm font-semibold text-slate-700">In {teamLabel(history.lead.transitLevel)} — full row</span>
+              </div>
+              <div className="border border-slate-200 rounded-lg overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gradient-to-r from-[#00843d] via-[#00934a] to-[#00a651]">
+                      <tr>
+                        {getTeamColumns(history.lead.transitLevel).map((c) => (
+                          <th key={c.key} className="text-left px-4 py-3 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider" style={c.width ? { width: c.width, minWidth: c.width } : undefined}>{c.label}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr className="hover:bg-slate-50 transition-colors">
+                        {getTeamColumns(history.lead.transitLevel).map((c) => (
+                          <td key={c.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle">{c.render ? c.render(history.fullLead as Lead) : '-'}</td>
+                        ))}
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>
