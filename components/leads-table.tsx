@@ -244,6 +244,48 @@ const DateInput: React.FC<{ value?: string; onChange: (iso: string) => void; cla
   );
 };
 
+// Split a stored `YYYY-MM-DDTHH:mm` value into its date / hour / minute parts.
+const parseDateTimeParts = (value?: string) => {
+  const [datePart = '', timePart = ''] = (value || '').split('T');
+  const [hStr = '', mStr = ''] = timePart.split(':');
+  return {
+    datePart: /^\d{4}-\d{2}-\d{2}/.test(datePart) ? datePart.slice(0, 10) : '',
+    hour24: hStr === '' ? '' : hStr.padStart(2, '0'),
+    minute: mStr === '' ? '' : mStr.padStart(2, '0'),
+  };
+};
+// Rebuild a `YYYY-MM-DDTHH:mm` value from the date + 24-hour picker parts.
+const buildDateTime = (datePart: string, hour24: string, minute: string) => {
+  if (!datePart) return '';
+  return `${datePart}T${(hour24 || '00').padStart(2, '0')}:${(minute || '00').padStart(2, '0')}`;
+};
+
+// Date + time picker (date input + hh / mm selects), matching the New Lead form's
+// "Appointment Date & Time" field so editing keeps the exact time too.
+const DateTimeInput: React.FC<{ value?: string; onChange: (v: string) => void; className?: string }> = ({ value, onChange, className }) => {
+  const { datePart, hour24, minute } = parseDateTimeParts(value);
+  const selectClass = "px-2 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all cursor-pointer";
+  return (
+    <div className="flex gap-2 items-center">
+      <input
+        type="date"
+        value={datePart}
+        onChange={(e) => onChange(buildDateTime(e.target.value, hour24, minute))}
+        className={`flex-1 ${className || ''}`}
+      />
+      <select aria-label="hour" value={hour24 || ''} onChange={(e) => onChange(buildDateTime(datePart, e.target.value, minute))} className={selectClass}>
+        <option value="" disabled>hh</option>
+        {Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0')).map((h) => <option key={h} value={h}>{h}</option>)}
+      </select>
+      <span className="text-slate-400">:</span>
+      <select aria-label="minute" value={minute || ''} onChange={(e) => onChange(buildDateTime(datePart, hour24, e.target.value))} className={selectClass}>
+        <option value="" disabled>mm</option>
+        {Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0')).map((m) => <option key={m} value={m}>{m}</option>)}
+      </select>
+    </div>
+  );
+};
+
 // Add a number of days to an ISO date, returning YYYY-MM-DD (used by the Period field
 // next to Agreement Start Date to auto-fill the End Date).
 const addDaysISO = (iso?: string, days?: number | string): string => {
@@ -311,6 +353,11 @@ const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] 
   { key: 'purple', label: 'Purple', swatch: 'bg-purple-500', row: 'bg-purple-200' },
 ];
 const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
+
+// Calling team: the row-colour tag that marks an appointment as "Pending". The
+// "Pending Appointment" button filters the Appointments view to leads tagged with
+// this colour. Change this key (must match a ROW_COLORS key) to use a different colour.
+const PENDING_APPOINTMENT_COLOR = 'orange';
 
 // Does a lead match the global header search? Checks name, owner/tenant name,
 // token number and phone numbers (case-insensitive substring).
@@ -762,7 +809,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </select>
               </div>
               <div><label className={labelClass}>Tentative Agreement Date</label><DateInput value={formData.tentativeAgreementDate} onChange={(iso) => handleInputChange('general', 'tentativeAgreementDate', iso)} className={inputClass} /></div>
-              <div className="md:col-span-2"><label className={labelClass}>Appointment Date</label><DateInput value={formData.appointmentTime} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} className={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Appointment Date &amp; Time</label><DateTimeInput value={formData.appointmentTime} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} className={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
@@ -1627,6 +1674,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   // Calling team: live count of leads created today and appointments booked for today,
   // shown as quick-summary buttons above the Lead / Appointment tabs.
   const [todayCounts, setTodayCounts] = useState<{ leads: number; appointments: number }>({ leads: 0, appointments: 0 });
+  // Calling team: when on, the Appointments view shows only PENDING appointments.
+  const [pendingApptOnly, setPendingApptOnly] = useState(false);
+  // Calling team: count of PENDING appointments (leads tagged with the pending colour),
+  // shown as a round badge on the "Pending Appointment" button.
+  const [pendingApptCount, setPendingApptCount] = useState(0);
   // Backend team: All Work / Submitted / Completed buckets.
   const [backendView, setBackendView] = useState<'all' | 'submitted' | 'completed'>('all');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
@@ -1919,6 +1971,22 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           leads: leadsData?.leadPage?.totalElements || 0,
           appointments: apptData?.leadPage?.totalElements || 0,
         });
+
+        // Count PENDING appointments = appointments tagged with the pending colour.
+        // Walk every appointment page (capped) since rowColor isn't a server filter.
+        let pending = 0;
+        let p = 0;
+        let tp = 1;
+        do {
+          const pParams = new URLSearchParams({ transitLevel, isAppointment: 'true', page: String(p), pageSize: '100' });
+          const pRes = await apiFetch(`/api/leads?${pParams.toString()}`);
+          const pData = await pRes.json();
+          const content: Lead[] = pData?.leadPage?.content || [];
+          pending += content.filter((l) => l.rowColor === PENDING_APPOINTMENT_COLOR).length;
+          tp = pData?.leadPage?.totalPages || 1;
+          p++;
+        } while (p < tp && p < 20);
+        if (!cancelled) setPendingApptCount(pending);
       } catch (error) {
         if (!cancelled) console.error('Failed to fetch today counts:', error);
       }
@@ -2003,23 +2071,6 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       alert(makeAppointment ? 'Lead forwarded to Appointment.' : 'Moved back to Leads.');
     } catch {
       alert('Failed to update appointment. Please try again.');
-    } finally {
-      setForwardingId(null);
-    }
-  };
-
-  // Calling team appointments: mark an appointment Complete / Pending / Cancelled.
-  const handleAppointmentStatus = async (leadId: string, status: string) => {
-    setForwardingId(leadId);
-    try {
-      const res = await apiFetch('/api/leads', {
-        method: 'PATCH',
-        body: JSON.stringify({ id: leadId, appointmentStatus: status }),
-      });
-      if (!res.ok) throw new Error('Update failed');
-      setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, appointmentStatus: status } : l)));
-    } catch {
-      alert('Failed to update appointment status. Please try again.');
     } finally {
       setForwardingId(null);
     }
@@ -2306,6 +2357,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     displayedLeads = displayedLeads.filter((l) =>
       callingView === 'appointments' ? !!l.isAppointment : !l.isAppointment,
     );
+    // "Pending Appointment" button: narrow the Appointments view to leads tagged
+    // with the PENDING colour (see PENDING_APPOINTMENT_COLOR).
+    if (callingView === 'appointments' && pendingApptOnly) {
+      displayedLeads = displayedLeads.filter((l) => l.rowColor === PENDING_APPOINTMENT_COLOR);
+    }
   }
   // Backend team: each bucket normally shows only its own leads. But when a filter/search
   // is active, we drop the bucket restriction so a match surfaces regardless of which tab
@@ -2348,8 +2404,28 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       </div>
 
       {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
-        <div className="flex justify-end">
+        <div className="flex flex-col items-end gap-2">
           <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
+          {isCallingDashboard && (
+            <button
+              type="button"
+              onClick={() => {
+                setPendingApptOnly((prev) => {
+                  const next = !prev;
+                  if (next) { setCallingView('appointments'); setPage(0); }
+                  return next;
+                });
+              }}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium transition-all shadow-sm border ${
+                pendingApptOnly
+                  ? 'bg-amber-500 text-white border-amber-500 hover:bg-amber-600'
+                  : 'bg-white text-amber-700 border-amber-300 hover:bg-amber-50'
+              }`}
+            >
+              <Clock className="w-4 h-4" /> Pending Appointment
+              <span className={`inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full text-xs font-semibold ${pendingApptOnly ? 'bg-white text-amber-700' : 'bg-amber-500 text-white'}`}>{pendingApptCount}</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -2357,7 +2433,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => { setCallingView('leads'); setFromDate(today); setToDate(today); setFilterOn('Created Date'); setAppointmentFromDate(''); setAppointmentToDate(''); setPage(0); }}
+            onClick={() => { setCallingView('leads'); setPendingApptOnly(false); setFromDate(today); setToDate(today); setFilterOn('Created Date'); setAppointmentFromDate(''); setAppointmentToDate(''); setPage(0); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#f0fdf4] border border-[#00843d]/30 text-[#00843d] rounded-lg text-sm font-medium hover:bg-[#dcfce7] transition-all shadow-sm"
           >
             <CalendarDays className="w-4 h-4" /> Today Lead
@@ -2365,7 +2441,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           </button>
           <button
             type="button"
-            onClick={() => { setCallingView('appointments'); setAppointmentFromDate(today); setAppointmentToDate(today); setPage(0); }}
+            onClick={() => { setCallingView('appointments'); setPendingApptOnly(false); setAppointmentFromDate(today); setAppointmentToDate(today); setPage(0); }}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-300 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100 transition-all shadow-sm"
           >
             <CalendarClock className="w-4 h-4" /> Today Appointment
@@ -2380,7 +2456,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <button
               key={view}
               type="button"
-              onClick={() => { setCallingView(view); setPage(0); }}
+              onClick={() => { setCallingView(view); if (view === 'leads') setPendingApptOnly(false); setPage(0); }}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
                 callingView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -2427,18 +2503,18 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto relative">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="bg-gradient-to-r from-[#00843d] via-[#00934a] to-[#00a651] border-b border-[#00622d]">
               <tr>
-                <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-16">No.</th>
+                <th className="text-left px-4 py-3.5 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider w-16">No.</th>
                 {columns.map((col) => (
-                  <th key={col.key} className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>
+                  <th key={col.key} className="text-left px-4 py-3.5 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider" style={col.width ? { width: col.width, minWidth: col.width } : undefined}>
                     {col.label}
                   </th>
                 ))}
                 {shouldShowExtraColumns && (
                   <>
-                    <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>
-                    <th className="text-left px-4 py-3.5 font-semibold text-slate-600 whitespace-nowrap text-xs uppercase tracking-wider w-28 sticky right-0 bg-slate-50 z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">Actions</th>
+                    <th className="text-left px-4 py-3.5 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider w-36">Assigned To</th>
+                    <th className="text-left px-4 py-3.5 font-semibold text-white whitespace-nowrap text-xs uppercase tracking-wider w-28 sticky right-0 bg-[#00934a] z-20 shadow-[-4px_0_8px_-4px_rgba(0,0,0,0.1)]">Actions</th>
                   </>
                 )}
               </tr>
@@ -2452,7 +2528,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                 displayedLeads.map((lead, index) => {
                   // Backend colour tag: fill the whole row (including the sticky
                   // Actions cell) so the colour covers the entire lead.
-                  const rowColor = isBackendDashboard ? rowColorRowClass(lead.rowColor) : '';
+                  const rowColor = (isBackendDashboard || (isCallingDashboard && callingView === 'appointments')) ? rowColorRowClass(lead.rowColor) : '';
                   // Continuous serial number across server-side pages (1-based).
                   const serialNo = page * pageSize + index + 1;
                   return (
@@ -2515,32 +2591,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                               )
                             )}
                             {isCallingDashboard && callingView === 'appointments' && (
-                              <>
-                                <button
-                                  onClick={() => handleAppointmentStatus(lead.id, 'COMPLETED')}
-                                  disabled={forwardingId === lead.id}
-                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'COMPLETED' ? 'text-white bg-emerald-500 hover:bg-emerald-600' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}
-                                  title="Mark Appointment Complete"
-                                >
-                                  <CheckCircle2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleAppointmentStatus(lead.id, 'PENDING')}
-                                  disabled={forwardingId === lead.id}
-                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'PENDING' ? 'text-white bg-amber-500 hover:bg-amber-600' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}
-                                  title="Mark Appointment Pending"
-                                >
-                                  <Clock className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleAppointmentStatus(lead.id, 'CANCELLED')}
-                                  disabled={forwardingId === lead.id}
-                                  className={`p-2 rounded-lg transition-all disabled:opacity-40 ${lead.appointmentStatus === 'CANCELLED' ? 'text-white bg-red-500 hover:bg-red-600' : 'text-slate-400 hover:text-red-600 hover:bg-red-50'}`}
-                                  title="Mark Appointment Cancelled"
-                                >
-                                  <XCircle className="w-4 h-4" />
-                                </button>
-                              </>
+                              // Colour tag for appointments (same as the Backend team) so a
+                              // lead can be highlighted with a row colour.
+                              <RowColorPicker current={lead.rowColor} onPick={(color) => handleRowColor(lead.id, color)} />
                             )}
                             {isBackendDashboard && (
                               lead.backendStatus === 'COMPLETED' ? (
