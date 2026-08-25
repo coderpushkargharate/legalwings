@@ -1497,7 +1497,7 @@ const ConfirmationModal: React.FC<ConfirmationModalProps> = ({ isOpen, title, me
 
 // ==================== TEAM SELECTION MODAL ====================
 interface TeamSelectionModalProps { isOpen: boolean; leadId: string; onSend: (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => void; onClose: () => void; restrictTeams?: boolean; excludeTeam?: string; }
-const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false, excludeTeam }) => {
+export const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, leadId, onSend, onClose, restrictTeams = false, excludeTeam }) => {
   const { apiFetch } = useApi();
   const [selectedTeam, setSelectedTeam] = useState<'CALLING' | 'EXECUTIVE' | 'BACKEND' | 'ACCOUNTING' | 'MARKETING' | 'SHOP'>('CALLING');
   const [employees, setEmployees] = useState<Employee[]>([]);

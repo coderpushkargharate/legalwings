@@ -7,14 +7,9 @@ import Link from 'next/link';
 import { Search, User, Loader2, Send, FilePlus2, UserCheck, X, Users, FileText, IndianRupee, ArrowRight, Edit, LayoutGrid, Eye } from 'lucide-react';
 import { getTeamColumns } from '@/components/team-columns';
 import type { Lead } from '@/components/leads-table';
-import TeamSelectionModal from '@/components/TeamSelectionModal';
-
-// Map the modal's transitLevel (e.g. CALLING_TEAM) to the short team key the
-// assign-team API expects (CALLING / EXECUTIVE / BACKEND / ACCOUNTING / MARKETING / SHOP).
-const toTeamKey = (transit: string) => {
-  const base = (transit || '').replace(/_TEAM$/, '').toUpperCase();
-  return base === 'ACCOUNTS' ? 'ACCOUNTING' : base;
-};
+// Reuse the exact same Forward modal the team tables use, so the design + behaviour
+// (team picker, forward reason, assign-to-employee) match everywhere.
+import { TeamSelectionModal } from '@/components/leads-table';
 
 interface Employee {
   id: string;
@@ -383,12 +378,13 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
     }
   };
 
-  // Forward the lead to a team/employee straight from User History.
-  const handleForward = async (leadId: string, team: string, employeeId?: string) => {
+  // Forward the lead to a team/employee straight from User History. Signature matches
+  // the shared TeamSelectionModal's onSend: (leadId, team, assignedToUserId?, reason?).
+  const handleForward = async (leadId: string, team: string, assignedToUserId?: string | null, reason?: string) => {
     try {
       const res = await apiFetch(`/api/leads/${leadId}/assign-team`, {
         method: 'POST',
-        body: JSON.stringify({ team: toTeamKey(team), assignedToUserId: employeeId || null }),
+        body: JSON.stringify({ team, assignedToUserId: assignedToUserId || null, reason: reason || null }),
       });
       if (!res.ok) throw new Error('Forward failed');
       setForwardLeadId(null);
