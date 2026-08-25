@@ -1,8 +1,12 @@
 'use client';
 
+// ============================================================================
+// 🔹 Billing Panel — record user payments / bills and keep a full history.
+// Extracted from the old standalone /billing page so it can live INSIDE the
+// Payment Statement page as a tab. Renders no AppShell/Header of its own.
+// ============================================================================
+
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import AppShell from '@/components/app-shell';
-import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -291,8 +295,8 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
   );
 }
 
-// ==================== MAIN PAGE ====================
-export default function BillingPage() {
+// ==================== BILLING PANEL ====================
+export default function BillingPanel() {
   const { apiFetch } = useApi();
   const { user, loading: authLoading } = useAuth();
 
@@ -355,133 +359,130 @@ export default function BillingPage() {
   ];
 
   return (
-    <AppShell>
-      <Header title="Billing" />
-      <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Header row */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-2xl font-bold text-slate-800">Billing &amp; Payments</h2>
-            <p className="text-sm text-slate-500 mt-1">Record user payments and keep a full history.</p>
+    <div className="space-y-6">
+      {/* Header row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold text-slate-800">Billing &amp; Payments</h2>
+          <p className="text-sm text-slate-500 mt-1">Record user payments and keep a full history.</p>
+        </div>
+        <button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00843d] text-white rounded-lg text-sm font-medium hover:bg-[#00622d] transition-all shadow-sm">
+          <Plus className="w-4 h-4" /> New Payment
+        </button>
+      </div>
+
+      {/* Stat cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((card) => (
+          <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-5">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{card.label}</span>
+              <div className={`w-9 h-9 ${card.bg} rounded-lg flex items-center justify-center`}>
+                <card.icon className={`w-5 h-5 ${card.color}`} />
+              </div>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">{loading ? '...' : card.value}</p>
           </div>
-          <button onClick={() => setModalOpen(true)} className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00843d] text-white rounded-lg text-sm font-medium hover:bg-[#00622d] transition-all shadow-sm">
-            <Plus className="w-4 h-4" /> New Payment
+        ))}
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white rounded-xl border border-slate-200 p-5">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="md:col-span-2 relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={searchText}
+              onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
+              placeholder="Search name, phone, bill no..."
+              className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]"
+            />
+          </div>
+          <select value={modeFilter} onChange={(e) => { setModeFilter(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]">
+            <option value="">All Modes</option>
+            {PAYMENT_MODES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
+          </select>
+          <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
+          <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
+        </div>
+        {(searchText || modeFilter || fromDate || toDate) && (
+          <button onClick={clearFilters} className="mt-3 text-xs text-slate-500 hover:text-[#00843d] flex items-center gap-1">
+            <X className="w-3.5 h-3.5" /> Clear filters
           </button>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-200 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                <th className="px-4 py-3">Bill No.</th>
+                <th className="px-4 py-3">User</th>
+                <th className="px-4 py-3">Phone</th>
+                <th className="px-4 py-3 text-right">Amount</th>
+                <th className="px-4 py-3">Mode</th>
+                <th className="px-4 py-3">Date &amp; Time</th>
+                <th className="px-4 py-3">Ref / Note</th>
+                <th className="px-4 py-3">Collected By</th>
+                <th className="px-4 py-3 text-center">Action</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {loading ? (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
+              ) : bills.length === 0 ? (
+                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                  <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-300" />
+                  No payments yet. Click <span className="font-medium">New Payment</span> to add one.
+                </td></tr>
+              ) : bills.map((b) => {
+                const meta = modeMeta(b.paymentMode);
+                return (
+                  <tr key={b.id} className="hover:bg-slate-50/60">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNo}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{b.clientName}</td>
+                    <td className="px-4 py-3 text-slate-600">{b.clientPhone || '-'}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800">{formatMoney(b.amount)}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${modeBadgeClass(b.paymentMode)}`}>
+                        <meta.icon className="w-3 h-3" /> {meta.label}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(b.paidAt)}</td>
+                    <td className="px-4 py-3 text-slate-500 max-w-[180px]">
+                      <div className="truncate">{b.transactionRef || ''}</div>
+                      <div className="truncate text-xs text-slate-400">{b.note || ''}</div>
+                      {!b.transactionRef && !b.note && '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{b.createdByUserName || '-'}</td>
+                    <td className="px-4 py-3 text-center">
+                      <button onClick={() => handleDelete(b.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
-        {/* Stat cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {statCards.map((card) => (
-            <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">{card.label}</span>
-                <div className={`w-9 h-9 ${card.bg} rounded-lg flex items-center justify-center`}>
-                  <card.icon className={`w-5 h-5 ${card.color}`} />
-                </div>
-              </div>
-              <p className="text-2xl font-bold text-slate-800">{loading ? '...' : card.value}</p>
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 text-sm">
+            <span className="text-slate-500">Page {page + 1} of {totalPages}</span>
+            <div className="flex gap-2">
+              <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">Previous</button>
+              <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">Next</button>
             </div>
-          ))}
-        </div>
-
-        {/* Filters */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5">
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
-            <div className="md:col-span-2 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-              <input
-                type="text"
-                value={searchText}
-                onChange={(e) => { setSearchText(e.target.value); setPage(0); }}
-                placeholder="Search name, phone, bill no..."
-                className="w-full pl-9 pr-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]"
-              />
-            </div>
-            <select value={modeFilter} onChange={(e) => { setModeFilter(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]">
-              <option value="">All Modes</option>
-              {PAYMENT_MODES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
-            </select>
-            <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
-            <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
           </div>
-          {(searchText || modeFilter || fromDate || toDate) && (
-            <button onClick={clearFilters} className="mt-3 text-xs text-slate-500 hover:text-[#00843d] flex items-center gap-1">
-              <X className="w-3.5 h-3.5" /> Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* Table */}
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="px-4 py-3">Bill No.</th>
-                  <th className="px-4 py-3">User</th>
-                  <th className="px-4 py-3">Phone</th>
-                  <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Mode</th>
-                  <th className="px-4 py-3">Date &amp; Time</th>
-                  <th className="px-4 py-3">Ref / Note</th>
-                  <th className="px-4 py-3">Collected By</th>
-                  <th className="px-4 py-3 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
-                ) : bills.length === 0 ? (
-                  <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">
-                    <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-300" />
-                    No payments yet. Click <span className="font-medium">New Payment</span> to add one.
-                  </td></tr>
-                ) : bills.map((b) => {
-                  const meta = modeMeta(b.paymentMode);
-                  return (
-                    <tr key={b.id} className="hover:bg-slate-50/60">
-                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNo}</td>
-                      <td className="px-4 py-3 font-medium text-slate-800">{b.clientName}</td>
-                      <td className="px-4 py-3 text-slate-600">{b.clientPhone || '-'}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-slate-800">{formatMoney(b.amount)}</td>
-                      <td className="px-4 py-3">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${modeBadgeClass(b.paymentMode)}`}>
-                          <meta.icon className="w-3 h-3" /> {meta.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(b.paidAt)}</td>
-                      <td className="px-4 py-3 text-slate-500 max-w-[180px]">
-                        <div className="truncate">{b.transactionRef || ''}</div>
-                        <div className="truncate text-xs text-slate-400">{b.note || ''}</div>
-                        {!b.transactionRef && !b.note && '-'}
-                      </td>
-                      <td className="px-4 py-3 text-slate-500">{b.createdByUserName || '-'}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button onClick={() => handleDelete(b.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between px-4 py-3 border-t border-slate-200 text-sm">
-              <span className="text-slate-500">Page {page + 1} of {totalPages}</span>
-              <div className="flex gap-2">
-                <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">Previous</button>
-                <button disabled={page + 1 >= totalPages} onClick={() => setPage((p) => p + 1)} className="px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 disabled:opacity-40 hover:bg-slate-50">Next</button>
-              </div>
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
       <NewBillModal isOpen={modalOpen} onClose={() => setModalOpen(false)} onSaved={fetchBills} />
-    </AppShell>
+    </div>
   );
 }

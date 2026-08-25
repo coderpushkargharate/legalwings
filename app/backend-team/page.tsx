@@ -6,6 +6,7 @@ import Header from '@/components/header';
 import LeadsTable from '@/components/leads-table';
 import type { Column, Lead } from '@/components/leads-table';
 import { formatDate } from '@/lib/date-utils';
+import { useAuth } from '@/components/auth-provider';
 
 const columns: Column[] = [
   {
@@ -111,6 +112,11 @@ function getStatusClass(status: string) {
 }
 
 export default function BackendTeamPage() {
+  const { user } = useAuth();
+  // Admin's Backend view hides "Add New Lead"; backend employees keep it on their
+  // own dashboard so they can still add leads.
+  const isAdmin = Array.isArray(user?.roles) && (user!.roles!.includes('admin') || user!.roles!.includes('ADMIN'));
+
   return (
     <AppShell>
       <Header title="Backend Team" />
@@ -119,7 +125,7 @@ export default function BackendTeamPage() {
           transitLevel="BACKEND_TEAM"
           title="Backend Team"
           columns={columns}
-          showAddButton={false}
+          showAddButton={!isAdmin}
         />
       </div>
     </AppShell>

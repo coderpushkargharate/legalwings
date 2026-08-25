@@ -10,9 +10,10 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Loader2, Receipt, RefreshCw } from 'lucide-react';
+import { Download, Loader2, Receipt, RefreshCw, FileText, Wallet } from 'lucide-react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
+import BillingPanel from '@/components/billing-panel';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 
@@ -114,6 +115,8 @@ export default function PaymentStatementPage() {
   const [error, setError] = useState<string | null>(null);
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  // Two views in one page: the date-wise "Statement" and the "Billing" system.
+  const [tab, setTab] = useState<'statement' | 'billing'>('statement');
 
   // Fetch ALL leads by walking through every page of the shared /api/leads API.
   const fetchAll = useCallback(async () => {
@@ -194,6 +197,26 @@ export default function PaymentStatementPage() {
     <AppShell>
       <Header title="Payment Statement" />
       <div className="p-6 space-y-4">
+        {/* Tabs: date-wise Statement | Billing system */}
+        <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
+          {([['statement', 'Statement', FileText], ['billing', 'Billing', Wallet]] as const).map(([key, label, Icon]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setTab(key)}
+              className={`flex items-center gap-2 px-6 py-2 text-sm font-medium rounded-md transition-all ${
+                tab === key ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <Icon className="w-4 h-4" /> {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'billing' ? (
+          <BillingPanel />
+        ) : (
+        <>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
           🧾 <strong>Date-wise Statement:</strong> Every recorded payment across all leads, newest date on top. Includes Token Number and downloads to Excel.
         </div>
@@ -318,6 +341,8 @@ export default function PaymentStatementPage() {
             </table>
           </div>
         </div>
+        </>
+        )}
       </div>
     </AppShell>
   );

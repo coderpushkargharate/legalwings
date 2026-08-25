@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import Link from 'next/link';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useAuth } from '@/components/auth-provider';
@@ -14,7 +13,6 @@ import {
   FileText,
   TrendingUp,
   ArrowUpRight,
-  Wallet,
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -105,7 +103,7 @@ export default function DashboardPage() {
     <AppShell>
       <Header title="Dashboard" />
       <div className="p-6 max-w-7xl mx-auto">
-        <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
+        <div className="mb-8">
           <div>
             <h2 className="text-2xl font-bold text-slate-800">Welcome back, {extendedUser?.firstName}</h2>
             <p className="text-sm text-slate-500 mt-1">Here is what is happening with your CRM today.</p>
@@ -116,13 +114,6 @@ export default function DashboardPage() {
               </p>
             )}
           </div>
-          {/* 🔹 Quick access to the Billing / Payments screen */}
-          <Link
-            href="/billing"
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#00843d] text-white rounded-lg text-sm font-medium hover:bg-[#00622d] transition-all shadow-sm"
-          >
-            <Wallet className="w-4 h-4" /> Billing / Payments
-          </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
