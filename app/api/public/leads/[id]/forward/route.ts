@@ -113,6 +113,11 @@ export async function POST(
     if (isBackend && sourceTransit) {
       newVisibleToTeams = newVisibleToTeams.filter((t) => t !== sourceTransit);
     }
+    // Symmetric rule: sending a lead FROM the Backend team back TO the Calling team
+    // removes it from the Backend team, so it shows only under Calling.
+    if (transitLevel === 'CALLING_TEAM' && sourceTransit === 'BACKEND_TEAM') {
+      newVisibleToTeams = newVisibleToTeams.filter((t) => t !== 'BACKEND_TEAM');
+    }
     set.visibleToTeams = newVisibleToTeams;
 
     await db.collection('leads').updateOne(

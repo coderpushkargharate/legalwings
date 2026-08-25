@@ -95,6 +95,16 @@ export async function POST(
       if (idx !== -1) newVisibleToTeams.splice(idx, 1);
     }
 
+    // 🔹 Symmetric business rule: when a lead is sent FROM the Backend Team back
+    // TO the Calling Team, it must disappear from the Backend Team completely and
+    // show only to the Calling Team. Backend dashboards (admin + backend employee)
+    // filter on visibleToTeams containing BACKEND_TEAM, so we drop BACKEND_TEAM
+    // from the visibility list here.
+    if (team === 'CALLING' && currentLead.transitLevel === 'BACKEND_TEAM') {
+      const idx = newVisibleToTeams.indexOf('BACKEND_TEAM');
+      if (idx !== -1) newVisibleToTeams.splice(idx, 1);
+    }
+
     // Use $set for visibleToTeams (instead of $addToSet) because we may also need to
     // remove the source team — $addToSet and $pull cannot touch the same field in one update.
     const updateObj: any = {

@@ -858,7 +858,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <label className={labelClass}>Agreement Status</label>
                   <select value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass}>
                     <option value="">Select Status</option>
-                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme', 'Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Payment + Witness Pending', 'All Pending', 'All VP Pending', 'Draft Ready', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme', 'Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 {!hideBackWorkAccount && (
@@ -1624,6 +1624,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [editLead, setEditLead] = useState<Lead | null>(null);
   // Calling team: switch between the "Leads" list and forwarded "Appointments".
   const [callingView, setCallingView] = useState<'leads' | 'appointments'>('leads');
+  // Calling team: live count of leads created today and appointments booked for today,
+  // shown as quick-summary buttons above the Lead / Appointment tabs.
+  const [todayCounts, setTodayCounts] = useState<{ leads: number; appointments: number }>({ leads: 0, appointments: 0 });
   // Backend team: All Work / Submitted / Completed buckets.
   const [backendView, setBackendView] = useState<'all' | 'submitted' | 'completed'>('all');
   const [forwardingId, setForwardingId] = useState<string | null>(null);
@@ -1894,6 +1897,34 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, callingView, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
+
+  // Calling team: fetch today's lead + appointment counts for the summary buttons.
+  // Runs independently of the main table (which shows only one view at a time) so
+  // both numbers stay accurate regardless of the active tab or filters. Re-runs
+  // whenever the table reloads so the counts stay in sync after forwards/edits.
+  useEffect(() => {
+    if (!isCallingDashboard || authLoading || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const leadsParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', fromDate: today, toDate: today, filterOn: 'Created Date' });
+        const apptParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', isAppointment: 'true', appointmentFromDate: today, appointmentToDate: today });
+        const [leadsRes, apptRes] = await Promise.all([
+          apiFetch(`/api/leads?${leadsParams.toString()}`),
+          apiFetch(`/api/leads?${apptParams.toString()}`),
+        ]);
+        const [leadsData, apptData] = await Promise.all([leadsRes.json(), apptRes.json()]);
+        if (cancelled) return;
+        setTodayCounts({
+          leads: leadsData?.leadPage?.totalElements || 0,
+          appointments: apptData?.leadPage?.totalElements || 0,
+        });
+      } catch (error) {
+        if (!cancelled) console.error('Failed to fetch today counts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isCallingDashboard, authLoading, user, transitLevel, today, apiFetch, leads]);
 
   const handleApplyFilters = () => setPage(0);
   const handleClearFilters = () => {
@@ -2319,6 +2350,27 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
         <div className="flex justify-end">
           <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
+        </div>
+      )}
+
+      {isCallingDashboard && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => { setCallingView('leads'); setFromDate(today); setToDate(today); setFilterOn('Created Date'); setAppointmentFromDate(''); setAppointmentToDate(''); setPage(0); }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#f0fdf4] border border-[#00843d]/30 text-[#00843d] rounded-lg text-sm font-medium hover:bg-[#dcfce7] transition-all shadow-sm"
+          >
+            <CalendarDays className="w-4 h-4" /> Today Lead
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-[#00843d] text-white text-xs font-semibold">{todayCounts.leads}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setCallingView('appointments'); setAppointmentFromDate(today); setAppointmentToDate(today); setPage(0); }}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-300 text-amber-700 rounded-lg text-sm font-medium hover:bg-amber-100 transition-all shadow-sm"
+          >
+            <CalendarClock className="w-4 h-4" /> Today Appointment
+            <span className="inline-flex items-center justify-center min-w-[1.5rem] h-6 px-1.5 rounded-full bg-amber-500 text-white text-xs font-semibold">{todayCounts.appointments}</span>
+          </button>
         </div>
       )}
 

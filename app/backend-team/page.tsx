@@ -119,6 +119,7 @@ export default function BackendTeamPage() {
           transitLevel="BACKEND_TEAM"
           title="Backend Team"
           columns={columns}
+          showAddButton={false}
         />
       </div>
     </AppShell>

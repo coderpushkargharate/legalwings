@@ -30,9 +30,22 @@ export async function GET(request: Request) {
 
     // Safety net: guarantee the "Cancelled" agreement status is always available
     // even if the database was seeded before it was introduced.
-    const normalizedAgreementStatuses = agreementStatuses.some(s => s.key === 'CANCELLED')
+    const withCancelled = agreementStatuses.some(s => s.key === 'CANCELLED')
       ? agreementStatuses
       : [...agreementStatuses, { key: 'CANCELLED', value: 'Cancelled', color: '#EF4444', order: 6 }];
+
+    // Extra agreement statuses used by the lead forms. `key === value` so a filter
+    // by these matches the exact string the forms save into `agreement.status`.
+    const EXTRA_AGREEMENT_STATUSES = [
+      { key: 'Payment + Witness Pending', value: 'Payment + Witness Pending', color: '#F59E0B', order: 7 },
+      { key: 'All Pending', value: 'All Pending', color: '#F59E0B', order: 8 },
+      { key: 'All VP Pending', value: 'All VP Pending', color: '#F59E0B', order: 9 },
+      { key: 'Draft Ready', value: 'Draft Ready', color: '#3B82F6', order: 10 },
+    ];
+    const normalizedAgreementStatuses = [
+      ...withCancelled,
+      ...EXTRA_AGREEMENT_STATUSES.filter(e => !withCancelled.some(s => s.key === e.key)),
+    ];
 
     return jsonResponse(request, {
       success: true,

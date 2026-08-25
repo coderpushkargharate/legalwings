@@ -1057,7 +1057,7 @@ function LeadFormContent() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
                   <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
-                    {['Owner Pending','Tenant Pending','Witness Pending','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending','Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 {/* Back Office Status is hidden for the Executive team's Add New form. */}
