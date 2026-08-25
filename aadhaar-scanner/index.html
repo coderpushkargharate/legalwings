@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Document Scanner</title>
+  <!-- OCR runs fully in the browser — no server dependency needed. -->
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; background: #f1f5f9; color: #1e293b; }
+    .wrap { max-width: 900px; margin: 30px auto; padding: 0 16px; }
+    h1 { font-size: 22px; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px; margin-bottom: 20px; }
+    .card h2 { font-size: 15px; margin: 0 0 14px; color: #334155; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    label.fld { display: block; font-size: 12px; color: #64748b; margin: 10px 0 4px; text-transform: uppercase; }
+    input, select, textarea { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-family: inherit; }
+    textarea { resize: vertical; min-height: 60px; }
+    button { padding: 8px 16px; border: none; border-radius: 8px; background: #00A651; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    button.secondary { background: #64748b; }
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .preview { max-width: 100%; max-height: 260px; border-radius: 8px; border: 1px solid #e2e8f0; margin-top: 10px; display: none; }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+    th { background: #f8fafc; font-size: 12px; text-transform: uppercase; color: #64748b; }
+    .msg { font-size: 13px; margin-top: 10px; }
+    .err { color: #dc2626; }
+    .ok { color: #15803d; }
+    .prog { height: 8px; background: #e2e8f0; border-radius: 99px; overflow: hidden; margin-top: 10px; display: none; }
+    .prog > span { display: block; height: 100%; width: 0; background: #00A651; transition: width .2s; }
+    .hint { font-size: 12px; color: #94a3b8; margin-top: 6px; }
+    .langs { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: #475569; }
+    .langs label { display: flex; align-items: center; gap: 5px; }
+    .langs input { width: auto; }
+    details { margin-top: 12px; }
+    details pre { background: #0f172a; color: #e2e8f0; padding: 10px; border-radius: 8px; font-size: 12px; white-space: pre-wrap; max-height: 220px; overflow: auto; }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 99px; background: #e0f2fe; color: #0369a1; font-size: 12px; font-weight: 600; margin-left: 8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Document Scanner <span id="docPill" class="pill" style="display:none"></span></h1>
+    <p class="hint">Upload <b>any</b> document (Aadhaar, PAN, DL, Voter ID, passport, bill…). Text in English / हिंदी / मराठी is read automatically.</p>
+
+    <!-- Step 1: Upload & scan -->
+    <div class="card">
+      <h2>1. Upload document image</h2>
+      <div class="row">
+        <input type="file" id="file" accept="image/*" />
+        <button id="scanBtn" onclick="scan()" disabled>Scan &amp; Auto-fill</button>
+      </div>
+      <div class="langs">
+        <span>Languages:</span>
+        <label><input type="checkbox" id="lng-eng" checked /> English</label>
+        <label><input type="checkbox" id="lng-hin" checked /> हिंदी</label>
+        <label><input type="checkbox" id="lng-mar" checked /> मराठी</label>
+      </div>
+      <div class="prog" id="prog"><span id="progBar"></span></div>
+      <img id="preview" class="preview" alt="preview" />
+      <div id="scanMsg" class="msg"></div>
+      <div class="hint">Clear, well-lit, straight photo works best. OCR happens in your browser (first run downloads the language data).</div>
+    </div>
+
+    <!-- Step 2: Auto-filled form -->
+    <div class="card">
+      <h2>2. Details (auto-filled — you can edit)</h2>
+      <div class="grid2">
+        <div>
+          <label class="fld">Name</label>
+          <input id="name" placeholder="Full name" />
+        </div>
+        <div>
+          <label class="fld">ID / Document Number</label>
+          <input id="idNumber" placeholder="Aadhaar / PAN / DL / etc." />
+        </div>
+        <div>
+          <label class="fld">Date of Birth</label>
+          <input id="dob" placeholder="DD/MM/YYYY" />
+        </div>
+        <div>
+          <label class="fld">Gender</label>
+          <select id="gender">
+            <option value="">—</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div>
+          <label class="fld">Phone</label>
+          <input id="phone" placeholder="Phone number" />
+        </div>
+        <div>
+          <label class="fld">Email</label>
+          <input id="email" placeholder="Email" />
+        </div>
+      </div>
+      <label class="fld">Address</label>
+      <textarea id="address" placeholder="Address (if present)"></textarea>
+      <div class="row" style="margin-top:14px">
+        <button onclick="saveRecord()">Save Record</button>
+        <button class="secondary" onclick="clearForm()">Clear</button>
+      </div>
+      <div id="saveMsg" class="msg"></div>
+    </div>
+
+    <!-- All detected fields -->
+    <div class="card">
+      <h2>All detected fields</h2>
+      <table>
+        <thead><tr><th style="width:35%">Field</th><th>Value</th></tr></thead>
+        <tbody id="detected"><tr><td colspan="2" style="color:#94a3b8">Nothing scanned yet</td></tr></tbody>
+      </table>
+      <details>
+        <summary style="cursor:pointer;font-size:12px;color:#64748b">View raw OCR text</summary>
+        <pre id="rawText">— nothing scanned yet —</pre>
+      </details>
+    </div>
+
+    <!-- Saved records -->
+    <div class="card">
+      <h2>Saved Records (<span id="count">0</span>)</h2>
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Type</th><th>Name</th><th>ID No.</th><th>DOB</th><th>Gender</th><th>Phone</th></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const API = '/api/records';
+    const fileInput = document.getElementById('file');
+    const scanBtn = document.getElementById('scanBtn');
+    let lastParsed = {};
+
+    fileInput.addEventListener('change', () => {
+      const f = fileInput.files[0];
+      const img = document.getElementById('preview');
+      if (f) {
+        img.src = URL.createObjectURL(f);
+        img.style.display = 'block';
+        scanBtn.disabled = false;
+      } else {
+        img.style.display = 'none';
+        scanBtn.disabled = true;
+      }
+    });
+
+    function chosenLangs() {
+      const langs = [];
+      if (document.getElementById('lng-eng').checked) langs.push('eng');
+      if (document.getElementById('lng-hin').checked) langs.push('hin');
+      if (document.getElementById('lng-mar').checked) langs.push('mar');
+      return langs.length ? langs.join('+') : 'eng';
+    }
+
+    // ---- OCR + parse ----
+    async function scan() {
+      const f = fileInput.files[0];
+      if (!f) return;
+      const msg = document.getElementById('scanMsg');
+      const prog = document.getElementById('prog');
+      const bar = document.getElementById('progBar');
+
+      scanBtn.disabled = true;
+      prog.style.display = 'block';
+      msg.className = 'msg';
+      msg.textContent = 'Reading image… (first run downloads language data, please wait)';
+
+      try {
+        const { data } = await Tesseract.recognize(f, chosenLangs(), {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              bar.style.width = Math.round(m.progress * 100) + '%';
+            }
+          },
+        });
+        const text = data.text || '';
+        document.getElementById('rawText').textContent = text || '— empty —';
+
+        const parsed = parseDocument(text);
+        lastParsed = parsed;
+        applyToForm(parsed);
+        renderDetected(parsed);
+        showDocType(parsed.docType);
+
+        const filled = ['name', 'idNumber', 'dob', 'gender', 'phone', 'email', 'address']
+          .filter((k) => parsed[k]);
+        msg.className = 'msg ok';
+        msg.textContent = (parsed.docType ? '📄 ' + parsed.docType + ' detected. ' : '') +
+          (filled.length
+            ? '✔ Auto-filled: ' + filled.join(', ') + '. Please verify below.'
+            : '⚠ Fields not clear — check "All detected fields" or fill manually.');
+      } catch (e) {
+        msg.className = 'msg err';
+        msg.textContent = '✖ OCR failed: ' + (e.message || e);
+      } finally {
+        prog.style.display = 'none';
+        bar.style.width = '0';
+        scanBtn.disabled = false;
+      }
+    }
+
+    // Generic parser: works across many Indian document types.
+    function parseDocument(text) {
+      const out = {
+        docType: '', name: '', idNumber: '', dob: '', gender: '',
+        phone: '', email: '', address: '', extra: {},
+      };
+      const clean = text.replace(/\r/g, '');
+      const upper = clean.toUpperCase();
+      const lines = clean.split('\n').map((l) => l.trim()).filter(Boolean);
+
+      // --- Guess document type ---
+      if (/INCOME TAX|PERMANENT ACCOUNT|आयकर/i.test(clean)) out.docType = 'PAN Card';
+      else if (/DRIVING LICEN[CS]E|सारथी|परिवहन/i.test(clean)) out.docType = 'Driving License';
+      else if (/ELECTION|ELECTORAL|मतदार|voter/i.test(clean)) out.docType = 'Voter ID';
+      else if (/PASSPORT|पासपोर्ट/i.test(clean)) out.docType = 'Passport';
+      else if (/AADHAAR|आधार|UNIQUE IDENTIFICATION|UIDAI|\b\d{4}\s\d{4}\s\d{4}\b/i.test(clean)) out.docType = 'Aadhaar Card';
+
+      // --- ID / document number (pattern per type, plus generic fallback) ---
+      const pan = clean.match(/\b([A-Z]{5}\d{4}[A-Z])\b/);
+      const aadhaar = clean.match(/\b(\d{4}\s\d{4}\s\d{4})\b/) || clean.match(/\b(\d{12})\b/);
+      const dl = clean.match(/\b([A-Z]{2}\d{2}\s?\d{11})\b/);
+      const passport = clean.match(/\b([A-Z]\d{7})\b/);
+      if (out.docType === 'PAN Card' && pan) out.idNumber = pan[1];
+      else if (out.docType === 'Aadhaar Card' && aadhaar)
+        out.idNumber = aadhaar[1].replace(/\D/g, '').replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3');
+      else if (out.docType === 'Driving License' && dl) out.idNumber = dl[1];
+      else if (out.docType === 'Passport' && passport) out.idNumber = passport[1];
+      else out.idNumber = (aadhaar && aadhaar[1].replace(/\D/g, '').replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3'))
+        || (pan && pan[1]) || (passport && passport[1]) || (dl && dl[1]) || '';
+
+      // --- DOB / date ---
+      const dobMatch = clean.match(/(?:DOB|D\.?O\.?B|Date of Birth|जन्म ?तारीख|जन्मतारीख|जन्म ?दिनांक)\s*[:\-]?\s*(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})/i);
+      const yobMatch = clean.match(/(?:Year of Birth|YOB|जन्म ?वर्ष)\s*[:\-]?\s*(\d{4})/i);
+      const loneDate = clean.match(/\b(\d{2}[\/\-.]\d{2}[\/\-.]\d{4})\b/);
+      if (dobMatch) out.dob = dobMatch[1].replace(/[.\-]/g, '/');
+      else if (loneDate) out.dob = loneDate[1].replace(/[.\-]/g, '/');
+      else if (yobMatch) out.dob = yobMatch[1];
+
+      // --- Gender (English / Hindi / Marathi) ---
+      if (/\b(female|महिला|स्त्री)\b/i.test(clean)) out.gender = 'Female';
+      else if (/\b(male|पुरुष)\b/i.test(clean)) out.gender = 'Male';
+      else if (/\b(transgender|other|इतर|अन्य)\b/i.test(clean)) out.gender = 'Other';
+
+      // --- Phone (Indian 10-digit, not part of the Aadhaar block) ---
+      const phone = clean.match(/(?:\+91[\s-]?)?\b([6-9]\d{9})\b/);
+      if (phone && !(out.idNumber && out.idNumber.replace(/\D/g, '').includes(phone[1]))) {
+        out.phone = phone[1];
+      }
+
+      // --- Email ---
+      const email = clean.match(/[\w.+-]+@[\w-]+\.[\w.-]+/);
+      if (email) out.email = email[0];
+
+      // --- PIN code ---
+      const pin = clean.match(/\b(\d{6})\b/);
+      if (pin && pin[1] !== (out.idNumber || '').replace(/\D/g, '').slice(0, 6)) {
+        out.extra['PIN Code'] = pin[1];
+      }
+
+      // --- Name: prefer a "Name:" label, else the English line above DOB/gender ---
+      const labelName = clean.match(/(?:Name|नाव|नाम)\s*[:\-]\s*([A-Za-z][A-Za-z .]{2,40})/);
+      if (labelName) {
+        out.name = labelName[1].replace(/\s+/g, ' ').trim();
+      } else {
+        const anchorIdx = lines.findIndex((l) =>
+          /(DOB|Date of Birth|Year of Birth|Male|Female|पुरुष|महिला|जन्म)/i.test(l));
+        const from = anchorIdx > 0 ? anchorIdx - 1 : lines.length - 1;
+        for (let i = from; i >= 0; i--) {
+          const cand = lines[i];
+          if (/^[A-Za-z][A-Za-z .]{3,40}$/.test(cand) &&
+              cand.split(/\s+/).length >= 2 &&
+              !/government|india|male|female|father|husband|address|unique|identification|authority|income|tax|department|election|licence|license|transport/i.test(cand)) {
+            out.name = cand.replace(/\s+/g, ' ').trim();
+            break;
+          }
+        }
+      }
+
+      // --- Address: text after an "Address" label, a few lines ---
+      const addrIdx = lines.findIndex((l) => /(address|पत्ता|पता)/i.test(l));
+      if (addrIdx !== -1) {
+        const chunk = lines.slice(addrIdx, addrIdx + 4)
+          .join(' ')
+          .replace(/^(address|पत्ता|पता)\s*[:\-]?\s*/i, '')
+          .trim();
+        if (chunk) out.address = chunk;
+      }
+
+      return out;
+    }
+
+    function applyToForm(p) {
+      const set = (id, v) => { if (v) document.getElementById(id).value = v; };
+      set('name', p.name);
+      set('idNumber', p.idNumber);
+      set('dob', p.dob);
+      set('gender', p.gender);
+      set('phone', p.phone);
+      set('email', p.email);
+      set('address', p.address);
+    }
+
+    function showDocType(t) {
+      const pill = document.getElementById('docPill');
+      if (t) { pill.textContent = t; pill.style.display = 'inline-block'; }
+      else pill.style.display = 'none';
+    }
+
+    function renderDetected(p) {
+      const rows = [];
+      const push = (k, v) => { if (v) rows.push([k, v]); };
+      push('Document Type', p.docType);
+      push('Name', p.name);
+      push('ID / Document No.', p.idNumber);
+      push('Date of Birth', p.dob);
+      push('Gender', p.gender);
+      push('Phone', p.phone);
+      push('Email', p.email);
+      push('Address', p.address);
+      Object.entries(p.extra || {}).forEach(([k, v]) => push(k, v));
+
+      const tbody = document.getElementById('detected');
+      tbody.innerHTML = rows.length
+        ? rows.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td>${esc(v)}</td></tr>`).join('')
+        : '<tr><td colspan="2" style="color:#94a3b8">No structured fields detected — see raw OCR text</td></tr>';
+    }
+
+    // ---- Save & list ----
+    async function saveRecord() {
+      const body = {
+        docType: (lastParsed && lastParsed.docType) || '',
+        name: document.getElementById('name').value,
+        idNumber: document.getElementById('idNumber').value,
+        dob: document.getElementById('dob').value,
+        gender: document.getElementById('gender').value,
+        phone: document.getElementById('phone').value,
+        email: document.getElementById('email').value,
+        address: document.getElementById('address').value,
+        fields: (lastParsed && lastParsed.extra) || {},
+      };
+      const res = await fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const msg = document.getElementById('saveMsg');
+      if (res.ok) {
+        msg.className = 'msg ok';
+        msg.textContent = '✔ ' + data.message + ' (id ' + data.record.id + ')';
+        clearForm();
+        loadRecords();
+      } else {
+        msg.className = 'msg err';
+        msg.textContent = '✖ ' + data.error;
+      }
+    }
+
+    function clearForm() {
+      ['name', 'idNumber', 'dob', 'phone', 'email', 'address'].forEach((id) => (document.getElementById(id).value = ''));
+      document.getElementById('gender').value = '';
+    }
+
+    async function loadRecords() {
+      const res = await fetch(API);
+      const data = await res.json();
+      const tbody = document.getElementById('rows');
+      document.getElementById('count').textContent = data.count || 0;
+      if (!data.records || !data.records.length) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:#94a3b8;padding:20px">No records yet</td></tr>';
+        return;
+      }
+      tbody.innerHTML = data.records.map((r) => `
+        <tr>
+          <td>${r.id}</td>
+          <td>${esc(r.docType)}</td>
+          <td>${esc(r.name)}</td>
+          <td>${esc(r.idNumber)}</td>
+          <td>${esc(r.dob)}</td>
+          <td>${esc(r.gender)}</td>
+          <td>${esc(r.phone)}</td>
+        </tr>`).join('');
+    }
+
+    function esc(s) {
+      return String(s || '').replace(/[&<>"]/g, (c) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+
+    loadRecords();
+  </script>
+</body>
+</html>
