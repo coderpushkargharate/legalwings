@@ -276,6 +276,9 @@ export async function GET(request: Request) {
     }
     if (paymentDate) filter['payment.paymentDate'] = paymentDate;
     if (isAppointment === 'true') filter.isAppointment = true;
+    // `false` = the Leads list: everything NOT forwarded to Appointments
+    // (isAppointment is false or was never set).
+    else if (isAppointment === 'false') filter.isAppointment = { $ne: true };
 
     // Marketing filters
     if (executeDate) filter['agreement.executeDate'] = executeDate;

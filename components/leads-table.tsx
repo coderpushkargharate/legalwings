@@ -1615,8 +1615,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [executiveSearch, setExecutiveSearch] = useState('');
   // Calling dashboard: keep only the common filters visible, tuck the rest behind a toggle.
   const [showMoreFilters, setShowMoreFilters] = useState(false);
-  const [fromDate, setFromDate] = useState(today);
-  const [toDate, setToDate] = useState(today);
+  // Default to empty so NO date filter is applied on load — the table shows all
+  // data until the user picks a date range and clicks Apply. (Previously these
+  // defaulted to `today`, which silently filtered every dashboard to today's rows.)
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   const [filterOn, setFilterOn] = useState('Created Date');
   const [appointmentFromDate, setAppointmentFromDate] = useState('');
   const [appointmentToDate, setAppointmentToDate] = useState('');
@@ -1858,6 +1861,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           // disappears once the date rolls over (default Created Date range = today).
           params.set('isAppointment', 'true');
         } else {
+          // Leads tab: exclude leads that were forwarded to Appointments so the
+          // server count/pagination matches the list the user actually sees.
+          params.set('isAppointment', 'false');
           if (fromDate) params.set('fromDate', fromDate);
           if (toDate) params.set('toDate', toDate);
           if (filterOn) params.set('filterOn', filterOn);
@@ -1958,7 +1964,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     let cancelled = false;
     (async () => {
       try {
-        const leadsParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', fromDate: today, toDate: today, filterOn: 'Created Date' });
+        const leadsParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', fromDate: today, toDate: today, filterOn: 'Created Date', isAppointment: 'false' });
         const apptParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', isAppointment: 'true', appointmentFromDate: today, appointmentToDate: today });
         // Pending Appointment = ALL appointment leads (every date), so no date filter.
         const allApptParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', isAppointment: 'true' });
@@ -1984,8 +1990,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
   const handleApplyFilters = () => setPage(0);
   const handleClearFilters = () => {
-    setFromDate(today);
-    setToDate(today);
+    setFromDate('');
+    setToDate('');
     setFilterOn('Created Date');
     setAppointmentFromDate('');
     setAppointmentToDate('');
@@ -2446,7 +2452,21 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <button
               key={view}
               type="button"
-              onClick={() => { setCallingView(view); if (view === 'leads') setPendingApptOnly(false); setPage(0); }}
+              onClick={() => {
+                setCallingView(view);
+                setPage(0);
+                if (view === 'leads') {
+                  // "Lead" tab = ALL leads, every date. Clear any date range a quick
+                  // button (e.g. "Today Lead") may have set so nothing is auto-filtered.
+                  setPendingApptOnly(false);
+                  setFromDate('');
+                  setToDate('');
+                } else {
+                  // "Appointment" tab = ALL appointments, every date.
+                  setAppointmentFromDate('');
+                  setAppointmentToDate('');
+                }
+              }}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
                 callingView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
