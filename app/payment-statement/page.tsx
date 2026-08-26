@@ -16,7 +16,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Loader2, Receipt, RefreshCw, FileText, Wallet, Check, X as XIcon, IndianRupee } from 'lucide-react';
+import { Download, Loader2, Receipt, RefreshCw, FileText, Wallet, Check, X as XIcon, IndianRupee, Users } from 'lucide-react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import BillingPanel from '@/components/billing-panel';
@@ -240,6 +240,8 @@ export default function PaymentStatementPage() {
   }, [allRows, fromDate, toDate]);
 
   const total = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows]);
+  // Distinct leads that have payments in the current view (a lead may have several payments).
+  const totalLeads = useMemo(() => new Set(rows.map((r) => r.leadId)).size, [rows]);
 
   // "Today" totals — always based on ALL rows (independent of the date filter).
   const { todayCollected, todayOnline } = useMemo(() => {
@@ -257,10 +259,10 @@ export default function PaymentStatementPage() {
   // Excel export — same rows & order as shown on screen.
   const handleExport = useCallback(() => {
     const exportData = rows.map((r, i) => ({
+      'Lead No': i + 1,
       'Lead Date': formatDate(r.leadDate),
       'Appointment Date': formatDate(r.appointmentDate),
       'Token Number': r.tokenNo,
-      'Lead No': i + 1,
       'Lead Name': r.leadName,
       Phone: r.phone,
       'Payer Name': r.payerName,
@@ -277,7 +279,7 @@ export default function PaymentStatementPage() {
     XLSX.writeFile(wb, `Payment_Statement_${new Date().toISOString().split('T')[0]}.xlsx`);
   }, [rows]);
 
-  const th = 'px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap';
+  const th = 'px-4 py-3.5 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap';
   const td = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';
   const COLS = 13;
 
@@ -362,7 +364,7 @@ export default function PaymentStatementPage() {
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs text-slate-500 mb-1">Today Collected</p>
             <p className="text-xl font-semibold text-[#00843d] flex items-center gap-1">
@@ -373,6 +375,12 @@ export default function PaymentStatementPage() {
             <p className="text-xs text-slate-500 mb-1">Today Received Online</p>
             <p className="text-xl font-semibold text-blue-600 flex items-center gap-1">
               <IndianRupee className="w-4 h-4" /> {formatINR(todayOnline)}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs text-slate-500 mb-1">Total Leads</p>
+            <p className="text-xl font-semibold text-slate-800 flex items-center gap-2">
+              <Users className="w-5 h-5 text-[#00843d]" /> {totalLeads}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
@@ -391,12 +399,12 @@ export default function PaymentStatementPage() {
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full">
-              <thead className="bg-slate-50 border-b border-slate-200">
+              <thead className="bg-gradient-to-r from-[#00843d] via-[#0d9488] to-[#0e7490] border-b border-[#00622d]">
                 <tr>
+                  <th className={th}>Lead No</th>
                   <th className={th}>Lead Date</th>
                   <th className={th}>Appointment Date</th>
                   <th className={th}>Token Number</th>
-                  <th className={th}>Lead No</th>
                   <th className={th}>Lead Name</th>
                   <th className={th}>Phone No</th>
                   <th className={th}>Payer Name</th>
@@ -425,11 +433,14 @@ export default function PaymentStatementPage() {
                   </tr>
                 ) : (
                   rows.map((r, i) => (
-                    <tr key={`${r.leadId}-${r.paymentIndex}`} className="hover:bg-slate-50 transition-colors">
+                    <tr
+                      key={`${r.leadId}-${r.paymentIndex}`}
+                      className={`transition-colors ${r.verified ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-slate-50'}`}
+                    >
+                      <td className={`${td} font-medium`}>{i + 1}</td>
                       <td className={td}>{formatDate(r.leadDate)}</td>
                       <td className={td}>{formatDate(r.appointmentDate)}</td>
                       <td className={`${td} font-medium`}>{r.tokenNo}</td>
-                      <td className={td}>{i + 1}</td>
                       <td className={td}>{r.leadName}</td>
                       <td className={td}>{r.phone}</td>
                       <td className={td}>{r.payerName}</td>
