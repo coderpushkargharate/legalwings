@@ -369,8 +369,18 @@ export async function GET(request: Request) {
     const pageSize = parseInt(searchParams.get('pageSize') || '20');
 
     const total = await db.collection('leads').countDocuments(filter);
+    // Omit the large base64 file blobs from the LIST response — they can be several
+    // MB per lead and make reloads slow. The table doesn't render them inline; the
+    // View modal and the Files dropdown fetch the full lead by id when needed.
     const leads = await db.collection('leads')
-      .find(filter)
+      .find(filter, {
+        projection: {
+          'agreement.fileData': 0,
+          'agreement.agreementFile': 0,
+          'agreement.pvrFileData': 0,
+          'agreement.otherFileData': 0,
+        },
+      })
       .sort({ createdAt: -1 })
       .skip(page * pageSize)
       .limit(pageSize)

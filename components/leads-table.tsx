@@ -432,12 +432,35 @@ const RowColorPicker: React.FC<{ current?: string; onPick: (color: string) => vo
 };
 
 // Dropdown listing a lead's uploaded files with download links (Backend team).
+// The leads LIST no longer ships the base64 file blobs (kept reloads fast), so the
+// full lead — including the blobs — is fetched by id the first time the dropdown opens.
 const FilesDropdown: React.FC<{ lead: Lead }> = ({ lead }) => {
+  const { apiFetch } = useApi();
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
+  const [fullLead, setFullLead] = useState<Lead | null>(null);
+  const [loadingFiles, setLoadingFiles] = useState(false);
+
+  useEffect(() => {
+    if (!open || fullLead || loadingFiles) return;
+    // If the row already carries file data (e.g. just edited in this session), reuse it.
+    const ag = lead.agreement;
+    if (ag?.fileData || ag?.agreementFile || ag?.pvrFileData || ag?.otherFileData) {
+      setFullLead(lead);
+      return;
+    }
+    setLoadingFiles(true);
+    apiFetch(`/api/leads?id=${lead.id}`)
+      .then((r) => r.json())
+      .then((d) => setFullLead(d))
+      .catch(() => setFullLead(lead))
+      .finally(() => setLoadingFiles(false));
+  }, [open, fullLead, loadingFiles, lead, apiFetch]);
+
+  const source = fullLead || lead;
   const files = [
-    { data: lead.agreement?.fileData || lead.agreement?.agreementFile, name: lead.agreement?.fileName || lead.agreement?.agreementFileName || 'agreement', label: 'Agreement File' },
-    { data: lead.agreement?.pvrFileData, name: lead.agreement?.pvrFileName || 'pvr-file', label: 'PVR File' },
-    { data: lead.agreement?.otherFileData, name: lead.agreement?.otherFileName || 'other-file', label: 'Other File' },
+    { data: source.agreement?.fileData || source.agreement?.agreementFile, name: source.agreement?.fileName || source.agreement?.agreementFileName || 'agreement', label: 'Agreement File' },
+    { data: source.agreement?.pvrFileData, name: source.agreement?.pvrFileName || 'pvr-file', label: 'PVR File' },
+    { data: source.agreement?.otherFileData, name: source.agreement?.otherFileName || 'other-file', label: 'Other File' },
   ].filter((f) => !!f.data);
   return (
     <>
@@ -446,7 +469,9 @@ const FilesDropdown: React.FC<{ lead: Lead }> = ({ lead }) => {
       </button>
       {open && pos && typeof document !== 'undefined' && createPortal(
         <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-xl w-48">
-          {files.length === 0 ? (
+          {loadingFiles ? (
+            <div className="px-2 py-2 text-xs text-slate-400 text-center flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
+          ) : files.length === 0 ? (
             <div className="px-2 py-2 text-xs text-slate-400 text-center">No files uploaded</div>
           ) : files.map((f, i) => (
             <a key={i} href={f.data} download={f.name} className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md transition-colors">
