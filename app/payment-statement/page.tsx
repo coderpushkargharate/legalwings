@@ -107,6 +107,11 @@ const personName = (p?: Person): string =>
 // Normalised Cash / Online label for the "Mode" column.
 const modeLabel = (mode?: string): string => (isOnlineMode(mode) ? 'Online' : 'Cash');
 
+// Collector / Receiver value shown in the statement — uses the saved value if the
+// user edited it, otherwise auto-fills from the executive so the column is never blank.
+const effectiveCollector = (r: StatementRow): string =>
+  r.collectorReceiver || (r.executiveName && r.executiveName !== '-' ? r.executiveName : '');
+
 // Page numbers to render in the pagination bar (0-based; -1 = ellipsis gap).
 // Keeps first, last, current and one neighbour each side for direct jumping.
 const buildPageList = (current: number, total: number): number[] => {
@@ -316,7 +321,7 @@ export default function PaymentStatementPage() {
       'Mode (Cash/Online)': modeLabel(r.mode),
       'Transaction No/Cash': isOnlineMode(r.mode) ? r.transactionNumber : 'Cash',
       Amount: r.amount,
-      'Collector / Receiver': r.collectorReceiver || '-',
+      'Collector / Receiver': effectiveCollector(r) || '-',
       'Executive Name': r.executiveName,
       Verify: r.verified ? 'Yes' : 'No',
     }));
@@ -513,7 +518,7 @@ export default function PaymentStatementPage() {
                       <td className={td}>
                         <input
                           key={`${r.leadId}-${r.paymentIndex}-cr`}
-                          defaultValue={r.collectorReceiver}
+                          defaultValue={effectiveCollector(r)}
                           onBlur={(e) => {
                             const v = e.target.value.trim();
                             if (v !== (r.collectorReceiver || '')) savePaymentField(r.leadId, r.paymentIndex, { collectorReceiver: v });

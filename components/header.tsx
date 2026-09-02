@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
 import { useApi } from '@/components/api-client';
 import { Bell, Search, LogOut, Loader2, X, FileText } from 'lucide-react';
+import InstallAppButton from '@/components/install-app-button';
 
 interface SearchLead {
   id: string;
@@ -156,6 +157,9 @@ export default function Header({ title }: { title?: string }) {
       <div className="flex items-center gap-4">
         {/* Global lead search */}
         <HeaderSearch />
+
+        {/* Install as an app (PWA) — visible on every panel */}
+        <InstallAppButton />
 
         {/* Notifications */}
         <button className="relative p-2 text-slate-400 hover:text-slate-600 transition-colors">

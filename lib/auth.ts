@@ -11,8 +11,11 @@ export interface JWTPayload {
   team?: string;
 }
 
+// 30-day sessions: a logged-in user keeps seeing data across days without having
+// to log in again. They only need to re-auth after 30 days of the token sitting
+// unused, or when they explicitly log out.
 export function signToken(payload: JWTPayload): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '24h' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
 export function verifyToken(token: string): JWTPayload | null {

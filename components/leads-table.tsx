@@ -345,12 +345,12 @@ const getStatusBadge = (status?: string): React.ReactNode => {
 // Backend team's row-colour tags. The `row` shades are kept a bit darker so a tagged
 // lead stands out clearly against the plain white rows.
 const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] = [
-  { key: 'red', label: 'Red', swatch: 'bg-red-500', row: 'bg-red-200' },
-  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-700', row: 'bg-green-300' },
-  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-300', row: 'bg-emerald-200' },
-  { key: 'orange', label: 'Orange', swatch: 'bg-orange-500', row: 'bg-orange-200' },
-  { key: 'yellow', label: 'Yellow', swatch: 'bg-yellow-400', row: 'bg-yellow-200' },
-  { key: 'purple', label: 'Purple', swatch: 'bg-purple-500', row: 'bg-purple-200' },
+  { key: 'red', label: 'Red', swatch: 'bg-red-600', row: 'bg-red-500' },
+  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-800', row: 'bg-green-700' },
+  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-500', row: 'bg-emerald-500' },
+  { key: 'orange', label: 'Orange', swatch: 'bg-orange-600', row: 'bg-orange-500' },
+  { key: 'yellow', label: 'Yellow', swatch: 'bg-amber-500', row: 'bg-amber-500' },
+  { key: 'purple', label: 'Purple', swatch: 'bg-purple-600', row: 'bg-purple-500' },
 ];
 const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
 
@@ -2011,7 +2011,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     let cancelled = false;
     (async () => {
       try {
-        const leadsParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', fromDate: today, toDate: today, filterOn: 'Created Date', isAppointment: 'false' });
+        // Today Lead count = EVERY lead created today, including ones already forwarded
+        // to Appointments (so the total stays 5 even after 3 are moved to appointments).
+        const leadsParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', fromDate: today, toDate: today, filterOn: 'Created Date' });
         const apptParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', isAppointment: 'true', appointmentFromDate: today, appointmentToDate: today });
         // Pending Appointment = ALL appointment leads (every date), so no date filter.
         const allApptParams = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', isAppointment: 'true' });
@@ -2311,7 +2313,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       return (
         <>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Owner / Tenant Name</label><input type="text" placeholder="Search owner or tenant" value={ownerTenantName} onChange={(e) => setOwnerTenantName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Search All</label><input type="text" placeholder="Name, owner/tenant, token, status, phone, email, GRN, DHC…" value={ownerTenantName} onChange={(e) => setOwnerTenantName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Agreement Status</label><select value={agreementStatus} onChange={(e) => setAgreementStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.agreementStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Back Office Status</label><select value={backOfficeStatus} onChange={(e) => setBackOfficeStatus(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm"><option value="">All</option>{dropdowns.backOfficeStatuses.map((s) => <option key={s.key} value={s.key}>{s.value}</option>)}</select></div>
@@ -2375,7 +2377,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <div className="space-y-1.5"><label className="block text-xs font-medium text-slate-500 uppercase tracking-wider">Token No.</label><input type="text" placeholder="Token number" value={tokenNumber} onChange={(e) => setTokenNumber(e.target.value)} className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
           </div>
           <div className="flex flex-col sm:flex-row gap-3 items-end pt-2 border-t border-slate-100">
-            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search by name, phone, token..." value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
+            <div className="relative flex-1 max-w-xs"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" /><input type="text" placeholder="Search all — name, phone, email, token, status, address…" value={searchText} onChange={(e) => setSearchText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleApplyFilters()} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm" /></div>
             <div className="flex gap-2 w-full sm:w-auto">
               <button onClick={handleApplyFilters} className="flex-1 sm:flex-none px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
               <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
@@ -2589,7 +2591,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                   // Continuous serial number across server-side pages (1-based).
                   const serialNo = page * pageSize + index + 1;
                   return (
-                  <tr key={lead.id} className={`transition-colors ${rowColor || 'hover:bg-slate-50/80'}`}>
+                  <tr key={lead.id} className={`transition-colors ${rowColor ? `${rowColor} [&>td]:text-white` : 'hover:bg-slate-50/80'}`}>
                     <td className="px-4 py-3 text-slate-500 whitespace-nowrap align-middle font-medium">{serialNo}</td>
                     {columns.map((col) => (
                       <td key={col.key} className="px-4 py-3 text-slate-700 whitespace-nowrap align-middle truncate max-w-xs" title={typeof col.render?.(lead) === 'string' ? col.render?.(lead) as string : ''}>

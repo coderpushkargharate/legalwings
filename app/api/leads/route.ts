@@ -230,14 +230,33 @@ export async function GET(request: Request) {
     // Backend filters
     if (ownerName) filter['agreement.owner.firstName'] = { $regex: ownerName, $options: 'i' };
     if (tenantName) filter['agreement.tenant.firstName'] = { $regex: tenantName, $options: 'i' };
-    // Merged Owner/Tenant name search — matches either party's first or last name.
+    // Backend "search all" box — one input that matches across every column shown on
+    // the Backend team table: name, owner/tenant name, token, statuses, phones, emails,
+    // GRN/DHC, commission & execute dates and the assigned/creating executive.
     if (ownerTenantName) {
       const ot = escapeRegex(ownerTenantName);
+      const rx = { $regex: ot, $options: 'i' };
       addOrGroup(andConditions, [
-        { 'agreement.owner.firstName': { $regex: ot, $options: 'i' } },
-        { 'agreement.owner.lastName': { $regex: ot, $options: 'i' } },
-        { 'agreement.tenant.firstName': { $regex: ot, $options: 'i' } },
-        { 'agreement.tenant.lastName': { $regex: ot, $options: 'i' } },
+        { 'client.firstName': rx },
+        { 'client.lastName': rx },
+        { 'client.email': rx },
+        { 'agreement.owner.firstName': rx },
+        { 'agreement.owner.lastName': rx },
+        { 'agreement.owner.phoneNo': rx },
+        { 'agreement.owner.email': rx },
+        { 'agreement.tenant.firstName': rx },
+        { 'agreement.tenant.lastName': rx },
+        { 'agreement.tenant.phoneNo': rx },
+        { 'agreement.tenant.email': rx },
+        { 'agreement.tokenNo': rx },
+        { 'agreement.status': rx },
+        { 'agreement.backOfficeStatus': rx },
+        { 'agreement.executeDate': rx },
+        { 'payment.grnNumber': rx },
+        { 'payment.dhcNumber': rx },
+        { 'payment.commissionDate': rx },
+        { assignedToUserName: rx },
+        { createdByUserName: rx },
       ]);
     }
     if (tokenNumber) filter['agreement.tokenNo'] = { $regex: tokenNumber, $options: 'i' };
@@ -351,17 +370,42 @@ export async function GET(request: Request) {
         },
       });
       addOrGroup(andConditions, [
+        // Client / lead
         { 'client.firstName': { $regex: st, $options: 'i' } },
         { 'client.lastName': { $regex: st, $options: 'i' } },
         { 'client.phoneNo': { $regex: st, $options: 'i' } },
+        { 'client.email': { $regex: st, $options: 'i' } },
+        { 'client.clientType': { $regex: st, $options: 'i' } },
+        { 'client.cityName': { $regex: st, $options: 'i' } },
+        { 'client.areaName': { $regex: st, $options: 'i' } },
+        { 'city.name': { $regex: st, $options: 'i' } },
+        { 'area.name': { $regex: st, $options: 'i' } },
+        { leadStatus: { $regex: st, $options: 'i' } },
+        { leadSource: { $regex: st, $options: 'i' } },
+        { visitAddress: { $regex: st, $options: 'i' } },
+        { description: { $regex: st, $options: 'i' } },
+        { assignedToUserName: { $regex: st, $options: 'i' } },
+        { createdByUserName: { $regex: st, $options: 'i' } },
+        // Agreement
         { 'agreement.tokenNo': { $regex: st, $options: 'i' } },
         { 'agreement.mobileNo': { $regex: st, $options: 'i' } },
+        { 'agreement.status': { $regex: st, $options: 'i' } },
+        { 'agreement.backOfficeStatus': { $regex: st, $options: 'i' } },
+        { 'agreement.executeDate': { $regex: st, $options: 'i' } },
+        { 'agreement.addressLine1': { $regex: st, $options: 'i' } },
+        { 'agreement.addressLine2': { $regex: st, $options: 'i' } },
+        { 'agreement.description': { $regex: st, $options: 'i' } },
         { 'agreement.owner.firstName': { $regex: st, $options: 'i' } },
         { 'agreement.owner.lastName': { $regex: st, $options: 'i' } },
         { 'agreement.owner.phoneNo': { $regex: st, $options: 'i' } },
+        { 'agreement.owner.email': { $regex: st, $options: 'i' } },
         { 'agreement.tenant.firstName': { $regex: st, $options: 'i' } },
         { 'agreement.tenant.lastName': { $regex: st, $options: 'i' } },
         { 'agreement.tenant.phoneNo': { $regex: st, $options: 'i' } },
+        { 'agreement.tenant.email': { $regex: st, $options: 'i' } },
+        // Payment
+        { 'payment.grnNumber': { $regex: st, $options: 'i' } },
+        { 'payment.dhcNumber': { $regex: st, $options: 'i' } },
         // Full-name matches (First + Last) for client, owner and tenant.
         fullName('client.firstName', 'client.lastName'),
         fullName('agreement.owner.firstName', 'agreement.owner.lastName'),

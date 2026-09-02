@@ -1,7 +1,7 @@
 // src/components/auth-provider.tsx
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 
 export interface User {
@@ -58,8 +58,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // 🔹 Login function
-  const login = async (email: string, password: string) => {
+  // 🔹 Login function (stable identity so downstream memoized callbacks don't churn)
+  const login = useCallback(async (email: string, password: string) => {
     try {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
@@ -75,28 +75,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(data.user);
       localStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data.user));
-      
+
       router.push('/dashboard');
     } catch (error) {
       console.error('Login error:', error);
       throw error;
     }
-  };
+  }, [router]);
 
-  // 🔹 Logout function
-  const logout = () => {
+  // 🔹 Logout function (stable identity — used by the API client's 401 handler)
+  const logout = useCallback(() => {
     setToken(null);
     setUser(null);
     localStorage.removeItem(STORAGE_KEYS.TOKEN);
     localStorage.removeItem(STORAGE_KEYS.USER);
-    
+
     if (typeof window !== 'undefined') {
       router.push('/login');
     }
-  };
+  }, [router]);
 
   // 🔹 Refresh user data (optional utility)
-  const refreshUser = () => {
+  const refreshUser = useCallback(() => {
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem(STORAGE_KEYS.USER);
       if (storedUser) {
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     }
-  };
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, token, loading, login, logout, refreshUser }}>

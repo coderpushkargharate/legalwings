@@ -65,6 +65,17 @@ const columns: Column[] = [
     },
   },
   {
+    key: 'agreementStatus',
+    label: 'Agreement Status',
+    width: '150px',
+    render: (lead: Lead) => {
+      const s = lead.agreement?.status || '-';
+      if (s === '-') return <span className="text-slate-400">-</span>;
+      const cls = getStatusClass(s);
+      return <span className={`px-2 py-0.5 rounded-full text-xs font-medium border ${cls}`}>{s}</span>;
+    },
+  },
+  {
     key: 'createdBy',
     label: 'Created By',
     width: '140px',

@@ -82,6 +82,7 @@ interface AgreementFormData {
   addressLine2: string;
   agreementStatus: string;
   backOfficeStatus: string;
+  description?: string;
   ownerFirstName: string;
   ownerLastName: string;
   ownerEmail: string;
@@ -361,7 +362,7 @@ function LeadFormContent() {
 
   const [agreement, setAgreement] = useState<AgreementFormData>({
     tokenNumber: '', periodDays: '', agreementStartDate: '', agreementEndDate: '', addressLine1: '', addressLine2: '',
-    agreementStatus: '', backOfficeStatus: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
+    agreementStatus: '', backOfficeStatus: '', description: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
     ownerContact: '', ownerAadhar: '', ownerPan: '', ownerBirthDate: '',
     tenantFirstName: '', tenantLastName: '', tenantEmail: '', tenantContact: '',
     tenantAadhar: '', tenantPan: '', tenantBirthDate: '',
@@ -489,6 +490,7 @@ function LeadFormContent() {
               agreementEndDate: data.agreement.agreementEndDate || '', addressLine1: data.agreement.addressLine1 || '',
               addressLine2: data.agreement.addressLine2 || '', agreementStatus: data.agreement.status || '',
               backOfficeStatus: data.agreement.backOfficeStatus || '',
+              description: data.agreement.description || '',
               ownerFirstName: data.agreement.owner?.firstName || '', ownerLastName: data.agreement.owner?.lastName || '',
               ownerEmail: data.agreement.owner?.email || '', ownerContact: data.agreement.owner?.phoneNo || '',
               ownerAadhar: data.agreement.owner?.aadharNumber || '', ownerPan: data.agreement.owner?.panNumber || '',
@@ -736,6 +738,7 @@ function LeadFormContent() {
         body: JSON.stringify({
           leadId: currentLeadId, tokenNo: agreement.tokenNumber, periodDays: agreement.periodDays, agreementStartDate: agreement.agreementStartDate,
           agreementEndDate: agreement.agreementEndDate, status: agreement.agreementStatus, backOfficeStatus: agreement.backOfficeStatus,
+          description: agreement.description,
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
@@ -1057,8 +1060,12 @@ function LeadFormContent() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
                   <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
-                    {['Owner Pending','Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending','Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Govt. Submit pending','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                </div>
+                <div className="md:col-span-3">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                  <textarea value={agreement.description || ''} onChange={(e) => updateAgreement('description', e.target.value)} disabled={!isEditable} placeholder="Agreement description / notes" rows={3} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-y" id="agreement-description" />
                 </div>
                 {/* Back Office Status is hidden for the Executive team's Add New form. */}
                 {transitLevel !== 'EXECUTIVE_TEAM' && transitLevel !== 'EXECUTIVE' && (
