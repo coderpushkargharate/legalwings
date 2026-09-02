@@ -12,7 +12,13 @@ export async function POST(request: Request) {
     }
 
     const { db } = await connectToDatabase();
-    const user = await db.collection('users').findOne({ email });
+    // Case-insensitive email lookup — accounts are stored lowercased, so match
+    // regardless of how the user typed their email (avoids "wrong password" errors
+    // caused purely by letter case).
+    const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const user = await db.collection('users').findOne({
+      email: { $regex: new RegExp(`^${escapedEmail}$`, 'i') },
+    });
 
     if (!user) {
       return NextResponse.json({ error: 'Invalid email or password' }, { status: 401 });

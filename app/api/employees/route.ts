@@ -202,12 +202,18 @@ export async function PUT(request: Request) {
     }
 
     // Keep the denormalised name on this employee's leads in sync so tables/exports
-    // don't show a stale name after an edit.
+    // everywhere show the new name — for both leads ASSIGNED to and CREATED by them.
     const fullName = `${firstName} ${lastName || ''}`.trim();
-    await db.collection('leads').updateMany(
-      { $or: [{ assignedToUserId: employeeId }, { assignedToUserId: id }] },
-      { $set: { assignedToUserName: fullName } },
-    );
+    await Promise.all([
+      db.collection('leads').updateMany(
+        { $or: [{ assignedToUserId: employeeId }, { assignedToUserId: id }] },
+        { $set: { assignedToUserName: fullName } },
+      ),
+      db.collection('leads').updateMany(
+        { $or: [{ createdByUserId: id }, { createdByUserId: employeeId }] },
+        { $set: { createdByUserName: fullName } },
+      ),
+    ]);
 
     return NextResponse.json({
       success: true,
