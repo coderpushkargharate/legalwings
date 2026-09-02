@@ -137,6 +137,100 @@ export async function POST(request: Request) {
   }
 }
 
+export async function PUT(request: Request) {
+  const token = getTokenFromHeaders(request);
+  if (!token || !verifyToken(token)) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { db } = await connectToDatabase();
+    const body = await request.json();
+    const { id, firstName, lastName, email, password, team } = body;
+
+    if (!id || !ObjectId.isValid(id)) {
+      return NextResponse.json({ error: 'Valid Employee ID required' }, { status: 400 });
+    }
+    if (!firstName || !email || !team) {
+      return NextResponse.json({
+        error: 'Missing required fields',
+        required: ['firstName', 'email', 'team'],
+      }, { status: 400 });
+    }
+
+    const employeeId = new ObjectId(id);
+
+    // Email must stay unique — allow the employee's own current email through.
+    const existing = await db.collection('users').findOne({
+      email: { $regex: new RegExp(`^${email}$`, 'i') },
+      _id: { $ne: employeeId },
+    });
+    if (existing) {
+      return NextResponse.json({ error: 'Email already exists' }, { status: 409 });
+    }
+
+    const roleMap: Record<string, string> = {
+      'Calling': 'calling',
+      'Executive': 'executive',
+      'Backend': 'backend',
+      'Accounts': 'accounting',
+      'Accounting': 'accounting',
+      'Marketing': 'marketing',
+      'Shop': 'shop',
+    };
+    const teamRole = roleMap[team] || team.toLowerCase();
+
+    const update: Record<string, unknown> = {
+      firstName,
+      lastName: lastName || '',
+      email: email.toLowerCase(),
+      team,
+      roles: ['employee', teamRole],
+      updatedAt: new Date(),
+    };
+    // Only change the password when a new one is actually provided.
+    if (password && password.trim()) {
+      update.password = await bcrypt.hash(password, 12);
+    }
+
+    const result = await db.collection('users').updateOne(
+      { _id: employeeId },
+      { $set: update },
+    );
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Employee not found' }, { status: 404 });
+    }
+
+    // Keep the denormalised name on this employee's leads in sync so tables/exports
+    // don't show a stale name after an edit.
+    const fullName = `${firstName} ${lastName || ''}`.trim();
+    await db.collection('leads').updateMany(
+      { $or: [{ assignedToUserId: employeeId }, { assignedToUserId: id }] },
+      { $set: { assignedToUserName: fullName } },
+    );
+
+    return NextResponse.json({
+      success: true,
+      message: 'Employee updated successfully',
+      employee: {
+        id,
+        firstName,
+        lastName: lastName || '',
+        email: email.toLowerCase(),
+        team,
+        roles: ['employee', teamRole],
+        passwordChanged: !!(password && password.trim()),
+      },
+    });
+  } catch (error) {
+    console.error('Employee PUT error:', error);
+    return NextResponse.json({
+      error: 'Failed to update employee',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    }, { status: 500 });
+  }
+}
+
 export async function DELETE(request: Request) {
   const token = getTokenFromHeaders(request);
   if (!token || !verifyToken(token)) {

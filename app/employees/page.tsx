@@ -3,7 +3,7 @@ import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
-import { Plus, Trash2, Search, X, Loader2, Mail, User, Calendar, Building2, Filter } from 'lucide-react';
+import { Plus, Trash2, Pencil, Search, X, Loader2, Mail, User, Calendar, Building2, Filter } from 'lucide-react';
 
 interface Employee {
   id: string;
@@ -19,6 +19,9 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  // null = creating a new employee; an id = editing that employee.
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', password: '', team: 'Calling' });
   const [search, setSearch] = useState('');
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -64,34 +67,62 @@ export default function EmployeesPage() {
     return () => clearTimeout(timer);
   }, [search]);
 
-  const handleCreate = async () => {
-    if (!form.firstName.trim() || !form.email.trim() || !form.password.trim()) {
+  const emptyForm = { firstName: '', lastName: '', email: '', password: '', team: 'Calling' };
+
+  const openCreate = () => {
+    setEditingId(null);
+    setForm(emptyForm);
+    setShowModal(true);
+  };
+
+  const openEdit = (emp: Employee) => {
+    setEditingId(emp.id);
+    // Password stays blank on edit — only changed if the admin types a new one.
+    setForm({ firstName: emp.firstName, lastName: emp.lastName, email: emp.email, password: '', team: emp.team });
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setEditingId(null);
+    setForm(emptyForm);
+  };
+
+  const handleSave = async () => {
+    // Password is required only when creating; on edit it's optional (blank = keep current).
+    if (!form.firstName.trim() || !form.email.trim() || (!editingId && !form.password.trim())) {
       alert('Please fill in all required fields');
       return;
     }
-    
+
+    setSaving(true);
     try {
       const res = await apiFetch('/api/employees', {
-        method: 'POST',
-        body: JSON.stringify(form),
+        method: editingId ? 'PUT' : 'POST',
+        body: JSON.stringify(editingId ? { id: editingId, ...form } : form),
       });
-      if (!res.ok) throw new Error('Failed');
-      
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed');
+      }
+
       const result = await res.json();
-      const newEmployee = result.employee || result;
-      
+      const saved = result.employee || result;
+
       startTransition(() => {
-        setEmployees(prev => {
-          if (prev.some(e => e.id === newEmployee.id)) return prev;
-          return [newEmployee, ...prev];
-        });
+        setEmployees(prev =>
+          editingId
+            ? prev.map(e => (e.id === editingId ? { ...e, ...saved } : e))
+            : prev.some(e => e.id === saved.id) ? prev : [saved, ...prev],
+        );
       });
-      
-      setShowModal(false);
-      setForm({ firstName: '', lastName: '', email: '', password: '', team: 'Calling' });
-    } catch (error) {
-      console.error('Create error:', error);
-      alert('Failed to create employee.');
+
+      closeModal();
+    } catch (error: any) {
+      console.error('Save error:', error);
+      alert(error?.message || `Failed to ${editingId ? 'update' : 'create'} employee.`);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -197,8 +228,8 @@ export default function EmployeesPage() {
               </button>
             )}
             
-            <button 
-              onClick={() => setShowModal(true)} 
+            <button
+              onClick={openCreate}
               className="ml-auto flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors flex-shrink-0"
             >
               <Plus className="w-4 h-4" /> Add Employee
@@ -231,8 +262,8 @@ export default function EmployeesPage() {
               <Filter className="w-4 h-4" />
               Filters {teamFilter && `(${teamFilter})`}
             </button>
-            <button 
-              onClick={() => setShowModal(true)} 
+            <button
+              onClick={openCreate}
               className="px-4 py-2.5 bg-teal-600 text-white rounded-xl text-sm font-medium hover:bg-teal-700 transition-colors flex-shrink-0 shadow-sm active:scale-[0.98]"
             >
               <Plus className="w-4 h-4" />
@@ -322,18 +353,28 @@ export default function EmployeesPage() {
                       {new Date(emp.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' })}
                     </td>
                     <td className="px-4 py-3">
-                      <button 
-                        onClick={() => handleDelete(emp.id)} 
-                        disabled={deletingId === emp.id || isPending}
-                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                        aria-label="Delete employee"
-                      >
-                        {deletingId === emp.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-4 h-4" />
-                        )}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEdit(emp)}
+                          className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                          aria-label="Edit employee"
+                          title="Edit name, email, team or password"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(emp.id)}
+                          disabled={deletingId === emp.id || isPending}
+                          className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          aria-label="Delete employee"
+                        >
+                          {deletingId === emp.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -375,18 +416,27 @@ export default function EmployeesPage() {
                       </span>
                     </div>
                   </div>
-                  <button 
-                    onClick={() => handleDelete(emp.id)} 
-                    disabled={deletingId === emp.id || isPending}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-                    aria-label="Delete employee"
-                  >
-                    {deletingId === emp.id ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-4 h-4" />
-                    )}
-                  </button>
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <button
+                      onClick={() => openEdit(emp)}
+                      className="p-2 text-slate-400 hover:text-teal-600 hover:bg-teal-50 rounded-lg transition-colors"
+                      aria-label="Edit employee"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(emp.id)}
+                      disabled={deletingId === emp.id || isPending}
+                      className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Delete employee"
+                    >
+                      {deletingId === emp.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
                 
                 <div className="space-y-2 pt-2 border-t border-slate-100">
@@ -408,13 +458,13 @@ export default function EmployeesPage() {
         {showModal && (
           <div 
             className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 backdrop-blur-sm animate-in fade-in duration-200"
-            onClick={(e) => e.target === e.currentTarget && setShowModal(false)}
+            onClick={(e) => e.target === e.currentTarget && closeModal()}
           >
             <div className="bg-white rounded-t-2xl sm:rounded-xl w-full sm:max-w-md max-h-[90vh] overflow-y-auto shadow-2xl animate-in slide-in-from-bottom-4 sm:zoom-in-95 duration-200">
               <div className="sticky top-0 bg-white/95 backdrop-blur-sm p-4 sm:p-6 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-lg font-semibold text-slate-800">Add New Employee</h3>
-                <button 
-                  onClick={() => { setShowModal(false); setForm({ firstName: '', lastName: '', email: '', password: '', team: 'Calling' }); }}
+                <h3 className="text-lg font-semibold text-slate-800">{editingId ? 'Edit Employee' : 'Add New Employee'}</h3>
+                <button
+                  onClick={closeModal}
                   className="p-2 text-slate-400 hover:text-slate-600 rounded-lg transition-colors -mr-2"
                   aria-label="Close modal"
                 >
@@ -459,14 +509,19 @@ export default function EmployeesPage() {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
-                  <input 
-                    type="password" 
-                    value={form.password} 
-                    onChange={e => setForm({...form, password: e.target.value})} 
-                    placeholder="••••••••" 
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all" 
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    {editingId ? 'New Password' : 'Password *'}
+                  </label>
+                  <input
+                    type="password"
+                    value={form.password}
+                    onChange={e => setForm({...form, password: e.target.value})}
+                    placeholder={editingId ? 'Leave blank to keep current password' : '••••••••'}
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition-all"
                   />
+                  {editingId && (
+                    <p className="mt-1 text-xs text-slate-400">Only enter a value here if you want to change this employee&apos;s password.</p>
+                  )}
                 </div>
                 
                 <div>
@@ -487,23 +542,23 @@ export default function EmployeesPage() {
               </div>
               
               <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm p-4 sm:p-6 border-t border-slate-100 flex justify-end gap-3">
-                <button 
-                  onClick={() => { setShowModal(false); setForm({ firstName: '', lastName: '', email: '', password: '', team: 'Calling' }); }} 
+                <button
+                  onClick={closeModal}
                   className="px-4 py-2.5 text-sm text-slate-600 hover:text-slate-800 transition-colors font-medium"
                 >
                   Cancel
                 </button>
-                <button 
-                  onClick={handleCreate} 
-                  disabled={isPending || !form.firstName.trim() || !form.email.trim() || !form.password.trim()}
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !form.firstName.trim() || !form.email.trim() || (!editingId && !form.password.trim())}
                   className="px-4 py-2.5 bg-teal-600 text-white rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors disabled:opacity-70 disabled:cursor-not-allowed flex items-center gap-2 min-w-[100px] justify-center"
                 >
-                  {isPending ? (
+                  {saving ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin" /> Creating...
+                      <Loader2 className="w-4 h-4 animate-spin" /> {editingId ? 'Saving...' : 'Creating...'}
                     </>
                   ) : (
-                    'Create Employee'
+                    editingId ? 'Save Changes' : 'Create Employee'
                   )}
                 </button>
               </div>
