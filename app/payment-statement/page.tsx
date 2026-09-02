@@ -49,6 +49,7 @@ interface Lead {
   createdDate?: string;
   appointmentTime?: string;
   assignedToUserName?: string | null;
+  createdByUserName?: string | null;
   paymentDetails?: PaymentDetail[];
 }
 
@@ -144,7 +145,9 @@ const buildRows = (leads: Lead[]): StatementRow[] => {
     const tenantName = personName(lead.agreement?.tenant);
     const leadDate = lead.leadDate || lead.createdDate || '';
     const appointmentDate = lead.appointmentTime || '';
-    const executiveName = lead.assignedToUserName || '-';
+    // Auto-fill the executive: prefer the specifically-assigned user, otherwise fall
+    // back to whoever created the lead (so this column is never left blank).
+    const executiveName = lead.assignedToUserName || lead.createdByUserName || '-';
     const details = lead.paymentDetails || [];
     details.forEach((p, idx) => {
       const amount = toNum(p.paymentAmount);
@@ -488,7 +491,7 @@ export default function PaymentStatementPage() {
                   pagedRows.map((r, i) => (
                     <tr
                       key={`${r.leadId}-${r.paymentIndex}`}
-                      className={`transition-colors ${r.verified ? 'bg-emerald-50 hover:bg-emerald-100' : 'hover:bg-slate-50'}`}
+                      className={`transition-colors ${r.verified ? 'bg-orange-400 hover:bg-orange-500' : 'hover:bg-slate-50'}`}
                     >
                       <td className={`${td} font-medium`}>{safePage * ROWS_PER_PAGE + i + 1}</td>
                       <td className={td}>{formatDate(r.leadDate)}</td>
@@ -526,7 +529,7 @@ export default function PaymentStatementPage() {
                           onClick={() => savePaymentField(r.leadId, r.paymentIndex, { verified: !r.verified })}
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                             r.verified
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                              ? 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
                               : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                           }`}
                           title="Click to toggle verification"
