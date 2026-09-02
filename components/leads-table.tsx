@@ -1622,6 +1622,22 @@ export const TeamSelectionModal: React.FC<TeamSelectionModalProps> = ({ isOpen, 
   );
 };
 
+// Build the list of page numbers to render in the pagination bar. Returns 0-based
+// page indices with `-1` marking an ellipsis gap. Always keeps the first & last
+// page, plus the current page and one neighbour on each side, so the user can jump
+// straight to any nearby page (or the ends) without paging one-by-one.
+const buildPageList = (current: number, total: number): number[] => {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i);
+  const pages = [0, total - 1, current, current - 1, current + 1];
+  const sorted = Array.from(new Set(pages)).filter((p) => p >= 0 && p < total).sort((a, b) => a - b);
+  const out: number[] = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) out.push(-1); // ellipsis gap
+    out.push(sorted[i]);
+  }
+  return out;
+};
+
 // ==================== MAIN LEADS TABLE COMPONENT ====================
 interface LeadsTableProps { transitLevel: string; title: string; columns?: Column[]; showAddButton?: boolean; onSendToBackend?: (leadId: string) => void; filterFn?: (lead: Lead) => boolean; exportRows?: (leads: Lead[]) => Record<string, any>[]; exportSheetName?: string; exportFileName?: string; }
 export default function LeadsTable({ transitLevel, title, columns: customColumns, showAddButton = true, filterFn, exportRows, exportSheetName, exportFileName }: LeadsTableProps) {
@@ -1936,6 +1952,12 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (dhcNo) params.set('dhcNo', dhcNo);
         if (commissionAmount) params.set('commissionAmount', commissionAmount);
         if (assignedEmployeeFilter) params.set('assignedToUserId', assignedEmployeeFilter);
+        // Filter by the active tab server-side (so pages stay a full 20). Skipped when
+        // a specific search filter is active — those span every tab, like before.
+        const backendServerSearchActive = !!(ownerTenantName || tokenNumber || agreementStatus || backOfficeStatus || grnNo || dhcNo || commissionAmount || assignedEmployeeFilter);
+        if (!backendServerSearchActive) {
+          params.set('backendStatus', backendView === 'submitted' ? 'SUBMITTED' : backendView === 'completed' ? 'COMPLETED' : 'ALL_WORK');
+        }
       }
       if (isAccountingDashboard) {
         if (fromDate) params.set('fromDate', fromDate);
@@ -1976,7 +1998,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     } finally {
       setLoading(false);
     }
-  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, callingView, pendingApptOnly, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard]);
+  }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, callingView, pendingApptOnly, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard, backendView]);
 
   useEffect(() => { fetchLeads(); }, [fetchLeads]);
 
@@ -2508,7 +2530,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <button
               key={view}
               type="button"
-              onClick={() => setBackendView(view)}
+              onClick={() => { setBackendView(view); setPage(0); }}
               className={`px-6 py-2 text-sm font-medium rounded-md transition-all ${
                 backendView === view ? 'bg-white text-[#00843d] shadow-sm' : 'text-slate-500 hover:text-slate-700'
               }`}
@@ -2689,6 +2711,24 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             <p className="text-xs text-slate-500 font-medium">Showing page {page + 1} of {totalPages}</p>
             <div className="flex items-center gap-1">
               <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0} className="p-2 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200"><ChevronLeft className="w-4 h-4" /></button>
+              {buildPageList(page, totalPages).map((p, i) =>
+                p === -1 ? (
+                  <span key={`gap-${i}`} className="px-2 text-slate-400 select-none">…</span>
+                ) : (
+                  <button
+                    key={p}
+                    onClick={() => setPage(p)}
+                    aria-current={p === page ? 'page' : undefined}
+                    className={`min-w-[2rem] px-2.5 py-1.5 text-sm font-medium rounded-lg border transition-all ${
+                      p === page
+                        ? 'bg-[#00843d] text-white border-[#00843d] shadow-sm'
+                        : 'text-slate-600 bg-white border-slate-200 hover:bg-slate-100 hover:text-slate-800'
+                    }`}
+                  >
+                    {p + 1}
+                  </button>
+                ),
+              )}
               <button onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-2 text-slate-500 hover:text-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg hover:bg-white transition-all border border-transparent hover:border-slate-200"><ChevronRight className="w-4 h-4" /></button>
             </div>
           </div>

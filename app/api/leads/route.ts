@@ -151,6 +151,9 @@ export async function GET(request: Request) {
     const tokenNumber = searchParams.get('tokenNumber');
     const agreementStatus = searchParams.get('agreementStatus');
     const backOfficeStatus = searchParams.get('backOfficeStatus');
+    // Backend team tab (All Work / Submitted / Completed) — filtered server-side so
+    // each page returns a full 20 matching leads instead of the tab reducing the count.
+    const backendStatus = searchParams.get('backendStatus');
     const grnNo = searchParams.get('grnNo');
     const dhcNo = searchParams.get('dhcNo');
     const commissionDate = searchParams.get('commissionDate');
@@ -240,6 +243,10 @@ export async function GET(request: Request) {
     if (tokenNumber) filter['agreement.tokenNo'] = { $regex: tokenNumber, $options: 'i' };
     if (agreementStatus) filter['agreement.status'] = agreementStatus;
     if (backOfficeStatus) filter['agreement.backOfficeStatus'] = backOfficeStatus;
+    // "All Work" = leads not yet forwarded (Submitted/Completed); $nin also matches
+    // leads where backendStatus was never set. Otherwise an exact status match.
+    if (backendStatus === 'ALL_WORK') filter.backendStatus = { $nin: ['SUBMITTED', 'COMPLETED'] };
+    else if (backendStatus) filter.backendStatus = backendStatus;
     if (grnNo) filter['payment.grnNumber'] = { $regex: grnNo, $options: 'i' };
     if (dhcNo) filter['payment.dhcNumber'] = { $regex: dhcNo, $options: 'i' };
     if (commissionDate) filter['payment.commissionDate'] = commissionDate;
