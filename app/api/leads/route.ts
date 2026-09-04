@@ -423,18 +423,31 @@ export async function GET(request: Request) {
     // Omit the large base64 file blobs from the LIST response — they can be several
     // MB per lead and make reloads slow. The table doesn't render them inline; the
     // View modal and the Files dropdown fetch the full lead by id when needed.
+    //
+    // Default order = "most recently arrived in THIS team first". A lead reaches a
+    // team two ways: it was created there (`createdAt`) or forwarded/assigned in later
+    // (`forwardedAt`, set by assign-team). Sorting purely by `createdAt` buried an OLD
+    // lead that was just forwarded to (e.g.) the Backend team deep in the list, forcing
+    // the user to hunt for it. Sorting by the LATER of the two floats a just-forwarded
+    // lead to serial #1 on page 1, regardless of how old it is — while a still-active
+    // sort/filter (appointmentSort in the table) can re-order on top of this.
     const leads = await db.collection('leads')
-      .find(filter, {
-        projection: {
-          'agreement.fileData': 0,
-          'agreement.agreementFile': 0,
-          'agreement.pvrFileData': 0,
-          'agreement.otherFileData': 0,
+      .aggregate([
+        { $match: filter },
+        { $addFields: { _listSortAt: { $max: [{ $ifNull: ['$forwardedAt', '$createdAt'] }, '$createdAt'] } } },
+        { $sort: { _listSortAt: -1 } },
+        { $skip: page * pageSize },
+        { $limit: pageSize },
+        {
+          $project: {
+            'agreement.fileData': 0,
+            'agreement.agreementFile': 0,
+            'agreement.pvrFileData': 0,
+            'agreement.otherFileData': 0,
+            _listSortAt: 0,
+          },
         },
-      })
-      .sort({ createdAt: -1 })
-      .skip(page * pageSize)
-      .limit(pageSize)
+      ], { allowDiskUse: true })
       .toArray();
 
     return NextResponse.json({
