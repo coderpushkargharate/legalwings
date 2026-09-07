@@ -51,6 +51,12 @@ interface Lead {
   assignedToUserName?: string | null;
   createdByUserName?: string | null;
   paymentDetails?: PaymentDetail[];
+  forwardedHistory?: Array<{
+    fromTeam?: string;
+    toTeam?: string;
+    forwardedBy?: string;
+    forwardedAt?: string;
+  }>;
 }
 
 // One flattened statement row = one payment.
@@ -104,6 +110,21 @@ const leadName = (lead: Lead): string =>
 const personName = (p?: Person): string =>
   `${p?.firstName || ''} ${p?.lastName || ''}`.trim() || '-';
 
+// The executive who actually worked the lead (and collected/received the payment).
+// The executive team collects payments, but once a lead is forwarded on to the Backend
+// team `assignedToUserName` becomes the BACKEND employee — which is NOT who we want here.
+// So we read the most recent forwardedHistory entry whose fromTeam is the Executive team
+// (i.e. the executive who forwarded it onward). If the lead never left the Executive team
+// (or was never in it) we fall back to the assigned user, then the creator — never blank.
+const executiveFor = (lead: Lead): string => {
+  const hist = lead.forwardedHistory || [];
+  for (let i = hist.length - 1; i >= 0; i--) {
+    const h = hist[i];
+    if (h?.fromTeam === 'EXECUTIVE_TEAM' && h.forwardedBy) return h.forwardedBy;
+  }
+  return lead.assignedToUserName || lead.createdByUserName || '-';
+};
+
 // Normalised Cash / Online label for the "Mode" column.
 const modeLabel = (mode?: string): string => (isOnlineMode(mode) ? 'Online' : 'Cash');
 
@@ -150,9 +171,9 @@ const buildRows = (leads: Lead[]): StatementRow[] => {
     const tenantName = personName(lead.agreement?.tenant);
     const leadDate = lead.leadDate || lead.createdDate || '';
     const appointmentDate = lead.appointmentTime || '';
-    // Auto-fill the executive: prefer the specifically-assigned user, otherwise fall
-    // back to whoever created the lead (so this column is never left blank).
-    const executiveName = lead.assignedToUserName || lead.createdByUserName || '-';
+    // Executive = the Executive-team member who worked this lead (see executiveFor).
+    // This also auto-fills the Collector / Receiver column via effectiveCollector().
+    const executiveName = executiveFor(lead);
     const details = lead.paymentDetails || [];
     details.forEach((p, idx) => {
       const amount = toNum(p.paymentAmount);

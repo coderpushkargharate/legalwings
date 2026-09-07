@@ -434,7 +434,20 @@ export async function GET(request: Request) {
     const leads = await db.collection('leads')
       .aggregate([
         { $match: filter },
-        { $addFields: { _listSortAt: { $max: [{ $ifNull: ['$forwardedAt', '$createdAt'] }, '$createdAt'] } } },
+        // Normalise the "arrived in THIS team" timestamp before sorting. Legacy leads
+        // can store createdAt/forwardedAt as ISO STRINGS while newer ones store real
+        // Date objects, and MongoDB's mixed-type comparison (String < Date) otherwise
+        // scrambles the order — burying a just-forwarded OLD lead deep in the list.
+        // $convert coerces both candidates to real dates first; we then PREFER the
+        // forward time so a lead just forwarded into this team lands at serial #1,
+        // regardless of how old it is, falling back to when it was created.
+        {
+          $addFields: {
+            _sortForwardedAt: { $convert: { input: '$forwardedAt', to: 'date', onError: null, onNull: null } },
+            _sortCreatedAt: { $convert: { input: { $ifNull: ['$createdAt', '$createdDate'] }, to: 'date', onError: null, onNull: null } },
+          },
+        },
+        { $addFields: { _listSortAt: { $ifNull: ['$_sortForwardedAt', '$_sortCreatedAt'] } } },
         { $sort: { _listSortAt: -1 } },
         { $skip: page * pageSize },
         { $limit: pageSize },
@@ -445,6 +458,8 @@ export async function GET(request: Request) {
             'agreement.pvrFileData': 0,
             'agreement.otherFileData': 0,
             _listSortAt: 0,
+            _sortForwardedAt: 0,
+            _sortCreatedAt: 0,
           },
         },
       ], { allowDiskUse: true })

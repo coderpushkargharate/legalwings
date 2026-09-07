@@ -1,0 +1,1 @@
+- [Team workflow semantics](team-workflow-semantics.md) — who "worked" a lead (executive collects payment), forwarding, and list ordering (forwarded lead → serial #1)
