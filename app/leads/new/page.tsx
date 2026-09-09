@@ -67,6 +67,7 @@ interface LeadFormData {
   amount: string;
   lastFollowUpDate: string;
   nextFollowUpDate: string;
+  callingDescription: string;
   tentativeAgreementDate: string;
   cityId: string;
   areaId: string;
@@ -355,7 +356,7 @@ function LeadFormContent() {
     firstName: '', lastName: '', email: '', contactNumber: '', clientType: 'OWNER',
     leadSource: '', leadStatus: 'NEW_LEAD', description: '', visitAddress: '',
     appointmentTime: '', referenceName: '', referenceNumber: '', amount: '',
-    lastFollowUpDate: '', nextFollowUpDate: '', tentativeAgreementDate: '', 
+    lastFollowUpDate: '', nextFollowUpDate: '', callingDescription: '', tentativeAgreementDate: '',
     cityId: '', areaId: '',
     leadDate: '',
   });
@@ -477,7 +478,8 @@ function LeadFormContent() {
             visitAddress: data.visitAddress || '', appointmentTime: data.appointmentTime || '',
             referenceName: data.referenceName || '', referenceNumber: data.referenceNumber || '',
             amount: data.amount || '', lastFollowUpDate: data.lastFollowUpDate || '',
-            nextFollowUpDate: data.nextFollowUpDate || '', tentativeAgreementDate: data.tentativeAgreementDate || '',
+            nextFollowUpDate: data.nextFollowUpDate || '', callingDescription: data.callingDescription || '',
+            tentativeAgreementDate: data.tentativeAgreementDate || '',
             cityId: data.city?.id || '', areaId: data.area?.id || '',
             leadDate: data.leadDate || '',
           });
@@ -967,6 +969,10 @@ function LeadFormContent() {
               </div>
               <DateField label="Last FollowUp Date" value={lead.lastFollowUpDate} onChange={(v) => updateLead('lastFollowUpDate', v)} isEditable={isEditable} id="lead-lastFollowUpDate" />
               <DateField label="Next FollowUp Date" value={lead.nextFollowUpDate} onChange={(v) => updateLead('nextFollowUpDate', v)} isEditable={isEditable} id="lead-nextFollowUpDate" />
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-slate-700 mb-1">Calling Description</label>
+                <textarea value={lead.callingDescription} onChange={(e) => updateLead('callingDescription', e.target.value)} disabled={!isEditable} placeholder="Calling notes / discussion summary" rows={2} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all resize-y" id="lead-callingDescription" />
+              </div>
             </div>
             {isEditable && (
               <div className="flex justify-end gap-3 mt-6">

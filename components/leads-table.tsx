@@ -158,6 +158,8 @@ interface Lead {
   forwardReason?: string;
   // Backend team: optional colour tag used to highlight a lead's row.
   rowColor?: string;
+  // Calling team: free-text notes captured beside the Next Follow Up date.
+  callingDescription?: string;
 }
 interface Employee {
   id: string;
@@ -596,6 +598,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         description: lead.description,
         nextFollowUpDate: lead.nextFollowUpDate,
         lastFollowUpDate: lead.lastFollowUpDate,
+        callingDescription: lead.callingDescription,
         assignedToUserId: lead.assignedToUserId,
         assignedToUserName: lead.assignedToUserName,
         cancellationReason: lead.cancellationReason,
@@ -851,6 +854,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
               <div><label className={labelClass}>Last FollowUp Date</label><DateInput value={formData.lastFollowUpDate} onChange={(iso) => handleInputChange('general', 'lastFollowUpDate', iso)} className={inputClass} /></div>
               <div><label className={labelClass}>Next FollowUp Date</label><DateInput value={formData.nextFollowUpDate} onChange={(iso) => handleInputChange('general', 'nextFollowUpDate', iso)} className={inputClass} /></div>
+              <div className="md:col-span-2"><label className={labelClass}>Calling Description</label><textarea value={formData.callingDescription || ''} onChange={(e) => handleInputChange('general', 'callingDescription', e.target.value)} rows={2} placeholder="Calling notes / discussion summary" className={`${inputClass} resize-y`} /></div>
             </div>
           </div>
         )}
@@ -1263,6 +1267,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Area" value={lead.client?.areaName || lead.area?.name || '-'} icon={MapPinned} />
                     <InfoItem label="Last FollowUp" value={formatDate(lead.lastFollowUpDate)} icon={CalendarDays} />
                     <InfoItem label="Next FollowUp" value={formatDate(lead.nextFollowUpDate)} icon={CalendarDays} />
+                    <InfoItem label="Calling Description" value={lead.callingDescription || '-'} multiline />
                     <InfoItem label="Created By" value={lead.createdByUserName || '-'} />
                     <InfoItem label="Created Date" value={formatDate(lead.createdDate)} icon={CalendarDays} />
                     <InfoItem label="Assigned To" value={lead.assignedToUserName || 'Team Only'} icon={User} />
@@ -2587,7 +2592,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                 displayedLeads.map((lead, index) => {
                   // Backend colour tag: fill the whole row (including the sticky
                   // Actions cell) so the colour covers the entire lead.
-                  const rowColor = (isBackendDashboard || (isCallingDashboard && callingView === 'appointments')) ? rowColorRowClass(lead.rowColor) : '';
+                  const rowColor = (isBackendDashboard || isCallingDashboard) ? rowColorRowClass(lead.rowColor) : '';
                   // Continuous serial number across server-side pages (1-based).
                   const serialNo = page * pageSize + index + 1;
                   return (
@@ -2649,9 +2654,10 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
                                 </button>
                               )
                             )}
-                            {isCallingDashboard && callingView === 'appointments' && (
-                              // Colour tag for appointments (same as the Backend team) so a
-                              // lead can be highlighted with a row colour.
+                            {isCallingDashboard && (
+                              // Colour tag for the Calling team (same as the Backend team) so a
+                              // lead can be highlighted with a row colour in both the Leads and
+                              // Appointments views.
                               <RowColorPicker current={lead.rowColor} onPick={(color) => handleRowColor(lead.id, color)} />
                             )}
                             {isBackendDashboard && (

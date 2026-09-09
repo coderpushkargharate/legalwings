@@ -44,6 +44,7 @@ interface Lead {
   leadDate?: string;
   lastFollowUpDate?: string;
   nextFollowUpDate?: string;
+  callingDescription?: string;
   tentativeAgreementDate?: string;
   city?: { value?: string; name?: string; id?: string } | string;
   area?: { value?: string; name?: string; id?: string } | string;
@@ -160,6 +161,7 @@ const COLUMNS: Col[] = [
   { header: 'Area', value: (l) => cityLabel(l.area) },
   { header: 'Last Follow Up', value: (l) => fmtDate(l.lastFollowUpDate) },
   { header: 'Next Follow Up', value: (l) => fmtDate(l.nextFollowUpDate) },
+  { header: 'Calling Description', value: (l) => l.callingDescription || '' },
   // Agreement
   { header: 'Token Number', value: (l) => l.agreement?.tokenNo || '' },
   { header: 'Period (Month)', value: (l) => daysToMonths(l.agreement?.periodDays) },
