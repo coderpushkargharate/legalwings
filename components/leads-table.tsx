@@ -1682,6 +1682,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [executiveSearch, setExecutiveSearch] = useState('');
   // Calling dashboard: keep only the common filters visible, tuck the rest behind a toggle.
   const [showMoreFilters, setShowMoreFilters] = useState(false);
+  // Holds the AbortController of the in-flight /api/leads request so a new fetch
+  // (from typing/filtering) can cancel the previous one — see fetchLeads.
+  const leadsAbortRef = useRef<AbortController | null>(null);
   // Default to empty so NO date filter is applied on load — the table shows all
   // data until the user picks a date range and clicks Apply. (Previously these
   // defaulted to `today`, which silently filtered every dashboard to today's rows.)
@@ -1914,6 +1917,13 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
   const fetchLeads = useCallback(async () => {
     if (authLoading || !user) return;
+    // Cancel any in-flight leads request before starting a new one. Typing in a
+    // search box (or changing a filter) fires this repeatedly; without cancelling,
+    // overlapping expensive queries pile up and their responses arrive out of order,
+    // leaving the table showing stale data or appearing frozen until a manual refresh.
+    leadsAbortRef.current?.abort();
+    const controller = new AbortController();
+    leadsAbortRef.current = controller;
     setLoading(true);
     try {
       // When the "Pending Appointment" filter is on, pull ALL appointment leads in one
@@ -2013,20 +2023,36 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tenantMobile) params.set('tenantMobile', tenantMobile);
         if (tenantDob) params.set('tenantDob', tenantDob);
       }
-      const res = await apiFetch(`/api/leads?${params.toString()}`);
+      const res = await apiFetch(`/api/leads?${params.toString()}`, { signal: controller.signal });
       const data = await res.json();
+      // A newer request superseded this one — drop this (possibly stale) result.
+      if (controller.signal.aborted) return;
       setLeads(data?.leadPage?.content || []);
       setTotalPages(data?.leadPage?.totalPages || 1);
     } catch (error) {
+      // Aborted requests are expected (a newer fetch took over) — keep the current
+      // data instead of blanking the table.
+      if (controller.signal.aborted || (error as Error)?.name === 'AbortError') return;
       console.error('Fetch leads error:', error);
       setLeads([]);
       setTotalPages(1);
     } finally {
-      setLoading(false);
+      // Only the latest request owns the loading state.
+      if (leadsAbortRef.current === controller) setLoading(false);
     }
   }, [page, transitLevel, fromDate, toDate, filterOn, executiveSearch, appointmentFromDate, appointmentToDate, appointmentLocation, clientType, mobileFilter, assignedEmployeeFilter, selectedStatus, nextFollowUpFromDate, nextFollowUpToDate, lastFollowUpFromDate, lastFollowUpToDate, visitCount, selectedCity, selectedArea, areaText, tokenNumber, searchText, ownerName, tenantName, ownerTenantName, agreementStatus, backOfficeStatus, grnNo, dhcNo, commissionDate, commissionAmount, clientName, phone, amount, status, paymentDate, executeDate, startDate, endDate, ownerMobile, ownerDob, tenantMobile, tenantDob, authLoading, user, callingView, pendingApptOnly, isCallingDashboard, isExecutiveDashboard, isBackendDashboard, isAccountingDashboard, isMarketingDashboard, isShopDashboard, backendView]);
 
-  useEffect(() => { fetchLeads(); }, [fetchLeads]);
+  // Debounced so rapid changes (typing in a search box, toggling filters) coalesce
+  // into a single request ~300ms after the user stops, instead of firing one query
+  // per keystroke and flooding the server.
+  useEffect(() => {
+    const t = setTimeout(() => { fetchLeads(); }, 300);
+    return () => clearTimeout(t);
+  }, [fetchLeads]);
+
+  // Abort any in-flight leads request when the table unmounts so it can't try to
+  // update state after the component is gone.
+  useEffect(() => () => { leadsAbortRef.current?.abort(); }, []);
 
   // Calling team: fetch today's lead + appointment counts for the summary buttons.
   // Runs independently of the main table (which shows only one view at a time) so
