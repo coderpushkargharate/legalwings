@@ -169,11 +169,14 @@ export default function EmployeesPage() {
   const filtered = useCallback(() => {
     let result = employees;
     
-    // Search filter
+    // Search filter — match across every field an employee carries (name, email,
+    // team and roles) so any detail typed into the box finds the employee.
     if (search.trim()) {
       const lowerSearch = search.toLowerCase();
-      result = result.filter(e => 
-        `${e.firstName} ${e.lastName} ${e.email} ${e.team}`.toLowerCase().includes(lowerSearch)
+      result = result.filter(e =>
+        `${e.firstName} ${e.lastName} ${e.email} ${e.team} ${((e as Employee & { roles?: string[] }).roles || []).join(' ')}`
+          .toLowerCase()
+          .includes(lowerSearch)
       );
     }
     

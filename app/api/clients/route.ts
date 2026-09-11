@@ -20,11 +20,29 @@ export async function GET(request: Request) {
     const filter: Record<string, unknown> = {};
     if (clientType) filter.clientType = clientType;
     if (searchText) {
+      // Escape user input so regex metacharacters are matched literally.
+      const st = searchText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const rx = { $regex: st, $options: 'i' };
       filter.$or = [
-        { firstName: { $regex: searchText, $options: 'i' } },
-        { lastName: { $regex: searchText, $options: 'i' } },
-        { email: { $regex: searchText, $options: 'i' } },
-        { phoneNo: { $regex: searchText, $options: 'i' } },
+        { firstName: rx },
+        { lastName: rx },
+        { email: rx },
+        { phoneNo: rx },
+        { clientType: rx },
+        { cityName: rx },
+        { areaName: rx },
+        { aadharNumber: rx },
+        { panNumber: rx },
+        // Full "First Last" name match so a combined name finds the client.
+        {
+          $expr: {
+            $regexMatch: {
+              input: { $concat: [{ $ifNull: ['$firstName', ''] }, ' ', { $ifNull: ['$lastName', ''] }] },
+              regex: st,
+              options: 'i',
+            },
+          },
+        },
       ];
     }
 

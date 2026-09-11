@@ -178,7 +178,8 @@ function EmployeeHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestI
     return employees
       .filter(e =>
         `${e.firstName} ${e.lastName}`.toLowerCase().includes(q) ||
-        e.email.toLowerCase().includes(q)
+        e.email.toLowerCase().includes(q) ||
+        (e.team || '').toLowerCase().includes(q)
       )
       .slice(0, 8);
   }, [search, employees]);
