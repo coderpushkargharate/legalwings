@@ -116,10 +116,48 @@ export async function GET(request: Request) {
       ]);
     }
 
-    // 🔍 Single lead view (still subject to the access-control group above)
+    // 🔍 Single lead view — fetched by explicit id (View/Edit screens, and the
+    // Lead-history search that teams like Shop use to re-open a lead they forwarded).
+    //
+    // ⚠️ This must NOT reuse the dashboard LIST's per-employee isolation group. That
+    // group hides a lead from an employee's queue once it's assigned to someone else —
+    // correct for the list, but wrong here: a Shop employee who created a lead and then
+    // forwarded/assigned it to another team's employee would be locked out of their own
+    // lead (404), so View/Edit came back blank. For a by-id lookup we grant access when
+    // the user is the creator, the (current) assignee, a past forwarder, or their team
+    // still has the lead in `visibleToTeams` — so every team the lead has touched can
+    // re-open and edit it, and edits to the single shared document propagate everywhere.
     if (id) {
-      const accessFilter = andConditions.length ? { $and: andConditions } : {};
-      const lead = await db.collection('leads').findOne({ _id: new ObjectId(id), ...accessFilter });
+      const objId = toObjectId(id);
+      if (!objId) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
+
+      const accessFilter: Record<string, unknown> = {};
+      if (!isAdmin && !isAccounting && !viewAll) {
+        const ownId = toObjectId(user.userId);
+        // The user's team(s) as stored in `visibleToTeams` (e.g. SHOP_TEAM). Derive
+        // from the token's `team` AND from the team role (calling/shop/…) so shop-team
+        // employees — including legacy accounts whose token has no `team` — can re-open
+        // any lead their team has touched, not just the ones they personally handled.
+        const teamRoles = ['calling', 'executive', 'backend', 'accounting', 'marketing', 'shop'];
+        const roleTeams = (user.roles || [])
+          .map(r => String(r).toLowerCase())
+          .filter(r => teamRoles.includes(r))
+          .map(r => `${r.toUpperCase()}_TEAM`);
+        const tokenTeam = (user.team || '').toUpperCase();
+        const normalizedTokenTeam = tokenTeam
+          ? (tokenTeam.endsWith('_TEAM') ? tokenTeam : `${tokenTeam}_TEAM`)
+          : null;
+        const userTeams = Array.from(new Set([...roleTeams, ...(normalizedTokenTeam ? [normalizedTokenTeam] : [])]));
+        const accessOr: Record<string, unknown>[] = [
+          { createdByUserId: user.userId },
+          { assignedToUserId: ownId },
+          { 'forwardedHistory.forwardedByUserId': user.userId },
+        ];
+        if (userTeams.length) accessOr.push({ visibleToTeams: { $in: userTeams } });
+        accessFilter.$or = accessOr;
+      }
+
+      const lead = await db.collection('leads').findOne({ _id: objId, ...accessFilter });
       if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
       // Expose `createdDate` (the UI reads it) derived from the stored `createdAt`.
       return NextResponse.json({ ...lead, id: lead._id.toString(), createdDate: lead.createdDate || lead.createdAt, _id: undefined });

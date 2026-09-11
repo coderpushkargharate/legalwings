@@ -53,15 +53,70 @@ export async function GET(request: Request) {
       const q = (search || '').trim();
       if (!q) return NextResponse.json({ leads: [] });
 
-      const rx = { $regex: escapeRegex(q), $options: 'i' };
+      const st = escapeRegex(q);
+      const rx = { $regex: st, $options: 'i' };
+      // Match a full "First Last" name against the separate first/last name fields,
+      // so searching "Ramesh Kumar" finds the lead even though the name is split.
+      const fullName = (first: string, last: string) => ({
+        $expr: {
+          $regexMatch: {
+            input: { $concat: [{ $ifNull: [`$${first}`, ''] }, ' ', { $ifNull: [`$${last}`, ''] }] },
+            regex: st,
+            options: 'i',
+          },
+        },
+      });
       const leads = await db.collection('leads').aggregate([
         {
           $match: {
+            // Search across everything the form captures: client, owner & tenant
+            // (name / phone / email), agreement token/status/address and payment refs —
+            // so ANY value typed into the box surfaces the lead, not just the lead name.
             $or: [
+              // Client / lead
               { 'client.firstName': rx },
               { 'client.lastName': rx },
               { 'client.phoneNo': rx },
+              { 'client.email': rx },
+              { 'client.clientType': rx },
+              { 'client.cityName': rx },
+              { 'client.areaName': rx },
+              { 'city.name': rx },
+              { 'area.name': rx },
+              { leadStatus: rx },
+              { leadSource: rx },
+              { visitAddress: rx },
+              { description: rx },
+              { assignedToUserName: rx },
+              { createdByUserName: rx },
+              // Agreement
               { 'agreement.tokenNo': rx },
+              { 'agreement.mobileNo': rx },
+              { 'agreement.status': rx },
+              { 'agreement.backOfficeStatus': rx },
+              { 'agreement.executeDate': rx },
+              { 'agreement.addressLine1': rx },
+              { 'agreement.addressLine2': rx },
+              { 'agreement.description': rx },
+              { 'agreement.owner.firstName': rx },
+              { 'agreement.owner.lastName': rx },
+              { 'agreement.owner.phoneNo': rx },
+              { 'agreement.owner.email': rx },
+              { 'agreement.owner.aadharNumber': rx },
+              { 'agreement.owner.panNumber': rx },
+              { 'agreement.tenant.firstName': rx },
+              { 'agreement.tenant.lastName': rx },
+              { 'agreement.tenant.phoneNo': rx },
+              { 'agreement.tenant.email': rx },
+              { 'agreement.tenant.aadharNumber': rx },
+              { 'agreement.tenant.panNumber': rx },
+              // Payment
+              { 'payment.grnNumber': rx },
+              { 'payment.dhcNumber': rx },
+              // Full-name (First + Last) matches for client, owner and tenant.
+              fullName('client.firstName', 'client.lastName'),
+              fullName('agreement.owner.firstName', 'agreement.owner.lastName'),
+              fullName('agreement.tenant.firstName', 'agreement.tenant.lastName'),
             ],
           },
         },

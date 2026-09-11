@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
+import { validateEmail } from '@/lib/validation';
 import { Plus, Trash2, Pencil, Search, X, Loader2, Mail, User, Calendar, Building2, Filter } from 'lucide-react';
 
 interface Employee {
@@ -92,6 +93,12 @@ export default function EmployeesPage() {
     // Password is required only when creating; on edit it's optional (blank = keep current).
     if (!form.firstName.trim() || !form.email.trim() || (!editingId && !form.password.trim())) {
       alert('Please fill in all required fields');
+      return;
+    }
+
+    const emailError = validateEmail(form.email);
+    if (emailError) {
+      alert(emailError);
       return;
     }
 

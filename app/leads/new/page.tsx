@@ -7,6 +7,7 @@ import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
 import { formatDate } from '@/lib/date-utils';
+import { validateEmail, validateMobile, validateAadhaar, validatePan, collectErrors } from '@/lib/validation';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -686,6 +687,16 @@ function LeadFormContent() {
   // ============================================================================
   const saveLead = useCallback(async () => {
     if (!token) { alert('Please wait, authentication is loading...'); return; }
+
+    const validationErrors = collectErrors(
+      validateMobile(lead.contactNumber, 'Contact number'),
+      validateEmail(lead.email),
+    );
+    if (validationErrors.length > 0) {
+      setFormError(validationErrors.join('. '));
+      return;
+    }
+
     setSaving(true); setFormError(null);
     try {
       // Resolve City/Area ids to full { id, name } objects so the dashboards and
@@ -733,6 +744,24 @@ function LeadFormContent() {
 
   const saveAgreement = useCallback(async () => {
     if (!token || !currentLeadId) { alert('Please save lead details first'); return; }
+
+    const validationErrors = collectErrors(
+      validateEmail(agreement.ownerEmail, 'Owner email'),
+      validateMobile(agreement.ownerContact, 'Owner contact'),
+      validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar'),
+      validatePan(agreement.ownerPan, 'Owner PAN'),
+      validateEmail(agreement.tenantEmail, 'Tenant email'),
+      validateMobile(agreement.tenantContact, 'Tenant contact'),
+      validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar'),
+      validatePan(agreement.tenantPan, 'Tenant PAN'),
+      validateMobile(agreement.pvMobile, 'PV mobile'),
+      validateMobile(agreement.agreementMobileNo, 'Agreement mobile'),
+    );
+    if (validationErrors.length > 0) {
+      setFormError(validationErrors.join('. '));
+      return;
+    }
+
     setSaving(true); setFormError(null);
     try {
       const response = await apiFetch('/api/agreements', {

@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { validateEmail, validateMobile, validateAadhaar, validatePan, collectErrors } from '@/lib/validation';
 import {
   Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
   User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
@@ -714,6 +715,26 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lead?.id) return;
+
+    const validationErrors = collectErrors(
+      validateMobile(formData.client?.phoneNo, 'Contact number'),
+      validateEmail(formData.client?.email),
+      validateMobile(formData.agreement?.owner?.phoneNo, 'Owner contact'),
+      validateEmail(formData.agreement?.owner?.email, 'Owner email'),
+      validateAadhaar(formData.agreement?.owner?.aadharNumber, 'Owner Aadhaar'),
+      validatePan(formData.agreement?.owner?.panNumber, 'Owner PAN'),
+      validateMobile(formData.agreement?.tenant?.phoneNo, 'Tenant contact'),
+      validateEmail(formData.agreement?.tenant?.email, 'Tenant email'),
+      validateAadhaar(formData.agreement?.tenant?.aadharNumber, 'Tenant Aadhaar'),
+      validatePan(formData.agreement?.tenant?.panNumber, 'Tenant PAN'),
+      validateMobile(formData.agreement?.pvMobile, 'PV mobile'),
+      validateMobile(formData.agreement?.mobileNo, 'Agreement mobile'),
+    );
+    if (validationErrors.length > 0) {
+      setError(validationErrors.join('. '));
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback, useTransition, useRef } from '
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
+import { validateEmail, validateMobile, validateAadhaar, validatePan, collectErrors } from '@/lib/validation';
 import { Plus, CreditCard as Edit, Trash2, Search, X, ChevronLeft, ChevronRight, Loader2, Phone, Mail, MapPin, User, Filter } from 'lucide-react';
 
 interface Client {
@@ -123,6 +124,17 @@ export default function ClientsPage() {
     
     if (!form.firstName.trim() || !form.lastName.trim() || !form.phoneNo) {
       setFormError('First name, last name, and phone number are required');
+      return;
+    }
+
+    const validationErrors = collectErrors(
+      validateMobile(form.phoneNo),
+      validateEmail(form.email),
+      validateAadhaar(form.aadharNumber),
+      validatePan(form.panNumber),
+    );
+    if (validationErrors.length > 0) {
+      setFormError(validationErrors.join('. '));
       return;
     }
 
