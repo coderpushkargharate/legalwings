@@ -88,6 +88,14 @@ export async function GET(request: Request) {
 
     const isAdmin = user.roles?.includes('admin') || user.roles?.includes('ADMIN');
     const isAccounting = user.roles?.includes('accounting') || user.roles?.includes('ACCOUNTING');
+    // 🛍️ Shop employees run the cross-team Lead-History search on their dashboard and
+    // must be able to open (View) and edit ANY team's lead from those results — even a
+    // lead they never personally created/were-assigned/forwarded. This grant applies
+    // ONLY to the single-lead by-id lookup below (View/Edit load); it does NOT widen
+    // the dashboard LIST query, so a shop employee's own queue stays isolated.
+    // Editing still goes through PUT, which strips team/ownership fields — so a shop
+    // edit never moves the lead to Shop or changes its assignment.
+    const isShop = user.roles?.includes('shop') || user.roles?.includes('SHOP');
 
     // 🔐 Team-based access control — kept as its own OR-group so search/filter
     // OR-groups can never widen it back open.
@@ -132,7 +140,9 @@ export async function GET(request: Request) {
       if (!objId) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
 
       const accessFilter: Record<string, unknown> = {};
-      if (!isAdmin && !isAccounting && !viewAll) {
+      // Shop employees (like admins/accounting) get unrestricted by-id read so their
+      // cross-team Lead-History View/Edit works for every team's lead.
+      if (!isAdmin && !isAccounting && !isShop && !viewAll) {
         const ownId = toObjectId(user.userId);
         // The user's team(s) as stored in `visibleToTeams` (e.g. SHOP_TEAM). Derive
         // from the token's `team` AND from the team role (calling/shop/…) so shop-team
