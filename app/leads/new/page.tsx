@@ -572,9 +572,22 @@ function LeadFormContent() {
     setAgreement(prev => ({ ...prev, periodDays: v }));
   }, []);
 
+  // Files are stored as base64 inside the lead document, which MongoDB caps at 16MB.
+  // base64 inflates size by ~33%, so anything over ~10MB risks silently failing to
+  // save (and then "disappearing"). Reject oversized files up front with a clear message.
+  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+  const isFileTooLarge = useCallback((file: File): boolean => {
+    if (file.size > MAX_FILE_BYTES) {
+      setFormError(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed is 10 MB.`);
+      return true;
+    }
+    return false;
+  }, []);
+
   // ✅ Read uploaded agreement file as a base64 data URL so it can be stored & downloaded later
   const handleAgreementFile = useCallback((file: File | null) => {
-    if (!file) return;
+    if (!file || isFileTooLarge(file)) return;
+    setFormError(null);
     const reader = new FileReader();
     reader.onload = () => {
       setAgreement(prev => ({
@@ -584,11 +597,12 @@ function LeadFormContent() {
       }));
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [isFileTooLarge]);
 
   // ✅ Read an extra uploaded file (PVR / Other) as a base64 data URL for storage & download.
   const handleExtraFile = useCallback((nameField: keyof AgreementFormData, dataField: keyof AgreementFormData, file: File | null) => {
-    if (!file) return;
+    if (!file || isFileTooLarge(file)) return;
+    setFormError(null);
     const reader = new FileReader();
     reader.onload = () => {
       setAgreement(prev => ({
@@ -598,7 +612,7 @@ function LeadFormContent() {
       }));
     };
     reader.readAsDataURL(file);
-  }, []);
+  }, [isFileTooLarge]);
 
   const updatePayment = useCallback((field: keyof PaymentFormData, value: string) => {
     setPayment(prev => prev[field] === value ? prev : { ...prev, [field]: value });

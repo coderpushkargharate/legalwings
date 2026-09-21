@@ -571,6 +571,7 @@ interface EditLeadModalProps {
   hideBackWorkAccount?: boolean;
 }
 const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, onSave, dropdowns, hideBackWorkAccount = false }) => {
+  const { apiFetch } = useApi();
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -646,6 +647,54 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       }
     }
   }, [lead]);
+
+  // When this modal is opened straight from a table row, the `lead` came from the
+  // LIST query, which strips the heavy file blobs (fileData / pvrFileData / otherFileData)
+  // for performance. Fetch the full lead by id so the "View current file" links show and
+  // the blobs travel back on save. (The server also guards against wiping them, but this
+  // makes the current file visible while editing.)
+  useEffect(() => {
+    if (!isOpen || !lead?.id) return;
+    const a = lead.agreement;
+    const hasBlobs = !!(a?.fileData || a?.agreementFile || a?.pvrFileData || a?.otherFileData);
+    const hasFileNames = !!(a?.fileName || a?.pvrFileName || a?.otherFileName);
+    // Only fetch when a file is referenced (by name) but its blob is missing.
+    if (!hasFileNames || hasBlobs) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(`/api/leads?id=${lead.id}`);
+        if (!res.ok) return;
+        const full = await res.json();
+        if (cancelled || !full?.agreement) return;
+        setFormData(prev => ({
+          ...prev,
+          agreement: {
+            ...prev.agreement,
+            fileName: full.agreement.fileName ?? prev.agreement?.fileName,
+            fileData: full.agreement.fileData ?? prev.agreement?.fileData,
+            agreementFile: full.agreement.agreementFile ?? prev.agreement?.agreementFile,
+            pvrFileName: full.agreement.pvrFileName ?? prev.agreement?.pvrFileName,
+            pvrFileData: full.agreement.pvrFileData ?? prev.agreement?.pvrFileData,
+            otherFileName: full.agreement.otherFileName ?? prev.agreement?.otherFileName,
+            otherFileData: full.agreement.otherFileData ?? prev.agreement?.otherFileData,
+          },
+        }));
+      } catch { /* non-fatal: server still preserves the stored files on save */ }
+    })();
+    return () => { cancelled = true; };
+  }, [isOpen, lead?.id, lead?.agreement, apiFetch]);
+
+  // Files are stored as base64 inside the lead document (MongoDB caps documents at 16MB;
+  // base64 adds ~33%). Reject oversized uploads up front so they never silently fail to save.
+  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
+  const isFileTooLarge = (file: File): boolean => {
+    if (file.size > MAX_FILE_BYTES) {
+      setError(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed is 10 MB.`);
+      return true;
+    }
+    return false;
+  };
 
   const handleInputChange = (section: 'client' | 'agreement' | 'payment' | 'general' | 'owner' | 'tenant', field: string, value: any) => {
     setFormData(prev => {
@@ -988,7 +1037,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     accept="application/pdf"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
+                      if (!file || isFileTooLarge(file)) return;
+                      setError(null);
                       const reader = new FileReader();
                       reader.onload = () => {
                         handleInputChange('agreement', 'fileName', file.name);
@@ -1016,7 +1066,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     accept="application/pdf,image/*"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
+                      if (!file || isFileTooLarge(file)) return;
+                      setError(null);
                       const reader = new FileReader();
                       reader.onload = () => {
                         handleInputChange('agreement', 'pvrFileName', file.name);
@@ -1044,7 +1095,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     accept="application/pdf,image/*"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (!file) return;
+                      if (!file || isFileTooLarge(file)) return;
+                      setError(null);
                       const reader = new FileReader();
                       reader.onload = () => {
                         handleInputChange('agreement', 'otherFileName', file.name);

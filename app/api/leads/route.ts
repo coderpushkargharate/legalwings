@@ -51,6 +51,36 @@ function addDateRange(
   filter[field] = range;
 }
 
+// 📎 Guard against edits wiping already-uploaded files.
+// Files are stored as base64 blobs inside the lead's `agreement` (fileData / pvrFileData /
+// otherFileData + their names). The dashboard LIST query strips these heavy blobs for
+// performance, so an Edit opened straight from a table row carries an `agreement` object
+// with NO file data. Because the update `$set`s the whole `agreement` subdocument, saving
+// that stripped copy would erase the previously uploaded files. When the incoming agreement
+// omits (or sends an empty) file field, backfill it from the currently stored agreement so
+// the files persist and keep showing on every later view/edit.
+async function preserveAgreementFiles(
+  db: Awaited<ReturnType<typeof connectToDatabase>>['db'],
+  id: string,
+  updateData: Record<string, unknown>,
+) {
+  if (!updateData.agreement || typeof updateData.agreement !== 'object') return;
+  const fileFields = [
+    'fileData', 'fileName', 'agreementFile',
+    'pvrFileData', 'pvrFileName',
+    'otherFileData', 'otherFileName',
+  ];
+  const existing = await db.collection('leads').findOne(
+    { _id: new ObjectId(id) },
+    { projection: Object.fromEntries(fileFields.map(f => [`agreement.${f}`, 1])) },
+  );
+  const prev = ((existing?.agreement as Record<string, unknown>) || {});
+  const incoming = updateData.agreement as Record<string, unknown>;
+  for (const field of fileFields) {
+    if (!incoming[field] && prev[field]) incoming[field] = prev[field];
+  }
+}
+
 // ✅ External CRM integration sends a lean shape (no agreement/payment/history
 // blobs). Strip the lead down to the core fields the external service needs.
 function toLeanLead(l: Record<string, unknown>) {
@@ -606,22 +636,25 @@ export async function PUT(request: Request) {
         delete updateData[field];
       }
     });
-    
+
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
-    
+
     if (updateData._id) delete updateData._id;
-    
+
+    // 📎 Never let an edit wipe already-uploaded files (see preserveAgreementFiles).
+    await preserveAgreementFiles(db, id, updateData);
+
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
-    
+
     if (result.matchedCount === 0) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ message: 'Lead updated successfully', id });
   } catch (error) {
     console.error('Lead PUT error:', error);
@@ -641,18 +674,21 @@ export async function PATCH(request: Request) {
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
-    
+
     if (updateData._id) delete updateData._id;
-    
+
+    // 📎 Never let an edit wipe already-uploaded files (see preserveAgreementFiles).
+    await preserveAgreementFiles(db, id, updateData);
+
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
       { $set: updateData }
     );
-    
+
     if (result.matchedCount === 0) {
       return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
     }
-    
+
     return NextResponse.json({ message: 'Lead updated successfully', id });
   } catch (error) {
     console.error('Lead PATCH error:', error);
