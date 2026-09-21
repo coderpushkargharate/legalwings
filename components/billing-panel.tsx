@@ -23,6 +23,7 @@ interface Bill {
   clientPhone?: string;
   amount: number;
   paymentMode: string;
+  expenseCategory?: string;
   transactionRef?: string;
   note?: string;
   paidAt: string;
@@ -49,6 +50,14 @@ const PAYMENT_MODES = [
   { key: 'CHEQUE', label: 'Cheque', icon: FileCheck, color: 'amber' },
   { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: Building2, color: 'cyan' },
 ];
+
+// Expense categories a bill can be tagged with (optional). Kept in sync with the API.
+const EXPENSE_CATEGORIES = [
+  { key: 'GOVT', label: 'Govt expenses' },
+  { key: 'PERSONAL', label: 'Personal expenses' },
+];
+const expenseCategoryLabel = (key?: string): string =>
+  EXPENSE_CATEGORIES.find((c) => c.key === key)?.label || '';
 
 const modeMeta = (mode: string) =>
   PAYMENT_MODES.find((m) => m.key === mode) || { key: mode, label: mode, icon: Wallet, color: 'slate' };
@@ -100,6 +109,7 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
   const [clientId, setClientId] = useState<string | null>(null);
   const [amount, setAmount] = useState('');
   const [paymentMode, setPaymentMode] = useState('CASH');
+  const [expenseCategory, setExpenseCategory] = useState('');
   const [paidAt, setPaidAt] = useState(nowLocalInput());
   const [transactionRef, setTransactionRef] = useState('');
   const [note, setNote] = useState('');
@@ -114,7 +124,7 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
   useEffect(() => {
     if (isOpen) {
       setClientName(''); setClientPhone(''); setClientId(null); setAmount('');
-      setPaymentMode('CASH'); setPaidAt(nowLocalInput()); setTransactionRef('');
+      setPaymentMode('CASH'); setExpenseCategory(''); setPaidAt(nowLocalInput()); setTransactionRef('');
       setNote(''); setError(null); setSuggestions([]); setShowSuggest(false);
     }
   }, [isOpen]);
@@ -158,7 +168,7 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
       const res = await apiFetch('/api/bills', {
         method: 'POST',
         body: JSON.stringify({
-          clientId, clientName, clientPhone, amount, paymentMode,
+          clientId, clientName, clientPhone, amount, paymentMode, expenseCategory,
           transactionRef, note,
           paidAt: new Date(paidAt).toISOString(),
         }),
@@ -274,6 +284,14 @@ function NewBillModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: 
           </div>
 
           <div>
+            <label className={labelClass}>Expense Category</label>
+            <select value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)} className={inputClass}>
+              <option value="">None</option>
+              {EXPENSE_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+            </select>
+          </div>
+
+          <div>
             <label className={labelClass}>Transaction / Reference No.</label>
             <input type="text" value={transactionRef} onChange={(e) => setTransactionRef(e.target.value)} placeholder="UPI ref / cheque no. (optional)" className={inputClass} />
           </div>
@@ -310,6 +328,7 @@ export default function BillingPanel() {
   // Filters
   const [searchText, setSearchText] = useState('');
   const [modeFilter, setModeFilter] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
@@ -320,6 +339,7 @@ export default function BillingPanel() {
       const params = new URLSearchParams({ page: page.toString(), pageSize: '20' });
       if (searchText) params.set('searchText', searchText);
       if (modeFilter) params.set('paymentMode', modeFilter);
+      if (categoryFilter) params.set('expenseCategory', categoryFilter);
       if (fromDate) params.set('fromDate', fromDate);
       if (toDate) params.set('toDate', toDate);
       const res = await apiFetch(`/api/bills?${params.toString()}`);
@@ -333,7 +353,7 @@ export default function BillingPanel() {
     } finally {
       setLoading(false);
     }
-  }, [apiFetch, authLoading, user, page, searchText, modeFilter, fromDate, toDate]);
+  }, [apiFetch, authLoading, user, page, searchText, modeFilter, categoryFilter, fromDate, toDate]);
 
   useEffect(() => { fetchBills(); }, [fetchBills]);
 
@@ -348,7 +368,7 @@ export default function BillingPanel() {
   };
 
   const clearFilters = () => {
-    setSearchText(''); setModeFilter(''); setFromDate(''); setToDate(''); setPage(0);
+    setSearchText(''); setModeFilter(''); setCategoryFilter(''); setFromDate(''); setToDate(''); setPage(0);
   };
 
   const statCards = [
@@ -388,7 +408,7 @@ export default function BillingPanel() {
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
           <div className="md:col-span-2 relative">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
             <input
@@ -403,10 +423,14 @@ export default function BillingPanel() {
             <option value="">All Modes</option>
             {PAYMENT_MODES.map((m) => <option key={m.key} value={m.key}>{m.label}</option>)}
           </select>
+          <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]">
+            <option value="">All Categories</option>
+            {EXPENSE_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+          </select>
           <input type="date" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
           <input type="date" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(0); }} className="px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d]" />
         </div>
-        {(searchText || modeFilter || fromDate || toDate) && (
+        {(searchText || modeFilter || categoryFilter || fromDate || toDate) && (
           <button onClick={clearFilters} className="mt-3 text-xs text-slate-500 hover:text-[#00843d] flex items-center gap-1">
             <X className="w-3.5 h-3.5" /> Clear filters
           </button>
@@ -424,6 +448,7 @@ export default function BillingPanel() {
                 <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3 text-right">Amount</th>
                 <th className="px-4 py-3">Mode</th>
+                <th className="px-4 py-3">Category</th>
                 <th className="px-4 py-3">Date &amp; Time</th>
                 <th className="px-4 py-3">Ref / Note</th>
                 <th className="px-4 py-3">Collected By</th>
@@ -432,9 +457,9 @@ export default function BillingPanel() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
               ) : bills.length === 0 ? (
-                <tr><td colSpan={9} className="px-4 py-12 text-center text-slate-400">
+                <tr><td colSpan={10} className="px-4 py-12 text-center text-slate-400">
                   <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                   No payments yet. Click <span className="font-medium">New Payment</span> to add one.
                 </td></tr>
@@ -450,6 +475,19 @@ export default function BillingPanel() {
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${modeBadgeClass(b.paymentMode)}`}>
                         <meta.icon className="w-3 h-3" /> {meta.label}
                       </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {b.expenseCategory ? (
+                        <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium border ${
+                          b.expenseCategory === 'GOVT'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-purple-50 text-purple-700 border-purple-200'
+                        }`}>
+                          {expenseCategoryLabel(b.expenseCategory)}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(b.paidAt)}</td>
                     <td className="px-4 py-3 text-slate-500 max-w-[180px]">

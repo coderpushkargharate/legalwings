@@ -6,6 +6,9 @@ import { ObjectId } from 'mongodb';
 // Payment modes the billing UI supports. Kept in sync with the frontend dropdown.
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER'];
 
+// Expense categories a bill can be tagged with. Optional — kept in sync with the UI.
+const EXPENSE_CATEGORIES = ['GOVT', 'PERSONAL'];
+
 // GET /api/bills — list bills (newest first) with optional filters + a summary.
 export async function GET(request: Request) {
   const token = getTokenFromHeaders(request);
@@ -18,6 +21,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const searchText = searchParams.get('searchText');
     const paymentMode = searchParams.get('paymentMode');
+    const expenseCategory = searchParams.get('expenseCategory');
     const clientId = searchParams.get('clientId');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
@@ -26,6 +30,7 @@ export async function GET(request: Request) {
 
     const filter: Record<string, unknown> = {};
     if (paymentMode) filter.paymentMode = paymentMode;
+    if (expenseCategory) filter.expenseCategory = expenseCategory;
     if (clientId) filter.clientId = clientId;
     if (searchText) {
       filter.$or = [
@@ -110,6 +115,11 @@ export async function POST(request: Request) {
     if (!PAYMENT_MODES.includes(paymentMode)) {
       return NextResponse.json({ error: 'Invalid payment mode' }, { status: 400 });
     }
+    // Expense category is optional; when present it must be a known value.
+    const expenseCategory = body.expenseCategory ? String(body.expenseCategory).toUpperCase() : '';
+    if (expenseCategory && !EXPENSE_CATEGORIES.includes(expenseCategory)) {
+      return NextResponse.json({ error: 'Invalid expense category' }, { status: 400 });
+    }
 
     // paidAt = when the payment actually happened (defaults to now if not given).
     const paidAt = body.paidAt ? new Date(body.paidAt) : new Date();
@@ -125,6 +135,7 @@ export async function POST(request: Request) {
       clientPhone: body.clientPhone?.trim() || '',
       amount,
       paymentMode,
+      expenseCategory,
       transactionRef: body.transactionRef?.trim() || '',
       note: body.note?.trim() || '',
       paidAt,

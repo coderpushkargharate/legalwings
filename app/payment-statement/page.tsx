@@ -16,10 +16,11 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Download, Loader2, RefreshCw, FileText, Wallet, Check, X as XIcon, IndianRupee, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Loader2, RefreshCw, FileText, Wallet, Check, X as XIcon, IndianRupee, ChevronLeft, ChevronRight, TrendingDown } from 'lucide-react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import BillingPanel from '@/components/billing-panel';
+import ExpensesPanel from '@/components/expenses-panel';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 
@@ -50,6 +51,8 @@ interface Lead {
   appointmentTime?: string;
   assignedToUserName?: string | null;
   createdByUserName?: string | null;
+  // Commission expense fields (read by the Expenses tab).
+  payment?: { commissionName?: string; commissionAmount?: number | string; commissionDate?: string };
   paymentDetails?: PaymentDetail[];
   forwardedHistory?: Array<{
     fromTeam?: string;
@@ -214,8 +217,9 @@ export default function PaymentStatementPage() {
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(0); // 0-based page for the statement table (20 rows/page)
-  // Two views in one page: the date-wise "Statement" and the "Billing" system.
-  const [tab, setTab] = useState<'statement' | 'billing'>('statement');
+  // Three views in one page: the date-wise "Statement", the commission "Expenses"
+  // tab, and the "Billing" system.
+  const [tab, setTab] = useState<'statement' | 'expenses' | 'billing'>('statement');
 
   // Fetch ALL leads. First page tells us the total, then the remaining pages are
   // fetched in PARALLEL (instead of one-by-one) so the statement loads much faster.
@@ -360,9 +364,9 @@ export default function PaymentStatementPage() {
     <AppShell>
       <Header title="Payment Statement" />
       <div className="p-6 space-y-4">
-        {/* Tabs: date-wise Statement | Billing system */}
+        {/* Tabs: date-wise Statement | commission Expenses | Billing system */}
         <div className="flex gap-1 bg-slate-100 rounded-lg p-1 w-fit">
-          {([['statement', 'Statement', FileText], ['billing', 'Billing', Wallet]] as const).map(([key, label, Icon]) => (
+          {([['statement', 'Statement', FileText], ['expenses', 'Expenses', TrendingDown], ['billing', 'Billing', Wallet]] as const).map(([key, label, Icon]) => (
             <button
               key={key}
               type="button"
@@ -378,6 +382,8 @@ export default function PaymentStatementPage() {
 
         {tab === 'billing' ? (
           <BillingPanel />
+        ) : tab === 'expenses' ? (
+          <ExpensesPanel leads={leads} loading={loading} error={error} onRefresh={fetchAll} />
         ) : (
         <>
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
