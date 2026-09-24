@@ -36,17 +36,22 @@ export async function GET(request: Request) {
     const leadId = searchParams.get('leadId');
     const search = searchParams.get('search');
 
-    const leadName = {
+    // Build a "First Last" full name from any first/last field pair.
+    const fullNameExpr = (first: string, last: string) => ({
       $trim: {
         input: {
           $concat: [
-            { $ifNull: ['$client.firstName', ''] },
+            { $ifNull: [`$${first}`, ''] },
             ' ',
-            { $ifNull: ['$client.lastName', ''] },
+            { $ifNull: [`$${last}`, ''] },
           ],
         },
       },
-    };
+    });
+
+    const leadName = fullNameExpr('client.firstName', 'client.lastName');
+    const ownerName = fullNameExpr('agreement.owner.firstName', 'agreement.owner.lastName');
+    const tenantName = fullNameExpr('agreement.tenant.firstName', 'agreement.tenant.lastName');
 
     // 🔍 Search mode — return a lightweight list of matching leads.
     if (!leadId) {
@@ -129,7 +134,14 @@ export async function GET(request: Request) {
             _id: 0,
             id: { $toString: '$_id' },
             leadName,
+            // Owner & tenant names so the dropdown can show the person actually
+            // searched (a lead may be found via its owner/tenant, not the client).
+            ownerName,
+            tenantName,
             phone: '$client.phoneNo',
+            ownerPhone: '$agreement.owner.phoneNo',
+            tenantPhone: '$agreement.tenant.phoneNo',
+            tokenNo: '$agreement.tokenNo',
             leadStatus: '$leadStatus',
             transitLevel: '$transitLevel',
             // Sent so the dropdown can show a date and distinguish the same

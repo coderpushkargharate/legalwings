@@ -53,7 +53,12 @@ interface HistoryData {
 interface LeadMatch {
   id: string;
   leadName: string;
+  ownerName?: string;
+  tenantName?: string;
   phone?: string;
+  ownerPhone?: string;
+  tenantPhone?: string;
+  tokenNo?: string;
   leadStatus?: string;
   transitLevel?: string;
   leadDate?: string;
@@ -418,7 +423,7 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
   }, [search, apiFetch]);
 
   const selectLead = async (lead: LeadMatch) => {
-    setSearch(lead.leadName);
+    setSearch(lead.leadName || lead.ownerName || lead.tenantName || '');
     setShowResults(false);
     setHistory(null);
     setLoadingHistory(true);
@@ -474,9 +479,18 @@ function LeadHistory({ apiFetch }: { apiFetch: (url: string, init?: RequestInit)
                   <FileText className="w-4 h-4" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-800 truncate">{l.leadName || 'Unnamed lead'}</div>
+                  <div className="text-sm font-medium text-slate-800 truncate">{l.leadName || l.ownerName || l.tenantName || 'Unnamed lead'}</div>
+                  {/* Owner / tenant names so a lead found by its owner or tenant shows
+                      that name too — not just the client's. */}
+                  {(l.ownerName || l.tenantName) && (
+                    <div className="text-xs text-slate-600 truncate">
+                      {l.ownerName ? `Owner: ${l.ownerName}` : ''}
+                      {l.ownerName && l.tenantName ? ' · ' : ''}
+                      {l.tenantName ? `Tenant: ${l.tenantName}` : ''}
+                    </div>
+                  )}
                   <div className="text-xs text-slate-500 truncate">
-                    {l.phone || 'No phone'} · {teamLabel(l.transitLevel)}{l.leadStatus ? ` · ${l.leadStatus}` : ''}{l.leadDate ? ` · ${formatDate(l.leadDate)}` : ''}
+                    {l.phone || 'No phone'} · {teamLabel(l.transitLevel)}{l.leadStatus ? ` · ${l.leadStatus}` : ''}{l.tokenNo ? ` · Token ${l.tokenNo}` : ''}{l.leadDate ? ` · ${formatDate(l.leadDate)}` : ''}
                   </div>
                 </div>
               </button>

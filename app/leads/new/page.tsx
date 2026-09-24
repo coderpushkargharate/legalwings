@@ -153,9 +153,11 @@ interface InputProps {
   placeholder?: string;
   disabled?: boolean;
   id?: string;
+  // When set, the field shows a red border + this message below it (live validation).
+  error?: string | null;
 }
 const Input = memo(function Input({
-  label, value, onChange, type = 'text', readOnly = false, maxLength, placeholder, disabled = false, id,
+  label, value, onChange, type = 'text', readOnly = false, maxLength, placeholder, disabled = false, id, error,
 }: InputProps) {
   const inputId = id || `input-${label.replace(/\s+/g, '-').toLowerCase()}`;
   return (
@@ -164,8 +166,10 @@ const Input = memo(function Input({
       <input
         id={inputId} type={type} value={value} onChange={(e) => onChange(e.target.value)}
         readOnly={readOnly} disabled={disabled} maxLength={maxLength} placeholder={placeholder}
-        className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all"
+        aria-invalid={!!error}
+        className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 disabled:text-slate-500 transition-all ${error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-[#00843d]'}`}
       />
+      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );
 });
@@ -404,6 +408,35 @@ function LeadFormContent() {
 
   const isView = mode === 'view';
   const isEditable = !isView;
+
+  // ============================================================================
+  // 🔹 LIVE FIELD VALIDATION
+  // Errors are computed as the user types so a bad email/phone/Aadhaar/PAN turns
+  // red inline immediately, instead of only surfacing when they hit Save.
+  // Validators skip empty values, so nothing shows until something invalid is typed.
+  // Only shown while editing (view mode never highlights).
+  // ============================================================================
+  const leadErrors = useMemo(() => ({
+    contactNumber: isEditable ? validateMobile(lead.contactNumber, 'Contact number') : null,
+    email: isEditable ? validateEmail(lead.email) : null,
+  }), [isEditable, lead.contactNumber, lead.email]);
+
+  const agreementErrors = useMemo(() => ({
+    ownerEmail: isEditable ? validateEmail(agreement.ownerEmail, 'Owner email') : null,
+    ownerContact: isEditable ? validateMobile(agreement.ownerContact, 'Owner contact') : null,
+    ownerAadhar: isEditable ? validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar') : null,
+    ownerPan: isEditable ? validatePan(agreement.ownerPan, 'Owner PAN') : null,
+    tenantEmail: isEditable ? validateEmail(agreement.tenantEmail, 'Tenant email') : null,
+    tenantContact: isEditable ? validateMobile(agreement.tenantContact, 'Tenant contact') : null,
+    tenantAadhar: isEditable ? validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar') : null,
+    tenantPan: isEditable ? validatePan(agreement.tenantPan, 'Tenant PAN') : null,
+    pvMobile: isEditable ? validateMobile(agreement.pvMobile, 'PV mobile') : null,
+    agreementMobileNo: isEditable ? validateMobile(agreement.agreementMobileNo, 'Agreement mobile') : null,
+  }), [
+    isEditable, agreement.ownerEmail, agreement.ownerContact, agreement.ownerAadhar, agreement.ownerPan,
+    agreement.tenantEmail, agreement.tenantContact, agreement.tenantAadhar, agreement.tenantPan,
+    agreement.pvMobile, agreement.agreementMobileNo,
+  ]);
 
   // ============================================================================
   // 🔹 FETCH DROPDOWNS
@@ -952,11 +985,13 @@ function LeadFormContent() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Contact Number</label>
-                <input type="text" value={lead.contactNumber} onChange={(e) => updateLead('contactNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Contact Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-contactNumber" />
+                <input type="text" value={lead.contactNumber} onChange={(e) => updateLead('contactNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Contact Number" aria-invalid={!!leadErrors.contactNumber} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${leadErrors.contactNumber ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-[#00843d]'}`} id="lead-contactNumber" />
+                {leadErrors.contactNumber && <p className="mt-1 text-xs text-red-600">{leadErrors.contactNumber}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                <input type="email" value={lead.email} onChange={(e) => updateLead('email', e.target.value)} disabled={!isEditable} placeholder="Email" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-email" />
+                <input type="email" value={lead.email} onChange={(e) => updateLead('email', e.target.value)} disabled={!isEditable} placeholder="Email" aria-invalid={!!leadErrors.email} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${leadErrors.email ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-[#00843d]'}`} id="lead-email" />
+                {leadErrors.email && <p className="mt-1 text-xs text-red-600">{leadErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Lead Source</label>
@@ -1039,10 +1074,10 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Owner Firstname" value={agreement.ownerFirstName} onChange={(v) => updateAgreement('ownerFirstName', v)} disabled={!isEditable} placeholder="Owner Firstname" id="agreement-ownerFirstName" />
                 <Input label="Owner Lastname" value={agreement.ownerLastName} onChange={(v) => updateAgreement('ownerLastName', v)} disabled={!isEditable} placeholder="Owner Lastname" id="agreement-ownerLastName" />
-                <Input label="Owner Email" value={agreement.ownerEmail} onChange={(v) => updateAgreement('ownerEmail', v)} type="email" disabled={!isEditable} placeholder="Owner Email" id="agreement-ownerEmail" />
-                <Input label="Owner Contact" value={agreement.ownerContact} onChange={(v) => updateAgreement('ownerContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Owner Contact" id="agreement-ownerContact" />
-                <Input label="Owner Aadhar Number" value={agreement.ownerAadhar} onChange={(v) => updateAgreement('ownerAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Owner Aadhar Number" id="agreement-ownerAadhar" />
-                <Input label="Owner PAN Number" value={agreement.ownerPan} onChange={(v) => updateAgreement('ownerPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Owner PAN Number" id="agreement-ownerPan" />
+                <Input label="Owner Email" value={agreement.ownerEmail} onChange={(v) => updateAgreement('ownerEmail', v)} type="email" disabled={!isEditable} placeholder="Owner Email" id="agreement-ownerEmail" error={agreementErrors.ownerEmail} />
+                <Input label="Owner Contact" value={agreement.ownerContact} onChange={(v) => updateAgreement('ownerContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Owner Contact" id="agreement-ownerContact" error={agreementErrors.ownerContact} />
+                <Input label="Owner Aadhar Number" value={agreement.ownerAadhar} onChange={(v) => updateAgreement('ownerAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Owner Aadhar Number" id="agreement-ownerAadhar" error={agreementErrors.ownerAadhar} />
+                <Input label="Owner PAN Number" value={agreement.ownerPan} onChange={(v) => updateAgreement('ownerPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Owner PAN Number" id="agreement-ownerPan" error={agreementErrors.ownerPan} />
                 {/* ✅ NEW: Owner Birth Date */}
                 <DateField label="Owner Birth Date" value={agreement.ownerBirthDate} onChange={(v) => updateAgreement('ownerBirthDate', v)} isEditable={isEditable} id="agreement-ownerBirthDate" />
               </div>
@@ -1053,10 +1088,10 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Input label="Tenant Firstname" value={agreement.tenantFirstName} onChange={(v) => updateAgreement('tenantFirstName', v)} disabled={!isEditable} placeholder="Tenant Firstname" id="agreement-tenantFirstName" />
                 <Input label="Tenant Lastname" value={agreement.tenantLastName} onChange={(v) => updateAgreement('tenantLastName', v)} disabled={!isEditable} placeholder="Tenant Lastname" id="agreement-tenantLastName" />
-                <Input label="Tenant Email" value={agreement.tenantEmail} onChange={(v) => updateAgreement('tenantEmail', v)} type="email" disabled={!isEditable} placeholder="Tenant Email" id="agreement-tenantEmail" />
-                <Input label="Tenant Contact" value={agreement.tenantContact} onChange={(v) => updateAgreement('tenantContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Tenant Contact" id="agreement-tenantContact" />
-                <Input label="Tenant Aadhar Number" value={agreement.tenantAadhar} onChange={(v) => updateAgreement('tenantAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Tenant Aadhar Number" id="agreement-tenantAadhar" />
-                <Input label="Tenant PAN Number" value={agreement.tenantPan} onChange={(v) => updateAgreement('tenantPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Tenant PAN Number" id="agreement-tenantPan" />
+                <Input label="Tenant Email" value={agreement.tenantEmail} onChange={(v) => updateAgreement('tenantEmail', v)} type="email" disabled={!isEditable} placeholder="Tenant Email" id="agreement-tenantEmail" error={agreementErrors.tenantEmail} />
+                <Input label="Tenant Contact" value={agreement.tenantContact} onChange={(v) => updateAgreement('tenantContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Tenant Contact" id="agreement-tenantContact" error={agreementErrors.tenantContact} />
+                <Input label="Tenant Aadhar Number" value={agreement.tenantAadhar} onChange={(v) => updateAgreement('tenantAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Tenant Aadhar Number" id="agreement-tenantAadhar" error={agreementErrors.tenantAadhar} />
+                <Input label="Tenant PAN Number" value={agreement.tenantPan} onChange={(v) => updateAgreement('tenantPan', v.toUpperCase())} maxLength={10} disabled={!isEditable} placeholder="Tenant PAN Number" id="agreement-tenantPan" error={agreementErrors.tenantPan} />
                 {/* ✅ NEW: Tenant Birth Date */}
                 <DateField label="Tenant Birth Date" value={agreement.tenantBirthDate} onChange={(v) => updateAgreement('tenantBirthDate', v)} isEditable={isEditable} id="agreement-tenantBirthDate" />
               </div>
@@ -1067,7 +1102,7 @@ function LeadFormContent() {
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <Input label="Name" value={agreement.pvName || ''} onChange={(v) => updateAgreement('pvName', v)} disabled={!isEditable} placeholder="Name" id="agreement-pvName" />
                 <Input label="Age" value={agreement.pvAge || ''} onChange={(v) => updateAgreement('pvAge', v.replace(/[^0-9]/g, '').slice(0, 3))} maxLength={3} disabled={!isEditable} placeholder="Age" type="number" id="agreement-pvAge" />
-                <Input label="Mobile No." value={agreement.pvMobile || ''} onChange={(v) => updateAgreement('pvMobile', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Mobile No." id="agreement-pvMobile" />
+                <Input label="Mobile No." value={agreement.pvMobile || ''} onChange={(v) => updateAgreement('pvMobile', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Mobile No." id="agreement-pvMobile" error={agreementErrors.pvMobile} />
                 <Input label="Relation" value={agreement.pvRelation || ''} onChange={(v) => updateAgreement('pvRelation', v)} disabled={!isEditable} placeholder="Relation" id="agreement-pvRelation" />
               </div>
             </div>
@@ -1097,8 +1132,9 @@ function LeadFormContent() {
                   onChange={(v) => updateAgreement('agreementMobileNo', v.replace(/[^0-9]/g, '').slice(0, 10))} 
                   maxLength={10} 
                   disabled={!isEditable} 
-                  placeholder="Mobile No" 
-                  id="agreement-mobileNo" 
+                  placeholder="Mobile No"
+                  id="agreement-mobileNo"
+                  error={agreementErrors.agreementMobileNo}
                 />
                 
                 {/* ✅ EXISTING: Execute Date Field */}
@@ -1109,7 +1145,7 @@ function LeadFormContent() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
                   <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
-                    {['Owner Pending','Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Govt. Submit pending','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending','Tenant Pending','Owner + Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','2 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Govt. Submit pending','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="md:col-span-3">

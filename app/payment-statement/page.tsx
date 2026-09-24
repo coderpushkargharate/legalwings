@@ -51,8 +51,17 @@ interface Lead {
   appointmentTime?: string;
   assignedToUserName?: string | null;
   createdByUserName?: string | null;
-  // Commission expense fields (read by the Expenses tab).
-  payment?: { commissionName?: string; commissionAmount?: number | string; commissionDate?: string };
+  // Commission expense fields (read by the Expenses tab) + the amount fields
+  // (totalAmount = Legal Fees / outstanding) used to compute the pending balance.
+  payment?: {
+    commissionName?: string;
+    commissionAmount?: number | string;
+    commissionDate?: string;
+    totalAmount?: number | string;
+    outstandingAmount?: number | string;
+    pendingAmount?: number | string;
+    balanceAmount?: number | string;
+  };
   paymentDetails?: PaymentDetail[];
   forwardedHistory?: Array<{
     fromTeam?: string;
@@ -332,6 +341,23 @@ export default function PaymentStatementPage() {
   const todayReceived = todayCash + todayOnline;
   const upToDateTotal = totalCash + totalOnline;
 
+  // Pending (outstanding) balance across all leads = Σ (Legal Fees − received)
+  // per lead. Legal Fees = payment.totalAmount (== outstanding); received = the
+  // sum of that lead's payment lines. Overpaid leads are clamped to 0 so they
+  // don't cancel out genuine pending balances on other leads. All-time (ignores
+  // the date filter), like the other summary totals.
+  const pendingAmount = useMemo(() => {
+    let pending = 0;
+    for (const lead of leads) {
+      const outstanding = toNum(lead.payment?.totalAmount ?? lead.payment?.outstandingAmount);
+      if (outstanding <= 0) continue;
+      const received = (lead.paymentDetails || []).reduce((s, p) => s + toNum(p.paymentAmount), 0);
+      const balance = outstanding - received;
+      if (balance > 0) pending += balance;
+    }
+    return pending;
+  }, [leads]);
+
   // Excel export — same rows & order as shown on screen.
   const handleExport = useCallback(() => {
     const exportData = rows.map((r, i) => ({
@@ -442,8 +468,8 @@ export default function PaymentStatementPage() {
           </button>
         </div>
 
-        {/* Summary — Today's Cash/Online/Total and all-time ("up to date") Cash/Online/Total */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        {/* Summary — Today's Cash/Online/Total, all-time ("up to date") Cash/Online/Total, and pending balance */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs text-slate-500 mb-1">Today Cash</p>
             <p className="text-lg font-semibold text-[#00843d] flex items-center gap-1">
@@ -478,6 +504,12 @@ export default function PaymentStatementPage() {
             <p className="text-xs text-slate-500 mb-1">Up to Date Total</p>
             <p className="text-lg font-semibold text-[#00843d] flex items-center gap-1">
               <IndianRupee className="w-4 h-4" /> {formatINR(upToDateTotal)}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs text-slate-500 mb-1">Pending Amount</p>
+            <p className="text-lg font-semibold text-red-600 flex items-center gap-1">
+              <IndianRupee className="w-4 h-4" /> {formatINR(pendingAmount)}
             </p>
           </div>
         </div>
