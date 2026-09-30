@@ -346,16 +346,21 @@ export default function PaymentStatementPage() {
   // sum of that lead's payment lines. Overpaid leads are clamped to 0 so they
   // don't cancel out genuine pending balances on other leads. All-time (ignores
   // the date filter), like the other summary totals.
-  const pendingAmount = useMemo(() => {
-    let pending = 0;
+  const { pendingAmount, todayPending } = useMemo(() => {
+    const t = todayLocal();
+    let pending = 0, todayP = 0;
     for (const lead of leads) {
       const outstanding = toNum(lead.payment?.totalAmount ?? lead.payment?.outstandingAmount);
       if (outstanding <= 0) continue;
       const received = (lead.paymentDetails || []).reduce((s, p) => s + toNum(p.paymentAmount), 0);
       const balance = outstanding - received;
-      if (balance > 0) pending += balance;
+      if (balance <= 0) continue;
+      pending += balance;
+      // "Today" pending = balance still owed on leads dated today.
+      const leadDate = lead.leadDate || lead.createdDate || '';
+      if (leadDate.slice(0, 10) === t) todayP += balance;
     }
-    return pending;
+    return { pendingAmount: pending, todayPending: todayP };
   }, [leads]);
 
   // Excel export — same rows & order as shown on screen.
@@ -469,7 +474,7 @@ export default function PaymentStatementPage() {
         </div>
 
         {/* Summary — Today's Cash/Online/Total, all-time ("up to date") Cash/Online/Total, and pending balance */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-4">
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <p className="text-xs text-slate-500 mb-1">Today Cash</p>
             <p className="text-lg font-semibold text-[#00843d] flex items-center gap-1">
@@ -504,6 +509,12 @@ export default function PaymentStatementPage() {
             <p className="text-xs text-slate-500 mb-1">Up to Date Total</p>
             <p className="text-lg font-semibold text-[#00843d] flex items-center gap-1">
               <IndianRupee className="w-4 h-4" /> {formatINR(upToDateTotal)}
+            </p>
+          </div>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <p className="text-xs text-slate-500 mb-1">Today Pending</p>
+            <p className="text-lg font-semibold text-amber-600 flex items-center gap-1">
+              <IndianRupee className="w-4 h-4" /> {formatINR(todayPending)}
             </p>
           </div>
           <div className="bg-white rounded-xl border border-slate-200 p-4">
