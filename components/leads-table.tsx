@@ -2,7 +2,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { validateEmail, validateMobile, validateAadhaar, validatePan, collectErrors } from '@/lib/validation';
+import {
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateName, validateAmount, validateAge,
+  validateDateRange, validatePaymentRow, collectErrors,
+} from '@/lib/validation';
 import {
   Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
   User, Loader2, Phone, Mail, MapPin, FileText, CreditCard, CalendarDays, Clock, Building,
@@ -761,26 +764,59 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     setTenantPayments(prev => [...prev, { paymentDate: '', paymentAmount: '', modeOfPayment: '', payerName: '', transactionNumber: '' }]);
   };
 
+  // Live field errors — a field turns red as soon as something invalid is typed.
+  // Empty optional fields (incl. Transaction Number) never show an error.
+  const ag = formData.agreement;
+  const pay = formData.payment;
+  const fieldErrors: Record<string, string | null> = {
+    firstName: validateName(formData.client?.firstName, 'First name'),
+    lastName: validateName(formData.client?.lastName, 'Last name'),
+    phoneNo: validateMobile(formData.client?.phoneNo, 'Contact number'),
+    email: validateEmail(formData.client?.email),
+    referenceName: validateName(formData.referenceName, 'Reference name'),
+    referenceNumber: validateMobile(formData.referenceNumber, 'Reference number'),
+    amount: validateAmount(formData.amount as any),
+    ownerFirstName: validateName(ag?.owner?.firstName, 'Owner first name'),
+    ownerLastName: validateName(ag?.owner?.lastName, 'Owner last name'),
+    ownerPhone: validateMobile(ag?.owner?.phoneNo, 'Owner contact'),
+    ownerEmail: validateEmail(ag?.owner?.email, 'Owner email'),
+    ownerAadhar: validateAadhaar(ag?.owner?.aadharNumber, 'Owner Aadhaar'),
+    ownerPan: validatePan(ag?.owner?.panNumber, 'Owner PAN'),
+    tenantFirstName: validateName(ag?.tenant?.firstName, 'Tenant first name'),
+    tenantLastName: validateName(ag?.tenant?.lastName, 'Tenant last name'),
+    tenantPhone: validateMobile(ag?.tenant?.phoneNo, 'Tenant contact'),
+    tenantEmail: validateEmail(ag?.tenant?.email, 'Tenant email'),
+    tenantAadhar: validateAadhaar(ag?.tenant?.aadharNumber, 'Tenant Aadhaar'),
+    tenantPan: validatePan(ag?.tenant?.panNumber, 'Tenant PAN'),
+    pvName: validateName(ag?.pvName, 'PV name'),
+    pvAge: validateAge(ag?.pvAge, 'PV age'),
+    pvMobile: validateMobile(ag?.pvMobile, 'PV mobile'),
+    pvRelation: validateName(ag?.pvRelation, 'PV relation'),
+    svName: validateName(ag?.svName, 'SV name'),
+    agreementEndDate: validateDateRange(ag?.agreementStartDate || ag?.startDate, ag?.agreementEndDate || ag?.endDate, 'Agreement end date'),
+    mobileNo: validateMobile(ag?.mobileNo, 'Agreement mobile'),
+    totalAmount: validateAmount(pay?.totalAmount, 'Total agreement amount'),
+    commissionAmount: validateAmount(pay?.commissionAmount, 'AC amount'),
+    grnAmount: validateAmount(pay?.grnAmount, 'GRN amount'),
+    dhcAmount: validateAmount(pay?.dhcAmount, 'DHC amount'),
+    commissionName: validateName(pay?.commissionName, 'Commission name'),
+  };
+  const ownerPaymentErrors = ownerPayments.map(validatePaymentRow);
+  const tenantPaymentErrors = tenantPayments.map(validatePaymentRow);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!lead?.id) return;
 
-    const validationErrors = collectErrors(
-      validateMobile(formData.client?.phoneNo, 'Contact number'),
-      validateEmail(formData.client?.email),
-      validateMobile(formData.agreement?.owner?.phoneNo, 'Owner contact'),
-      validateEmail(formData.agreement?.owner?.email, 'Owner email'),
-      validateAadhaar(formData.agreement?.owner?.aadharNumber, 'Owner Aadhaar'),
-      validatePan(formData.agreement?.owner?.panNumber, 'Owner PAN'),
-      validateMobile(formData.agreement?.tenant?.phoneNo, 'Tenant contact'),
-      validateEmail(formData.agreement?.tenant?.email, 'Tenant email'),
-      validateAadhaar(formData.agreement?.tenant?.aadharNumber, 'Tenant Aadhaar'),
-      validatePan(formData.agreement?.tenant?.panNumber, 'Tenant PAN'),
-      validateMobile(formData.agreement?.pvMobile, 'PV mobile'),
-      validateMobile(formData.agreement?.mobileNo, 'Agreement mobile'),
-    );
+    const rowMessages = (rows: Record<string, string | undefined>[], who: string) =>
+      rows.flatMap((r, i) => Object.values(r).filter(Boolean).map(m => `${who} payment ${i + 1}: ${m}`));
+    const validationErrors = [
+      ...collectErrors(...Object.values(fieldErrors)),
+      ...rowMessages(ownerPaymentErrors, 'Owner'),
+      ...rowMessages(tenantPaymentErrors, 'Tenant'),
+    ];
     if (validationErrors.length > 0) {
-      setError(validationErrors.join('. '));
+      setError(`Please fix the highlighted fields: ${validationErrors.join('. ')}`);
       return;
     }
 
@@ -824,6 +860,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   if (!isOpen || !lead) return null;
 
   const inputClass = "w-full px-3 py-2 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#00843d] focus:border-transparent transition-all";
+  // inputClass with a red border when the field has an error, plus its message.
+  const cls = (err?: string | null) =>
+    err ? inputClass.replace('border-slate-200', 'border-red-400').replace('focus:ring-[#00843d]', 'focus:ring-red-300') : inputClass;
+  const Err = ({ e }: { e?: string | null }) => (e ? <p className="mt-1 text-xs text-red-600">{e}</p> : null);
   const labelClass = "block text-xs font-medium text-slate-500 mb-1";
   const sectionClass = "bg-slate-50 rounded-xl p-5 border border-slate-200 mb-6";
   const sectionHeaderClass = "text-base font-semibold text-slate-800 mb-4 flex items-center gap-2";
@@ -866,8 +906,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <h4 className={sectionHeaderClass}><FileText className="w-5 h-5 text-[#00843d]" /> Lead Details</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div><label className={labelClass}>Lead Date</label><DateInput value={formData.leadDate} onChange={(iso) => handleInputChange('general', 'leadDate', iso)} className={inputClass} /></div>
-              <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>First Name</label><input type="text" value={formData.client?.firstName || ''} onChange={(e) => handleInputChange('client', 'firstName', e.target.value)} className={cls(fieldErrors.firstName)} /><Err e={fieldErrors.firstName} /></div>
+              <div><label className={labelClass}>Last Name</label><input type="text" value={formData.client?.lastName || ''} onChange={(e) => handleInputChange('client', 'lastName', e.target.value)} className={cls(fieldErrors.lastName)} /><Err e={fieldErrors.lastName} /></div>
               <div>
                 <label className={labelClass}>Client Type</label>
                 <select value={formData.client?.clientType || ''} onChange={(e) => handleInputChange('client', 'clientType', e.target.value)} className={inputClass}>
@@ -877,8 +917,8 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   <option value="AGENT">AGENT</option>
                 </select>
               </div>
-              <div><label className={labelClass}>Contact Number</label><input type="tel" value={formData.client?.phoneNo || ''} onChange={(e) => handleInputChange('client', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
-              <div><label className={labelClass}>Email</label><input type="email" value={formData.client?.email || ''} onChange={(e) => handleInputChange('client', 'email', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Contact Number</label><input type="tel" value={formData.client?.phoneNo || ''} onChange={(e) => handleInputChange('client', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={cls(fieldErrors.phoneNo)} /><Err e={fieldErrors.phoneNo} /></div>
+              <div><label className={labelClass}>Email</label><input type="email" value={formData.client?.email || ''} onChange={(e) => handleInputChange('client', 'email', e.target.value)} className={cls(fieldErrors.email)} /><Err e={fieldErrors.email} /></div>
               <div>
                 <label className={labelClass}>Lead Source</label>
                 <select value={formData.leadSource || ''} onChange={(e) => handleInputChange('general', 'leadSource', e.target.value)} className={inputClass}>
@@ -905,9 +945,9 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <div className="md:col-span-2"><label className={labelClass}>Appointment Date &amp; Time</label><DateTimeInput value={formData.appointmentTime} onChange={(v) => handleInputChange('general', 'appointmentTime', v)} className={inputClass} /></div>
               <div><label className={labelClass}>Visit Address</label><input type="text" value={formData.visitAddress || ''} onChange={(e) => handleInputChange('general', 'visitAddress', e.target.value)} className={inputClass} /></div>
               <div><label className={labelClass}>Description</label><input type="text" value={formData.description || ''} onChange={(e) => handleInputChange('general', 'description', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Reference Number</label><input type="text" value={formData.referenceNumber || ''} onChange={(e) => handleInputChange('general', 'referenceNumber', e.target.value)} className={inputClass} /></div>
-              <div><label className={labelClass}>Amount</label><input type="text" value={formData.amount || ''} onChange={(e) => handleInputChange('general', 'amount', e.target.value)} className={inputClass} /></div>
+              <div><label className={labelClass}>Reference Name</label><input type="text" value={formData.referenceName || ''} onChange={(e) => handleInputChange('general', 'referenceName', e.target.value)} className={cls(fieldErrors.referenceName)} /><Err e={fieldErrors.referenceName} /></div>
+              <div><label className={labelClass}>Reference Number</label><input type="text" value={formData.referenceNumber || ''} onChange={(e) => handleInputChange('general', 'referenceNumber', e.target.value)} className={cls(fieldErrors.referenceNumber)} /><Err e={fieldErrors.referenceNumber} /></div>
+              <div><label className={labelClass}>Amount</label><input type="text" value={formData.amount || ''} onChange={(e) => handleInputChange('general', 'amount', e.target.value)} className={cls(fieldErrors.amount)} /><Err e={fieldErrors.amount} /></div>
               <div>
                 <label className={labelClass}>City</label>
                 <select value={formData.cityId || ''} onChange={(e) => handleInputChange('general', 'cityId', e.target.value)} className={inputClass}>
@@ -934,12 +974,12 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><User className="w-5 h-5 text-[#00843d]" /> Owner Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.owner?.firstName || ''} onChange={(e) => handleInputChange('owner', 'firstName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.owner?.lastName || ''} onChange={(e) => handleInputChange('owner', 'lastName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.owner?.email || ''} onChange={(e) => handleInputChange('owner', 'email', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.owner?.phoneNo || ''} onChange={(e) => handleInputChange('owner', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.owner?.aadharNumber || ''} onChange={(e) => handleInputChange('owner', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
-                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.owner?.firstName || ''} onChange={(e) => handleInputChange('owner', 'firstName', e.target.value)} className={cls(fieldErrors.ownerFirstName)} /><Err e={fieldErrors.ownerFirstName} /></div>
+                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.owner?.lastName || ''} onChange={(e) => handleInputChange('owner', 'lastName', e.target.value)} className={cls(fieldErrors.ownerLastName)} /><Err e={fieldErrors.ownerLastName} /></div>
+                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.owner?.email || ''} onChange={(e) => handleInputChange('owner', 'email', e.target.value)} className={cls(fieldErrors.ownerEmail)} /><Err e={fieldErrors.ownerEmail} /></div>
+                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.owner?.phoneNo || ''} onChange={(e) => handleInputChange('owner', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={cls(fieldErrors.ownerPhone)} /><Err e={fieldErrors.ownerPhone} /></div>
+                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.owner?.aadharNumber || ''} onChange={(e) => handleInputChange('owner', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={cls(fieldErrors.ownerAadhar)} /><Err e={fieldErrors.ownerAadhar} /></div>
+                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.owner?.panNumber || ''} onChange={(e) => handleInputChange('owner', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={cls(fieldErrors.ownerPan)} /><Err e={fieldErrors.ownerPan} /></div>
                 <div>
                   <label className={labelClass}>Birth Date</label>
                   <DateInput value={formData.agreement?.owner?.birthDate || formData.agreement?.owner?.dateOfBirth} onChange={(iso) => handleInputChange('owner', 'birthDate', iso)} className={inputClass} />
@@ -950,12 +990,12 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><Users className="w-5 h-5 text-[#00843d]" /> Tenant Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.tenant?.firstName || ''} onChange={(e) => handleInputChange('tenant', 'firstName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.tenant?.lastName || ''} onChange={(e) => handleInputChange('tenant', 'lastName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.tenant?.email || ''} onChange={(e) => handleInputChange('tenant', 'email', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.tenant?.phoneNo || ''} onChange={(e) => handleInputChange('tenant', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.tenant?.aadharNumber || ''} onChange={(e) => handleInputChange('tenant', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={inputClass} /></div>
-                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>First Name</label><input type="text" value={formData.agreement?.tenant?.firstName || ''} onChange={(e) => handleInputChange('tenant', 'firstName', e.target.value)} className={cls(fieldErrors.tenantFirstName)} /><Err e={fieldErrors.tenantFirstName} /></div>
+                <div><label className={labelClass}>Last Name</label><input type="text" value={formData.agreement?.tenant?.lastName || ''} onChange={(e) => handleInputChange('tenant', 'lastName', e.target.value)} className={cls(fieldErrors.tenantLastName)} /><Err e={fieldErrors.tenantLastName} /></div>
+                <div><label className={labelClass}>Email</label><input type="email" value={formData.agreement?.tenant?.email || ''} onChange={(e) => handleInputChange('tenant', 'email', e.target.value)} className={cls(fieldErrors.tenantEmail)} /><Err e={fieldErrors.tenantEmail} /></div>
+                <div><label className={labelClass}>Contact</label><input type="tel" value={formData.agreement?.tenant?.phoneNo || ''} onChange={(e) => handleInputChange('tenant', 'phoneNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={cls(fieldErrors.tenantPhone)} /><Err e={fieldErrors.tenantPhone} /></div>
+                <div><label className={labelClass}>Aadhar Number</label><input type="text" value={formData.agreement?.tenant?.aadharNumber || ''} onChange={(e) => handleInputChange('tenant', 'aadharNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} className={cls(fieldErrors.tenantAadhar)} /><Err e={fieldErrors.tenantAadhar} /></div>
+                <div><label className={labelClass}>PAN Number</label><input type="text" value={formData.agreement?.tenant?.panNumber || ''} onChange={(e) => handleInputChange('tenant', 'panNumber', e.target.value.toUpperCase())} maxLength={10} className={cls(fieldErrors.tenantPan)} /><Err e={fieldErrors.tenantPan} /></div>
                 <div>
                   <label className={labelClass}>Birth Date</label>
                   <DateInput value={formData.agreement?.tenant?.birthDate || formData.agreement?.tenant?.dateOfBirth} onChange={(iso) => handleInputChange('tenant', 'birthDate', iso)} className={inputClass} />
@@ -966,17 +1006,17 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><BadgeCheck className="w-5 h-5 text-[#00843d]" /> Police Verification</h4>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div><label className={labelClass}>Name</label><input type="text" value={formData.agreement?.pvName || ''} onChange={(e) => handleInputChange('agreement', 'pvName', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Age</label><input type="number" value={formData.agreement?.pvAge || ''} onChange={(e) => handleInputChange('agreement', 'pvAge', e.target.value)} className={inputClass} /></div>
-                <div><label className={labelClass}>Mobile</label><input type="tel" value={formData.agreement?.pvMobile || ''} onChange={(e) => handleInputChange('agreement', 'pvMobile', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
-                <div><label className={labelClass}>Relation</label><input type="text" value={formData.agreement?.pvRelation || ''} onChange={(e) => handleInputChange('agreement', 'pvRelation', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Name</label><input type="text" value={formData.agreement?.pvName || ''} onChange={(e) => handleInputChange('agreement', 'pvName', e.target.value)} className={cls(fieldErrors.pvName)} /><Err e={fieldErrors.pvName} /></div>
+                <div><label className={labelClass}>Age</label><input type="number" value={formData.agreement?.pvAge || ''} onChange={(e) => handleInputChange('agreement', 'pvAge', e.target.value)} className={cls(fieldErrors.pvAge)} /><Err e={fieldErrors.pvAge} /></div>
+                <div><label className={labelClass}>Mobile</label><input type="tel" value={formData.agreement?.pvMobile || ''} onChange={(e) => handleInputChange('agreement', 'pvMobile', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={cls(fieldErrors.pvMobile)} /><Err e={fieldErrors.pvMobile} /></div>
+                <div><label className={labelClass}>Relation</label><input type="text" value={formData.agreement?.pvRelation || ''} onChange={(e) => handleInputChange('agreement', 'pvRelation', e.target.value)} className={cls(fieldErrors.pvRelation)} /><Err e={fieldErrors.pvRelation} /></div>
               </div>
             </div>
 
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><MapPinned className="w-5 h-5 text-[#00843d]" /> Site Visit Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>SV Name</label><input type="text" value={formData.agreement?.svName || ''} onChange={(e) => handleInputChange('agreement', 'svName', e.target.value)} className={cls(fieldErrors.svName)} /><Err e={fieldErrors.svName} /></div>
                 <div><label className={labelClass}>SV No.</label><input type="text" inputMode="numeric" value={formData.agreement?.svNo || ''} onChange={(e) => handleInputChange('agreement', 'svNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
                 <div><label className={labelClass}>SV Location</label><input type="text" value={formData.agreement?.svLocation || ''} onChange={(e) => handleInputChange('agreement', 'svLocation', e.target.value)} className={inputClass} /></div>
               </div>
@@ -991,15 +1031,15 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 </div>
                 <div><label className={labelClass}>Period (Month)</label><input type="number" min={0} placeholder="e.g. 11" value={daysToMonthsStr((formData.agreement as any)?.periodDays ?? diffDaysISO(formData.agreement?.agreementStartDate || formData.agreement?.startDate, formData.agreement?.agreementEndDate || formData.agreement?.endDate))} onChange={(e) => handlePeriodChange(monthsToDaysStr(e.target.value))} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={handleAgreementStartChange} className={inputClass} /></div>
-                <div><label className={labelClass}>Agreement End Date</label><DateInput value={formData.agreement?.agreementEndDate || formData.agreement?.endDate} onChange={(iso) => handleInputChange('agreement', 'agreementEndDate', iso)} className={inputClass} /></div>
-                <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={inputClass} /></div>
+                <div><label className={labelClass}>Agreement End Date</label><DateInput value={formData.agreement?.agreementEndDate || formData.agreement?.endDate} onChange={(iso) => handleInputChange('agreement', 'agreementEndDate', iso)} className={cls(fieldErrors.agreementEndDate)} /><Err e={fieldErrors.agreementEndDate} /></div>
+                <div><label className={labelClass}>Mobile No</label><input type="tel" value={formData.agreement?.mobileNo || ''} onChange={(e) => handleInputChange('agreement', 'mobileNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} className={cls(fieldErrors.mobileNo)} /><Err e={fieldErrors.mobileNo} /></div>
                 <div><label className={labelClass}>Execute Date</label><DateInput value={formData.agreement?.executeDate} onChange={(iso) => handleInputChange('agreement', 'executeDate', iso)} className={inputClass} /></div>
                 <div className="md:col-span-2"><label className={labelClass}>Address Line 1</label><input type="text" value={formData.agreement?.addressLine1 || ''} onChange={(e) => handleInputChange('agreement', 'addressLine1', e.target.value)} className={inputClass} /></div>
                 <div>
                   <label className={labelClass}>Agreement Status</label>
                   <select value={formData.agreement?.status || ''} onChange={(e) => handleInputChange('agreement', 'status', e.target.value)} className={inputClass}>
                     <option value="">Select Status</option>
-                    {['Owner Pending', 'Tenant Pending', 'Witness Pending', 'Payment + Witness Pending', 'All Pending', 'All VP Pending', 'Draft Ready', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme', 'Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending', 'Tenant Pending', 'Owner + Tenant Pending', '2+ Tenant Pending', 'Owner + Payment Pending', 'Tenant + Payment Pending', 'Visit charges pending', 'Side Visit pending', 'Witness Pending', 'Payment + Witness Pending', 'All Pending', 'All VP Pending', 'Draft Ready', 'Challan and DHC', 'Extra Visit', '1 Tenant Pending', 'NRI Owner Pending', 'Deposit Details Pending', 'Furniture Details Pending', 'Miscellaneous points Pending', 'Agent/owner/Tenant Confirmation Pending', 'Draft Updation Pending', 'POA Pending Sending', 'Reshadule', 'Biomatric Problem', 'Sarver Problem', 'Sending Govt.', 'Photo Pending', 'Other Problme', 'Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 {!hideBackWorkAccount && (
@@ -1123,11 +1163,11 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>Total Agreement Amount</label>
-                  <input type="text" placeholder="e.g., 5000" value={formData.payment?.totalAmount || ''} onChange={(e) => handleInputChange('payment', 'totalAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
+                  <input type="text" placeholder="e.g., 5000" value={formData.payment?.totalAmount || ''} onChange={(e) => handleInputChange('payment', 'totalAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(fieldErrors.totalAmount)} /><Err e={fieldErrors.totalAmount} />
                 </div>
                 <div>
                   <label className={labelClass}>AC Amount</label>
-                  <input type="text" placeholder="e.g., 500" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} />
+                  <input type="text" placeholder="e.g., 500" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(fieldErrors.commissionAmount)} /><Err e={fieldErrors.commissionAmount} />
                 </div>
                 <div>
                   <label className={labelClass}>Outstanding Amount</label>
@@ -1151,19 +1191,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00843d]" /> Owner Payments</h4>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
-                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateOwnerPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
-                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateOwnerPayment(i, 'paymentDate', iso)} className={cls(ownerPaymentErrors[i]?.paymentDate)} /><Err e={ownerPaymentErrors[i]?.paymentDate} /></div>
+                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(ownerPaymentErrors[i]?.paymentAmount)} /><Err e={ownerPaymentErrors[i]?.paymentAmount} /></div>
                   <div>
                     <label className={labelClass}>Mode</label>
-                    <select value={p.modeOfPayment} onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} className={inputClass}>
+                    <select value={p.modeOfPayment} onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} className={cls(ownerPaymentErrors[i]?.modeOfPayment)}>
                       <option value="">Select</option>
                       <option value="CASH">Cash</option>
                       <option value="ONLINE">Online</option>
                       <option value="CHEQUE">Cheque</option>
-                    </select>
+                    </select><Err e={ownerPaymentErrors[i]?.modeOfPayment} />
                   </div>
-                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={inputClass} /></div>
-                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={cls(ownerPaymentErrors[i]?.payerName)} /><Err e={ownerPaymentErrors[i]?.payerName} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-slate-400">(optional)</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1175,19 +1215,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><Users2 className="w-5 h-5 text-[#00843d]" /> Tenant Payments</h4>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 p-4 bg-white rounded-lg border border-slate-200">
-                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateTenantPayment(i, 'paymentDate', iso)} className={inputClass} /></div>
-                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payment Date</label><DateInput value={p.paymentDate} onChange={(iso) => updateTenantPayment(i, 'paymentDate', iso)} className={cls(tenantPaymentErrors[i]?.paymentDate)} /><Err e={tenantPaymentErrors[i]?.paymentDate} /></div>
+                  <div><label className={labelClass}>Amount</label><input type="text" placeholder="Amount" value={p.paymentAmount} onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(tenantPaymentErrors[i]?.paymentAmount)} /><Err e={tenantPaymentErrors[i]?.paymentAmount} /></div>
                   <div>
                     <label className={labelClass}>Mode</label>
-                    <select value={p.modeOfPayment} onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} className={inputClass}>
+                    <select value={p.modeOfPayment} onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} className={cls(tenantPaymentErrors[i]?.modeOfPayment)}>
                       <option value="">Select</option>
                       <option value="CASH">Cash</option>
                       <option value="ONLINE">Online</option>
                       <option value="CHEQUE">Cheque</option>
-                    </select>
+                    </select><Err e={tenantPaymentErrors[i]?.modeOfPayment} />
                   </div>
-                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={inputClass} /></div>
-                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={inputClass} /></div>
+                  <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={cls(tenantPaymentErrors[i]?.payerName)} /><Err e={tenantPaymentErrors[i]?.payerName} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-slate-400">(optional)</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1200,13 +1240,13 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><Banknote className="w-5 h-5 text-[#00843d]" /> Back Work Account</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div><label className={labelClass}>GRN Number</label><input type="text" value={formData.payment?.grnNumber || ''} onChange={(e) => handleInputChange('payment', 'grnNumber', e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 18))} maxLength={18} className={inputClass} /></div>
-                <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                <div><label className={labelClass}>GRN Amount</label><input type="text" value={formData.payment?.grnAmount || ''} onChange={(e) => handleInputChange('payment', 'grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(fieldErrors.grnAmount)} /><Err e={fieldErrors.grnAmount} /></div>
                 <div><label className={labelClass}>Govt GRN Date</label><DateInput value={formData.payment?.govtGrnDate} onChange={(iso) => handleInputChange('payment', 'govtGrnDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>DHC Number</label><input type="text" value={formData.payment?.dhcNumber || ''} onChange={(e) => handleInputChange('payment', 'dhcNumber', e.target.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 13))} maxLength={13} className={inputClass} /></div>
-                <div><label className={labelClass}>DHC Amount</label><input type="text" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
+                <div><label className={labelClass}>DHC Amount</label><input type="text" value={formData.payment?.dhcAmount || ''} onChange={(e) => handleInputChange('payment', 'dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={cls(fieldErrors.dhcAmount)} /><Err e={fieldErrors.dhcAmount} /></div>
                 <div><label className={labelClass}>DHC Date</label><DateInput value={formData.payment?.dhcDate} onChange={(iso) => handleInputChange('payment', 'dhcDate', iso)} className={inputClass} /></div>
                 <div><label className={labelClass}>Commission Date</label><DateInput value={formData.payment?.commissionDate} onChange={(iso) => handleInputChange('payment', 'commissionDate', iso)} className={inputClass} /></div>
-                <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={inputClass} /></div>
+                <div><label className={labelClass}>Commission Name</label><input type="text" value={formData.payment?.commissionName || ''} onChange={(e) => handleInputChange('payment', 'commissionName', e.target.value)} className={cls(fieldErrors.commissionName)} /><Err e={fieldErrors.commissionName} /></div>
                 <div><label className={labelClass}>Commission Amount</label><input type="text" value={formData.payment?.commissionAmount || ''} onChange={(e) => handleInputChange('payment', 'commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} className={inputClass} /></div>
                 <div className="md:col-span-3"><label className={labelClass}>Description</label><textarea value={formData.payment?.description || ''} onChange={(e) => handleInputChange('payment', 'description', e.target.value)} rows={3} className={`${inputClass} resize-none`} /></div>
               </div>

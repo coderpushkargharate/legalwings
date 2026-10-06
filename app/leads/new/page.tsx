@@ -7,7 +7,10 @@ import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
 import { formatDate } from '@/lib/date-utils';
-import { validateEmail, validateMobile, validateAadhaar, validatePan, collectErrors } from '@/lib/validation';
+import {
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateName, validateAmount, validateAge,
+  validateDateRange, validatePaymentRow, collectErrors, type PaymentRowErrors,
+} from '@/lib/validation';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -143,6 +146,12 @@ const isImageFile = (data?: string, name?: string): boolean =>
 // ============================================================================
 // 🔹 REUSABLE COMPONENTS
 // ============================================================================
+// Border classes for a raw <input>/<select>: red when the field has an error.
+const borderClass = (error?: string | null) =>
+  error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-[#00843d]';
+const FieldError = ({ error }: { error?: string | null }) =>
+  error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null;
+
 interface InputProps {
   label: string;
   value: string;
@@ -182,6 +191,7 @@ interface DateFieldProps {
   isEditable: boolean;
   withTime?: boolean;
   id?: string;
+  error?: string | null;
 }
 // Parse a `YYYY-MM-DDTHH:mm` value into 24-hour picker parts (no AM/PM).
 const parseDateTime = (value?: string) => {
@@ -222,7 +232,7 @@ const monthsToDaysStr = (months: string): string => {
   return isNaN(n) ? '' : String(n * 30);
 };
 
-const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id }: DateFieldProps) {
+const DateField = memo(function DateField({ label, value, onChange, isEditable, withTime = false, id, error }: DateFieldProps) {
   const fieldId = id || `date-${label.replace(/\s+/g, '-').toLowerCase()}`;
 
   if (withTime && isEditable) {
@@ -286,7 +296,8 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
           type="date"
           value={nativeValue}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all cursor-pointer"
+          aria-invalid={!!error}
+          className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 transition-all cursor-pointer ${borderClass(error)}`}
         />
       ) : (
         <div id={fieldId} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">
@@ -295,6 +306,7 @@ const DateField = memo(function DateField({ label, value, onChange, isEditable, 
             : formatDate(value)}
         </div>
       )}
+      {isEditable && <FieldError error={error} />}
     </div>
   );
 });
@@ -416,27 +428,64 @@ function LeadFormContent() {
   // Validators skip empty values, so nothing shows until something invalid is typed.
   // Only shown while editing (view mode never highlights).
   // ============================================================================
-  const leadErrors = useMemo(() => ({
-    contactNumber: isEditable ? validateMobile(lead.contactNumber, 'Contact number') : null,
-    email: isEditable ? validateEmail(lead.email) : null,
-  }), [isEditable, lead.contactNumber, lead.email]);
+  const leadErrors = useMemo(() => {
+    if (!isEditable) return {} as Record<string, string | null>;
+    return {
+      firstName: validateName(lead.firstName, 'First name'),
+      lastName: validateName(lead.lastName, 'Last name'),
+      contactNumber: validateMobile(lead.contactNumber, 'Contact number'),
+      email: validateEmail(lead.email),
+      referenceName: validateName(lead.referenceName, 'Reference name'),
+      referenceNumber: validateMobile(lead.referenceNumber, 'Reference number'),
+      amount: validateAmount(lead.amount),
+    } as Record<string, string | null>;
+  }, [isEditable, lead.firstName, lead.lastName, lead.contactNumber, lead.email, lead.referenceName, lead.referenceNumber, lead.amount]);
 
-  const agreementErrors = useMemo(() => ({
-    ownerEmail: isEditable ? validateEmail(agreement.ownerEmail, 'Owner email') : null,
-    ownerContact: isEditable ? validateMobile(agreement.ownerContact, 'Owner contact') : null,
-    ownerAadhar: isEditable ? validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar') : null,
-    ownerPan: isEditable ? validatePan(agreement.ownerPan, 'Owner PAN') : null,
-    tenantEmail: isEditable ? validateEmail(agreement.tenantEmail, 'Tenant email') : null,
-    tenantContact: isEditable ? validateMobile(agreement.tenantContact, 'Tenant contact') : null,
-    tenantAadhar: isEditable ? validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar') : null,
-    tenantPan: isEditable ? validatePan(agreement.tenantPan, 'Tenant PAN') : null,
-    pvMobile: isEditable ? validateMobile(agreement.pvMobile, 'PV mobile') : null,
-    agreementMobileNo: isEditable ? validateMobile(agreement.agreementMobileNo, 'Agreement mobile') : null,
-  }), [
-    isEditable, agreement.ownerEmail, agreement.ownerContact, agreement.ownerAadhar, agreement.ownerPan,
-    agreement.tenantEmail, agreement.tenantContact, agreement.tenantAadhar, agreement.tenantPan,
-    agreement.pvMobile, agreement.agreementMobileNo,
-  ]);
+  const agreementErrors = useMemo(() => {
+    if (!isEditable) return {} as Record<string, string | null>;
+    return {
+      ownerFirstName: validateName(agreement.ownerFirstName, 'Owner first name'),
+      ownerLastName: validateName(agreement.ownerLastName, 'Owner last name'),
+      ownerEmail: validateEmail(agreement.ownerEmail, 'Owner email'),
+      ownerContact: validateMobile(agreement.ownerContact, 'Owner contact'),
+      ownerAadhar: validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar'),
+      ownerPan: validatePan(agreement.ownerPan, 'Owner PAN'),
+      tenantFirstName: validateName(agreement.tenantFirstName, 'Tenant first name'),
+      tenantLastName: validateName(agreement.tenantLastName, 'Tenant last name'),
+      tenantEmail: validateEmail(agreement.tenantEmail, 'Tenant email'),
+      tenantContact: validateMobile(agreement.tenantContact, 'Tenant contact'),
+      tenantAadhar: validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar'),
+      tenantPan: validatePan(agreement.tenantPan, 'Tenant PAN'),
+      pvName: validateName(agreement.pvName, 'PV name'),
+      pvAge: validateAge(agreement.pvAge, 'PV age'),
+      pvMobile: validateMobile(agreement.pvMobile, 'PV mobile'),
+      pvRelation: validateName(agreement.pvRelation, 'PV relation'),
+      svName: validateName(agreement.svName, 'SV name'),
+      agreementEndDate: validateDateRange(agreement.agreementStartDate, agreement.agreementEndDate, 'Agreement end date'),
+      agreementMobileNo: validateMobile(agreement.agreementMobileNo, 'Agreement mobile'),
+    } as Record<string, string | null>;
+  }, [isEditable, agreement]);
+
+  const paymentErrors = useMemo(() => {
+    if (!isEditable) return {} as Record<string, string | null>;
+    return {
+      totalAmount: validateAmount(payment.totalAmount, 'Legal fees'),
+      commissionAmount: validateAmount(payment.commissionAmount, 'AC amount'),
+      grnAmount: validateAmount(payment.grnAmount, 'GRN amount'),
+      dhcAmount: validateAmount(payment.dhcAmount, 'DHC amount'),
+      commissionName: validateName(payment.commissionName, 'Commission name'),
+    } as Record<string, string | null>;
+  }, [isEditable, payment]);
+
+  // Per-row errors for owner / tenant payments (transaction number is optional).
+  const ownerPaymentErrors = useMemo(
+    () => ownerPayments.map(p => (isEditable ? validatePaymentRow(p) : ({} as PaymentRowErrors))),
+    [isEditable, ownerPayments]
+  );
+  const tenantPaymentErrors = useMemo(
+    () => tenantPayments.map(p => (isEditable ? validatePaymentRow(p) : ({} as PaymentRowErrors))),
+    [isEditable, tenantPayments]
+  );
 
   // ============================================================================
   // 🔹 FETCH DROPDOWNS
@@ -735,12 +784,9 @@ function LeadFormContent() {
   const saveLead = useCallback(async () => {
     if (!token) { alert('Please wait, authentication is loading...'); return; }
 
-    const validationErrors = collectErrors(
-      validateMobile(lead.contactNumber, 'Contact number'),
-      validateEmail(lead.email),
-    );
+    const validationErrors = collectErrors(...Object.values(leadErrors));
     if (validationErrors.length > 0) {
-      setFormError(validationErrors.join('. '));
+      setFormError(`Please fix the highlighted fields: ${validationErrors.join('. ')}`);
       return;
     }
 
@@ -787,25 +833,14 @@ function LeadFormContent() {
       console.error('Save lead error:', error);
       setFormError(error.message || 'Failed to save lead.');
     } finally { setSaving(false); }
-  }, [token, lead, currentLeadId, transitLevel, selectedClientId, dropdowns, apiFetch]);
+  }, [token, lead, leadErrors, currentLeadId, transitLevel, selectedClientId, dropdowns, apiFetch]);
 
   const saveAgreement = useCallback(async () => {
     if (!token || !currentLeadId) { alert('Please save lead details first'); return; }
 
-    const validationErrors = collectErrors(
-      validateEmail(agreement.ownerEmail, 'Owner email'),
-      validateMobile(agreement.ownerContact, 'Owner contact'),
-      validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar'),
-      validatePan(agreement.ownerPan, 'Owner PAN'),
-      validateEmail(agreement.tenantEmail, 'Tenant email'),
-      validateMobile(agreement.tenantContact, 'Tenant contact'),
-      validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar'),
-      validatePan(agreement.tenantPan, 'Tenant PAN'),
-      validateMobile(agreement.pvMobile, 'PV mobile'),
-      validateMobile(agreement.agreementMobileNo, 'Agreement mobile'),
-    );
+    const validationErrors = collectErrors(...Object.values(agreementErrors));
     if (validationErrors.length > 0) {
-      setFormError(validationErrors.join('. '));
+      setFormError(`Please fix the highlighted fields: ${validationErrors.join('. ')}`);
       return;
     }
 
@@ -844,10 +879,23 @@ function LeadFormContent() {
       if (!response.ok) throw new Error('Failed to save agreement');
       setActiveTab('payment');
     } catch (error: any) { setFormError(error.message || 'Failed to save agreement.'); } finally { setSaving(false); }
-  }, [token, currentLeadId, agreement, apiFetch]);
+  }, [token, currentLeadId, agreement, agreementErrors, apiFetch]);
 
   const savePayment = useCallback(async () => {
     if (!token || !currentLeadId) { alert('Please save lead and agreement details first'); return; }
+
+    const rowMessages = (rows: Record<string, string | undefined>[], who: string) =>
+      rows.flatMap((r, i) => Object.values(r).filter(Boolean).map(m => `${who} payment ${i + 1}: ${m}`));
+    const validationErrors = [
+      ...collectErrors(...Object.values(paymentErrors)),
+      ...rowMessages(ownerPaymentErrors, 'Owner'),
+      ...rowMessages(tenantPaymentErrors, 'Tenant'),
+    ];
+    if (validationErrors.length > 0) {
+      setFormError(`Please fix the highlighted fields: ${validationErrors.join('. ')}`);
+      return;
+    }
+
     setSaving(true); setFormError(null);
     try {
       const response = await apiFetch('/api/payments', {
@@ -878,7 +926,7 @@ function LeadFormContent() {
       if (!response.ok) throw new Error('Failed to save payment');
       alert('Payment saved successfully!');
     } catch (error: any) { setFormError(error.message || 'Failed to save payment.'); } finally { setSaving(false); }
-  }, [token, currentLeadId, payment, ownerPayments, tenantPayments, apiFetch]);
+  }, [token, currentLeadId, payment, ownerPayments, tenantPayments, paymentErrors, ownerPaymentErrors, tenantPaymentErrors, outstandingAmount, totalReceived, balanceAmount, apiFetch]);
 
   // ============================================================================
   // 🔹 TABS CONFIG
@@ -970,11 +1018,13 @@ function LeadFormContent() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">First Name</label>
-                <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-firstName" />
+                <input type="text" value={lead.firstName} onChange={(e) => updateLead('firstName', e.target.value)} disabled={!isEditable} placeholder="First Name" aria-invalid={!!leadErrors.firstName} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(leadErrors.firstName)}`} id="lead-firstName" />
+                <FieldError error={leadErrors.firstName} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Last Name</label>
-                <input type="text" value={lead.lastName} onChange={(e) => updateLead('lastName', e.target.value)} disabled={!isEditable} placeholder="Last Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-lastName" />
+                <input type="text" value={lead.lastName} onChange={(e) => updateLead('lastName', e.target.value)} disabled={!isEditable} placeholder="Last Name" aria-invalid={!!leadErrors.lastName} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(leadErrors.lastName)}`} id="lead-lastName" />
+                <FieldError error={leadErrors.lastName} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Client Type</label>
@@ -1021,15 +1071,18 @@ function LeadFormContent() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Reference Name</label>
-                <input type="text" value={lead.referenceName} onChange={(e) => updateLead('referenceName', e.target.value)} disabled={!isEditable} placeholder="Reference Name" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceName" />
+                <input type="text" value={lead.referenceName} onChange={(e) => updateLead('referenceName', e.target.value)} disabled={!isEditable} placeholder="Reference Name" aria-invalid={!!leadErrors.referenceName} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(leadErrors.referenceName)}`} id="lead-referenceName" />
+                <FieldError error={leadErrors.referenceName} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Reference Number</label>
-                <input type="text" value={lead.referenceNumber} onChange={(e) => updateLead('referenceNumber', e.target.value)} disabled={!isEditable} placeholder="Reference Number" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-referenceNumber" />
+                <input type="text" value={lead.referenceNumber} onChange={(e) => updateLead('referenceNumber', e.target.value.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Reference Number" aria-invalid={!!leadErrors.referenceNumber} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(leadErrors.referenceNumber)}`} id="lead-referenceNumber" />
+                <FieldError error={leadErrors.referenceNumber} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                <input type="text" value={lead.amount} onChange={(e) => updateLead('amount', e.target.value)} disabled={!isEditable} placeholder="Amount" className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" id="lead-amount" />
+                <input type="text" inputMode="decimal" value={lead.amount} onChange={(e) => updateLead('amount', e.target.value)} disabled={!isEditable} placeholder="Amount" aria-invalid={!!leadErrors.amount} className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(leadErrors.amount)}`} id="lead-amount" />
+                <FieldError error={leadErrors.amount} />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">City</label>
@@ -1072,8 +1125,8 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Owner Firstname" value={agreement.ownerFirstName} onChange={(v) => updateAgreement('ownerFirstName', v)} disabled={!isEditable} placeholder="Owner Firstname" id="agreement-ownerFirstName" />
-                <Input label="Owner Lastname" value={agreement.ownerLastName} onChange={(v) => updateAgreement('ownerLastName', v)} disabled={!isEditable} placeholder="Owner Lastname" id="agreement-ownerLastName" />
+                <Input label="Owner Firstname" value={agreement.ownerFirstName} onChange={(v) => updateAgreement('ownerFirstName', v)} disabled={!isEditable} placeholder="Owner Firstname" id="agreement-ownerFirstName" error={agreementErrors.ownerFirstName} />
+                <Input label="Owner Lastname" value={agreement.ownerLastName} onChange={(v) => updateAgreement('ownerLastName', v)} disabled={!isEditable} placeholder="Owner Lastname" id="agreement-ownerLastName" error={agreementErrors.ownerLastName} />
                 <Input label="Owner Email" value={agreement.ownerEmail} onChange={(v) => updateAgreement('ownerEmail', v)} type="email" disabled={!isEditable} placeholder="Owner Email" id="agreement-ownerEmail" error={agreementErrors.ownerEmail} />
                 <Input label="Owner Contact" value={agreement.ownerContact} onChange={(v) => updateAgreement('ownerContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Owner Contact" id="agreement-ownerContact" error={agreementErrors.ownerContact} />
                 <Input label="Owner Aadhar Number" value={agreement.ownerAadhar} onChange={(v) => updateAgreement('ownerAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Owner Aadhar Number" id="agreement-ownerAadhar" error={agreementErrors.ownerAadhar} />
@@ -1086,8 +1139,8 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Tenant Firstname" value={agreement.tenantFirstName} onChange={(v) => updateAgreement('tenantFirstName', v)} disabled={!isEditable} placeholder="Tenant Firstname" id="agreement-tenantFirstName" />
-                <Input label="Tenant Lastname" value={agreement.tenantLastName} onChange={(v) => updateAgreement('tenantLastName', v)} disabled={!isEditable} placeholder="Tenant Lastname" id="agreement-tenantLastName" />
+                <Input label="Tenant Firstname" value={agreement.tenantFirstName} onChange={(v) => updateAgreement('tenantFirstName', v)} disabled={!isEditable} placeholder="Tenant Firstname" id="agreement-tenantFirstName" error={agreementErrors.tenantFirstName} />
+                <Input label="Tenant Lastname" value={agreement.tenantLastName} onChange={(v) => updateAgreement('tenantLastName', v)} disabled={!isEditable} placeholder="Tenant Lastname" id="agreement-tenantLastName" error={agreementErrors.tenantLastName} />
                 <Input label="Tenant Email" value={agreement.tenantEmail} onChange={(v) => updateAgreement('tenantEmail', v)} type="email" disabled={!isEditable} placeholder="Tenant Email" id="agreement-tenantEmail" error={agreementErrors.tenantEmail} />
                 <Input label="Tenant Contact" value={agreement.tenantContact} onChange={(v) => updateAgreement('tenantContact', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Tenant Contact" id="agreement-tenantContact" error={agreementErrors.tenantContact} />
                 <Input label="Tenant Aadhar Number" value={agreement.tenantAadhar} onChange={(v) => updateAgreement('tenantAadhar', v.replace(/[^0-9]/g, '').slice(0, 12))} maxLength={12} disabled={!isEditable} placeholder="Tenant Aadhar Number" id="agreement-tenantAadhar" error={agreementErrors.tenantAadhar} />
@@ -1100,17 +1153,17 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Police Verification Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Input label="Name" value={agreement.pvName || ''} onChange={(v) => updateAgreement('pvName', v)} disabled={!isEditable} placeholder="Name" id="agreement-pvName" />
-                <Input label="Age" value={agreement.pvAge || ''} onChange={(v) => updateAgreement('pvAge', v.replace(/[^0-9]/g, '').slice(0, 3))} maxLength={3} disabled={!isEditable} placeholder="Age" type="number" id="agreement-pvAge" />
+                <Input label="Name" value={agreement.pvName || ''} onChange={(v) => updateAgreement('pvName', v)} disabled={!isEditable} placeholder="Name" id="agreement-pvName" error={agreementErrors.pvName} />
+                <Input label="Age" value={agreement.pvAge || ''} onChange={(v) => updateAgreement('pvAge', v.replace(/[^0-9]/g, '').slice(0, 3))} maxLength={3} disabled={!isEditable} placeholder="Age" type="number" id="agreement-pvAge" error={agreementErrors.pvAge} />
                 <Input label="Mobile No." value={agreement.pvMobile || ''} onChange={(v) => updateAgreement('pvMobile', v.replace(/[^0-9]/g, '').slice(0, 10))} maxLength={10} disabled={!isEditable} placeholder="Mobile No." id="agreement-pvMobile" error={agreementErrors.pvMobile} />
-                <Input label="Relation" value={agreement.pvRelation || ''} onChange={(v) => updateAgreement('pvRelation', v)} disabled={!isEditable} placeholder="Relation" id="agreement-pvRelation" />
+                <Input label="Relation" value={agreement.pvRelation || ''} onChange={(v) => updateAgreement('pvRelation', v)} disabled={!isEditable} placeholder="Relation" id="agreement-pvRelation" error={agreementErrors.pvRelation} />
               </div>
             </div>
             {/* Site Visit Details Section */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Site Visit Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="SV Name" value={agreement.svName || ''} onChange={(v) => updateAgreement('svName', v)} disabled={!isEditable} placeholder="SV Name" id="agreement-svName" />
+                <Input label="SV Name" value={agreement.svName || ''} onChange={(v) => updateAgreement('svName', v)} disabled={!isEditable} placeholder="SV Name" id="agreement-svName" error={agreementErrors.svName} />
                 <Input label="SV No." value={agreement.svNo || ''} onChange={(v) => updateAgreement('svNo', v)} disabled={!isEditable} placeholder="SV No." id="agreement-svNo" />
                 <Input label="SV Location" value={agreement.svLocation || ''} onChange={(v) => updateAgreement('svLocation', v)} disabled={!isEditable} placeholder="SV Location" id="agreement-svLocation" />
               </div>
@@ -1123,7 +1176,7 @@ function LeadFormContent() {
 
                 <Input label="Period (Month)" value={daysToMonthsStr(agreement.periodDays)} onChange={(v) => updateAgreementPeriod(monthsToDaysStr(v))} disabled={!isEditable} placeholder="e.g. 11" id="agreement-periodDays" />
                 <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={updateAgreementStart} isEditable={isEditable} id="agreement-agreementStartDate" />
-                <DateField label="Agreement End Date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} isEditable={isEditable} id="agreement-agreementEndDate" />
+                <DateField label="Agreement End Date" value={agreement.agreementEndDate} onChange={(v) => updateAgreement('agreementEndDate', v)} isEditable={isEditable} id="agreement-agreementEndDate" error={agreementErrors.agreementEndDate} />
 
                 {/* ✅ EXISTING: Mobile No Field */}
                 <Input 
@@ -1145,7 +1198,7 @@ function LeadFormContent() {
                   <label className="block text-sm font-medium text-slate-700 mb-1">Agreement Status</label>
                   <select value={agreement.agreementStatus} onChange={(e) => updateAgreement('agreementStatus', e.target.value)} disabled={!isEditable} className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer" id="agreement-agreementStatus">
                     <option value="">Select Agreement Status</option>
-                    {['Owner Pending','Tenant Pending','Owner + Tenant Pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','2 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Govt. Submit pending','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
+                    {['Owner Pending','Tenant Pending','Owner + Tenant Pending','2+ Tenant Pending','Owner + Payment Pending','Tenant + Payment Pending','Visit charges pending','Side Visit pending','Witness Pending','Payment + Witness Pending','All Pending','All VP Pending','Draft Ready','Challan and DHC','Extra Visit','1 Tenant Pending','2 Tenant Pending','NRI Owner Pending','Deposit Details Pending','Furniture Details Pending','Miscellaneous points Pending','Agent/owner/Tenant Confirmation Pending','Draft Updation Pending','POA Pending Sending','Reshadule','Biomatric Problem','Sarver Problem','Sending Govt.','Govt. Submit pending','Photo Pending','Other Problme','Cancel'].map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div className="md:col-span-3">
@@ -1305,10 +1358,12 @@ function LeadFormContent() {
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9.]/g, '');
                       updatePayment('totalAmount', val);
-                    }} 
-                    disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    }}
+                    disabled={!isEditable}
+                    aria-invalid={!!paymentErrors.totalAmount}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.totalAmount)}`}
                   />
+                  <FieldError error={paymentErrors.totalAmount} />
                 </div>
                 
                 {/* Commission Amount */}
@@ -1321,10 +1376,12 @@ function LeadFormContent() {
                     onChange={(e) => {
                       const val = e.target.value.replace(/[^0-9.]/g, '');
                       updatePayment('commissionAmount', val);
-                    }} 
-                    disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    }}
+                    disabled={!isEditable}
+                    aria-invalid={!!paymentErrors.commissionAmount}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.commissionAmount)}`}
                   />
+                  <FieldError error={paymentErrors.commissionAmount} />
                 </div>
                 
                 {/* Outstanding Amount - Auto Calculated (Positive - Using Addition) */}
@@ -1347,54 +1404,63 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
               {ownerPayments.map((p, i) => (
                 <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateOwnerPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`owner-paymentDate-${i}`} />
+                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateOwnerPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`owner-paymentDate-${i}`} error={ownerPaymentErrors[i]?.paymentDate} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                    <input 
-                      type="text" 
-                      placeholder="Amount" 
-                      value={p.paymentAmount} 
-                      onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <input
+                      type="text"
+                      placeholder="Amount"
+                      value={p.paymentAmount}
+                      onChange={(e) => updateOwnerPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))}
+                      disabled={!isEditable}
+                      aria-invalid={!!ownerPaymentErrors[i]?.paymentAmount}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(ownerPaymentErrors[i]?.paymentAmount)}`}
                     />
+                    <FieldError error={ownerPaymentErrors[i]?.paymentAmount} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Mode</label>
-                    <select 
-                      value={p.modeOfPayment} 
-                      onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                    <select
+                      value={p.modeOfPayment}
+                      onChange={(e) => updateOwnerPayment(i, 'modeOfPayment', e.target.value)}
+                      disabled={!isEditable}
+                      aria-invalid={!!ownerPaymentErrors[i]?.modeOfPayment}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer ${borderClass(ownerPaymentErrors[i]?.modeOfPayment)}`}
                     >
                       <option value="">Select Mode</option>
                       <option value="CASH">Cash</option>
                       <option value="ONLINE">Online</option>
                       <option value="CHEQUE">Cheque</option>
                     </select>
+                    <FieldError error={ownerPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="Payer Name" 
-                      value={p.payerName} 
-                      onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <input
+                      type="text"
+                      placeholder="Payer Name"
+                      value={p.payerName}
+                      onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)}
+                      disabled={!isEditable}
+                      aria-invalid={!!ownerPaymentErrors[i]?.payerName}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(ownerPaymentErrors[i]?.payerName)}`}
                     />
+                    <FieldError error={ownerPaymentErrors[i]?.payerName} />
                   </div>
-                  {/* ✅ NEW: Transaction Number Field */}
+                  {/* Transaction Number — optional */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
-                    <input 
-                      type="text" 
-                      placeholder="Transaction No." 
-                      value={p.transactionNumber || ''} 
-                      onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-xs font-normal text-slate-400">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="Transaction No."
+                      value={p.transactionNumber || ''}
+                      onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value.trim())}
+                      maxLength={30}
+                      disabled={!isEditable}
+                      aria-invalid={!!ownerPaymentErrors[i]?.transactionNumber}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(ownerPaymentErrors[i]?.transactionNumber)}`}
                     />
+                    <FieldError error={ownerPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
               ))}
@@ -1418,54 +1484,63 @@ function LeadFormContent() {
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
               {tenantPayments.map((p, i) => (
                 <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
-                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateTenantPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`tenant-paymentDate-${i}`} />
+                  <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateTenantPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`tenant-paymentDate-${i}`} error={tenantPaymentErrors[i]?.paymentDate} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
-                    <input 
-                      type="text" 
-                      placeholder="Amount" 
-                      value={p.paymentAmount} 
-                      onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <input
+                      type="text"
+                      placeholder="Amount"
+                      value={p.paymentAmount}
+                      onChange={(e) => updateTenantPayment(i, 'paymentAmount', e.target.value.replace(/[^0-9.]/g, ''))}
+                      disabled={!isEditable}
+                      aria-invalid={!!tenantPaymentErrors[i]?.paymentAmount}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(tenantPaymentErrors[i]?.paymentAmount)}`}
                     />
+                    <FieldError error={tenantPaymentErrors[i]?.paymentAmount} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Mode</label>
-                    <select 
-                      value={p.modeOfPayment} 
-                      onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer"
+                    <select
+                      value={p.modeOfPayment}
+                      onChange={(e) => updateTenantPayment(i, 'modeOfPayment', e.target.value)}
+                      disabled={!isEditable}
+                      aria-invalid={!!tenantPaymentErrors[i]?.modeOfPayment}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer ${borderClass(tenantPaymentErrors[i]?.modeOfPayment)}`}
                     >
                       <option value="">Select Mode</option>
                       <option value="CASH">Cash</option>
                       <option value="ONLINE">Online</option>
                       <option value="CHEQUE">Cheque</option>
                     </select>
+                    <FieldError error={tenantPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Payer Name</label>
-                    <input 
-                      type="text" 
-                      placeholder="Payer Name" 
-                      value={p.payerName} 
-                      onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <input
+                      type="text"
+                      placeholder="Payer Name"
+                      value={p.payerName}
+                      onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)}
+                      disabled={!isEditable}
+                      aria-invalid={!!tenantPaymentErrors[i]?.payerName}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(tenantPaymentErrors[i]?.payerName)}`}
                     />
+                    <FieldError error={tenantPaymentErrors[i]?.payerName} />
                   </div>
-                  {/* ✅ NEW: Transaction Number Field */}
+                  {/* Transaction Number — optional */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
-                    <input 
-                      type="text" 
-                      placeholder="Transaction No." 
-                      value={p.transactionNumber || ''} 
-                      onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} 
-                      disabled={!isEditable} 
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-xs font-normal text-slate-400">(optional)</span></label>
+                    <input
+                      type="text"
+                      placeholder="Transaction No."
+                      value={p.transactionNumber || ''}
+                      onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value.trim())}
+                      maxLength={30}
+                      disabled={!isEditable}
+                      aria-invalid={!!tenantPaymentErrors[i]?.transactionNumber}
+                      className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(tenantPaymentErrors[i]?.transactionNumber)}`}
                     />
+                    <FieldError error={tenantPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
               ))}
@@ -1566,8 +1641,10 @@ function LeadFormContent() {
                     value={payment.grnAmount} 
                     onChange={(e) => updatePayment('grnAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    aria-invalid={!!paymentErrors.grnAmount}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.grnAmount)}`} 
                   />
+                  <FieldError error={paymentErrors.grnAmount} />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -1591,8 +1668,10 @@ function LeadFormContent() {
                     value={payment.dhcAmount} 
                     onChange={(e) => updatePayment('dhcAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    aria-invalid={!!paymentErrors.dhcAmount}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.dhcAmount)}`} 
                   />
+                  <FieldError error={paymentErrors.dhcAmount} />
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1605,8 +1684,10 @@ function LeadFormContent() {
                     value={payment.commissionName} 
                     onChange={(e) => updatePayment('commissionName', e.target.value)} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    aria-invalid={!!paymentErrors.commissionName}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.commissionName)}`} 
                   />
+                  <FieldError error={paymentErrors.commissionName} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">AC Amount</label>
@@ -1616,8 +1697,10 @@ function LeadFormContent() {
                     value={payment.commissionAmount} 
                     onChange={(e) => updatePayment('commissionAmount', e.target.value.replace(/[^0-9.]/g, ''))} 
                     disabled={!isEditable} 
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all" 
+                    aria-invalid={!!paymentErrors.commissionAmount}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all ${borderClass(paymentErrors.commissionAmount)}`} 
                   />
+                  <FieldError error={paymentErrors.commissionAmount} />
                 </div>
               </div>
             </div>

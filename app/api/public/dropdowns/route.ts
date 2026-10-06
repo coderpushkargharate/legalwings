@@ -41,6 +41,12 @@ export async function GET(request: Request) {
       { key: 'All Pending', value: 'All Pending', color: '#F59E0B', order: 8 },
       { key: 'All VP Pending', value: 'All VP Pending', color: '#F59E0B', order: 9 },
       { key: 'Draft Ready', value: 'Draft Ready', color: '#3B82F6', order: 10 },
+      { key: 'Owner + Tenant Pending', value: 'Owner + Tenant Pending', color: '#F59E0B', order: 11 },
+      { key: '2+ Tenant Pending', value: '2+ Tenant Pending', color: '#F59E0B', order: 12 },
+      { key: 'Owner + Payment Pending', value: 'Owner + Payment Pending', color: '#F59E0B', order: 13 },
+      { key: 'Tenant + Payment Pending', value: 'Tenant + Payment Pending', color: '#F59E0B', order: 14 },
+      { key: 'Visit charges pending', value: 'Visit charges pending', color: '#F59E0B', order: 15 },
+      { key: 'Side Visit pending', value: 'Side Visit pending', color: '#F59E0B', order: 16 },
     ];
     const normalizedAgreementStatuses = [
       ...withCancelled,
