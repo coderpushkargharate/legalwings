@@ -3,8 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateName, validateAmount, validateAge,
-  validateDateRange, validatePaymentRow, collectErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
 } from '@/lib/validation';
 import {
   Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
@@ -351,14 +350,22 @@ const getStatusBadge = (status?: string): React.ReactNode => {
 // Backend team's row-colour tags. The `row` shades are kept a bit darker so a tagged
 // lead stands out clearly against the plain white rows.
 const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] = [
-  { key: 'red', label: 'Red', swatch: 'bg-red-600', row: 'bg-red-500' },
-  { key: 'dark-green', label: 'Dark Green', swatch: 'bg-green-800', row: 'bg-green-700' },
-  { key: 'light-green', label: 'Light Green', swatch: 'bg-emerald-500', row: 'bg-emerald-500' },
+  { key: 'pink', label: 'Pink', swatch: 'bg-pink-500', row: 'bg-pink-500' },
+  { key: 'parrot', label: 'Parrot Green', swatch: 'bg-lime-500', row: 'bg-lime-500' },
+  { key: 'green', label: 'Green', swatch: 'bg-green-700', row: 'bg-green-700' },
   { key: 'orange', label: 'Orange', swatch: 'bg-orange-600', row: 'bg-orange-500' },
+  { key: 'violet', label: 'Violet', swatch: 'bg-violet-600', row: 'bg-violet-500' },
+  { key: 'blue', label: 'Blue', swatch: 'bg-blue-600', row: 'bg-blue-500' },
   { key: 'yellow', label: 'Yellow', swatch: 'bg-amber-500', row: 'bg-amber-500' },
-  { key: 'purple', label: 'Purple', swatch: 'bg-purple-600', row: 'bg-purple-500' },
 ];
-const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || '' : '');
+// Tags saved before the palette changed: still rendered, just no longer offered in the picker.
+const LEGACY_ROW_COLORS: Record<string, string> = {
+  red: 'bg-red-500',
+  'dark-green': 'bg-green-700',
+  'light-green': 'bg-emerald-500',
+  purple: 'bg-purple-500',
+};
+const rowColorRowClass = (color?: string) => (color ? ROW_COLORS.find((c) => c.key === color)?.row || LEGACY_ROW_COLORS[color] || '' : '');
 
 // Does a lead match the global header search? Checks name, owner/tenant name,
 // token number and phone numbers (case-insensitive substring).
@@ -418,14 +425,14 @@ function useAnchoredPanel() {
 // Small per-row palette to tag a lead with a highlight colour.
 const RowColorPicker: React.FC<{ current?: string; onPick: (color: string) => void }> = ({ current, onPick }) => {
   const { open, setOpen, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
-  const currentSwatch = ROW_COLORS.find((c) => c.key === current)?.swatch;
+  const currentSwatch = ROW_COLORS.find((c) => c.key === current)?.swatch || (current ? LEGACY_ROW_COLORS[current] : undefined);
   return (
     <>
       <button ref={btnRef} onClick={toggle} title="Tag row colour" className="p-2 rounded-lg hover:bg-slate-100 transition-all flex items-center">
         <span className={`w-4 h-4 rounded-full border border-slate-300 ${currentSwatch || 'bg-white'}`} />
       </button>
       {open && pos && typeof document !== 'undefined' && createPortal(
-        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-2 bg-white border border-slate-200 rounded-lg shadow-xl grid grid-cols-3 gap-1.5 w-max">
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-2 bg-white border border-slate-200 rounded-lg shadow-xl grid grid-cols-4 gap-1.5 w-max">
           {ROW_COLORS.map((c) => (
             <button key={c.key} onClick={() => { onPick(c.key); setOpen(false); }} title={c.label} className={`w-6 h-6 rounded-full border ${current === c.key ? 'border-slate-800 ring-2 ring-offset-1 ring-slate-400' : 'border-slate-300'} ${c.swatch}`} />
           ))}
@@ -769,39 +776,24 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const ag = formData.agreement;
   const pay = formData.payment;
   const fieldErrors: Record<string, string | null> = {
-    lastName: validateName(formData.client?.lastName, 'Last name'),
     phoneNo: validateMobile(formData.client?.phoneNo, 'Contact number'),
     email: validateEmail(formData.client?.email),
-    referenceName: validateName(formData.referenceName, 'Reference name'),
     referenceNumber: validateMobile(formData.referenceNumber, 'Reference number'),
-    amount: validateAmount(formData.amount as any),
-    ownerFirstName: validateName(ag?.owner?.firstName, 'Owner first name'),
-    ownerLastName: validateName(ag?.owner?.lastName, 'Owner last name'),
     ownerPhone: validateMobile(ag?.owner?.phoneNo, 'Owner contact'),
     ownerEmail: validateEmail(ag?.owner?.email, 'Owner email'),
     ownerAadhar: validateAadhaar(ag?.owner?.aadharNumber, 'Owner Aadhaar'),
     ownerPan: validatePan(ag?.owner?.panNumber, 'Owner PAN'),
-    tenantFirstName: validateName(ag?.tenant?.firstName, 'Tenant first name'),
-    tenantLastName: validateName(ag?.tenant?.lastName, 'Tenant last name'),
     tenantPhone: validateMobile(ag?.tenant?.phoneNo, 'Tenant contact'),
     tenantEmail: validateEmail(ag?.tenant?.email, 'Tenant email'),
     tenantAadhar: validateAadhaar(ag?.tenant?.aadharNumber, 'Tenant Aadhaar'),
     tenantPan: validatePan(ag?.tenant?.panNumber, 'Tenant PAN'),
-    pvName: validateName(ag?.pvName, 'PV name'),
-    pvAge: validateAge(ag?.pvAge, 'PV age'),
     pvMobile: validateMobile(ag?.pvMobile, 'PV mobile'),
-    pvRelation: validateName(ag?.pvRelation, 'PV relation'),
-    svName: validateName(ag?.svName, 'SV name'),
-    agreementEndDate: validateDateRange(ag?.agreementStartDate || ag?.startDate, ag?.agreementEndDate || ag?.endDate, 'Agreement end date'),
     mobileNo: validateMobile(ag?.mobileNo, 'Agreement mobile'),
-    totalAmount: validateAmount(pay?.totalAmount, 'Total agreement amount'),
-    commissionAmount: validateAmount(pay?.commissionAmount, 'AC amount'),
-    grnAmount: validateAmount(pay?.grnAmount, 'GRN amount'),
-    dhcAmount: validateAmount(pay?.dhcAmount, 'DHC amount'),
-    commissionName: validateName(pay?.commissionName, 'Commission name'),
+    tokenNo: validateTokenNo(ag?.tokenNo),
   };
-  const ownerPaymentErrors = ownerPayments.map(validatePaymentRow);
-  const tenantPaymentErrors = tenantPayments.map(validatePaymentRow);
+  // Payment rows are not validated.
+  const ownerPaymentErrors = ownerPayments.map(() => ({} as Record<string, string | undefined>));
+  const tenantPaymentErrors = tenantPayments.map(() => ({} as Record<string, string | undefined>));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1026,7 +1018,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className={labelClass}>Token Number</label>
-                  <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
+                  <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={cls(fieldErrors.tokenNo)} /><Err e={fieldErrors.tokenNo} />
                 </div>
                 <div><label className={labelClass}>Period (Month)</label><input type="number" min={0} placeholder="e.g. 11" value={daysToMonthsStr((formData.agreement as any)?.periodDays ?? diffDaysISO(formData.agreement?.agreementStartDate || formData.agreement?.startDate, formData.agreement?.agreementEndDate || formData.agreement?.endDate))} onChange={(e) => handlePeriodChange(monthsToDaysStr(e.target.value))} className={inputClass} /></div>
                 <div><label className={labelClass}>Agreement Start Date</label><DateInput value={formData.agreement?.agreementStartDate || formData.agreement?.startDate} onChange={handleAgreementStartChange} className={inputClass} /></div>
@@ -1157,7 +1149,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               <h4 className={sectionHeaderClass}><CreditCard className="w-5 h-5 text-[#00843d]" /> Payment Summary</h4>
               <div className="mb-4 p-3 bg-white rounded-lg border border-slate-200">
                 <label className={labelClass}>Token Number</label>
-                <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={inputClass} />
+                <input type="text" value={formData.agreement?.tokenNo || ''} onChange={(e) => handleInputChange('agreement', 'tokenNo', e.target.value.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} className={cls(fieldErrors.tokenNo)} /><Err e={fieldErrors.tokenNo} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -1202,7 +1194,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={ownerPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={cls(ownerPaymentErrors[i]?.payerName)} /><Err e={ownerPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1226,7 +1218,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={tenantPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={cls(tenantPaymentErrors[i]?.payerName)} /><Err e={tenantPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">

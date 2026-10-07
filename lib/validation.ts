@@ -1,7 +1,8 @@
 // ============================================================================
 // 🔹 SHARED FORM VALIDATION HELPERS
 // Used across all forms (leads, clients, employees, agreements) so the rules
-// for mobile number / email / Aadhaar / PAN stay consistent everywhere.
+// for mobile number / email / Aadhaar / PAN / token number stay consistent everywhere.
+// Only these fields are validated; every other field is free text.
 //
 // Each validator returns an error message string when the value is INVALID,
 // or `null` when it is valid. Empty values are treated as valid (skipped) so
@@ -43,74 +44,12 @@ export function validatePan(value?: string, label = 'PAN number'): string | null
     : `${label} must be in the format ABCDE1234F`;
 }
 
-// Person names: letters, spaces, dot, apostrophe and hyphen only.
-export const NAME_REGEX = /^[A-Za-z][A-Za-z .'-]*$/;
-// Money: positive number with at most 2 decimals.
-export const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
-// Transaction / UTR / cheque reference: 4-30 letters or digits.
-export const TRANSACTION_REGEX = /^[A-Za-z0-9]{4,30}$/;
+// Token number: digits only, up to 14.
+export const TOKEN_REGEX = /^\d{1,14}$/;
 
-export function validateName(value?: string, label = 'Name'): string | null {
+export function validateTokenNo(value?: string, label = 'Token number'): string | null {
   if (isBlank(value)) return null;
-  return NAME_REGEX.test(value!.trim()) ? null : `${label} should contain only letters`;
-}
-
-export function validateAmount(value?: string | number, label = 'Amount'): string | null {
-  const v = value == null ? '' : String(value);
-  if (isBlank(v)) return null;
-  return AMOUNT_REGEX.test(v.trim()) ? null : `${label} must be a valid amount (e.g. 5000 or 5000.50)`;
-}
-
-export function validateTransactionNumber(value?: string, label = 'Transaction number'): string | null {
-  if (isBlank(value)) return null;
-  return TRANSACTION_REGEX.test(value!.trim()) ? null : `${label} must be 4-30 letters/digits, no spaces or symbols`;
-}
-
-export function validateAge(value?: string | number, label = 'Age'): string | null {
-  const v = value == null ? '' : String(value);
-  if (isBlank(v)) return null;
-  const n = Number(v);
-  return Number.isInteger(n) && n >= 18 && n <= 120 ? null : `${label} must be between 18 and 120`;
-}
-
-// End date must not be before start date (both optional).
-export function validateDateRange(start?: string, end?: string, label = 'End date'): string | null {
-  if (isBlank(start) || isBlank(end)) return null;
-  const s = new Date(start!.slice(0, 10)).getTime();
-  const e = new Date(end!.slice(0, 10)).getTime();
-  if (isNaN(s) || isNaN(e)) return null;
-  return e >= s ? null : `${label} cannot be before start date`;
-}
-
-export interface PaymentRowLike {
-  paymentDate?: string;
-  paymentAmount?: string | number;
-  modeOfPayment?: string;
-  payerName?: string;
-  transactionNumber?: string;
-}
-export type PaymentRowErrors = Partial<Record<'paymentDate' | 'paymentAmount' | 'modeOfPayment' | 'payerName' | 'transactionNumber', string>>;
-
-// A payment row is optional as a whole, but once anything is filled in it needs
-// a date, an amount, a mode and a transaction number.
-export function validatePaymentRow(p: PaymentRowLike): PaymentRowErrors {
-  const errs: PaymentRowErrors = {};
-  const amount = p.paymentAmount == null ? '' : String(p.paymentAmount);
-  const touched = [p.paymentDate, amount, p.modeOfPayment, p.payerName, p.transactionNumber].some(v => !isBlank(v));
-  if (!touched) return errs;
-  if (isBlank(p.paymentDate)) errs.paymentDate = 'Payment date is required';
-  if (isBlank(amount)) errs.paymentAmount = 'Amount is required';
-  else if (validateAmount(amount)) errs.paymentAmount = validateAmount(amount)!;
-  else if (Number(amount) <= 0) errs.paymentAmount = 'Amount must be greater than 0';
-  if (isBlank(p.modeOfPayment)) errs.modeOfPayment = 'Select payment mode';
-  const nameErr = validateName(p.payerName, 'Payer name');
-  if (nameErr) errs.payerName = nameErr;
-  if (isBlank(p.transactionNumber)) errs.transactionNumber = 'Transaction number is required';
-  else {
-    const txnErr = validateTransactionNumber(p.transactionNumber);
-    if (txnErr) errs.transactionNumber = txnErr;
-  }
-  return errs;
+  return TOKEN_REGEX.test(value!.trim()) ? null : `${label} must contain only digits (max 14)`;
 }
 
 // Collect the non-null messages from a set of validator results into one list.

@@ -8,8 +8,7 @@ import { useAuth } from '@/components/auth-provider';
 import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
 import { formatDate } from '@/lib/date-utils';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateName, validateAmount, validateAge,
-  validateDateRange, validatePaymentRow, collectErrors, type PaymentRowErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
 } from '@/lib/validation';
 
 // ============================================================================
@@ -431,60 +430,34 @@ function LeadFormContent() {
   const leadErrors = useMemo(() => {
     if (!isEditable) return {} as Record<string, string | null>;
     return {
-      lastName: validateName(lead.lastName, 'Last name'),
       contactNumber: validateMobile(lead.contactNumber, 'Contact number'),
       email: validateEmail(lead.email),
-      referenceName: validateName(lead.referenceName, 'Reference name'),
       referenceNumber: validateMobile(lead.referenceNumber, 'Reference number'),
-      amount: validateAmount(lead.amount),
     } as Record<string, string | null>;
-  }, [isEditable, lead.lastName, lead.contactNumber, lead.email, lead.referenceName, lead.referenceNumber, lead.amount]);
+  }, [isEditable, lead.contactNumber, lead.email, lead.referenceNumber]);
 
   const agreementErrors = useMemo(() => {
     if (!isEditable) return {} as Record<string, string | null>;
     return {
-      ownerFirstName: validateName(agreement.ownerFirstName, 'Owner first name'),
-      ownerLastName: validateName(agreement.ownerLastName, 'Owner last name'),
       ownerEmail: validateEmail(agreement.ownerEmail, 'Owner email'),
       ownerContact: validateMobile(agreement.ownerContact, 'Owner contact'),
       ownerAadhar: validateAadhaar(agreement.ownerAadhar, 'Owner Aadhaar'),
       ownerPan: validatePan(agreement.ownerPan, 'Owner PAN'),
-      tenantFirstName: validateName(agreement.tenantFirstName, 'Tenant first name'),
-      tenantLastName: validateName(agreement.tenantLastName, 'Tenant last name'),
       tenantEmail: validateEmail(agreement.tenantEmail, 'Tenant email'),
       tenantContact: validateMobile(agreement.tenantContact, 'Tenant contact'),
       tenantAadhar: validateAadhaar(agreement.tenantAadhar, 'Tenant Aadhaar'),
       tenantPan: validatePan(agreement.tenantPan, 'Tenant PAN'),
-      pvName: validateName(agreement.pvName, 'PV name'),
-      pvAge: validateAge(agreement.pvAge, 'PV age'),
       pvMobile: validateMobile(agreement.pvMobile, 'PV mobile'),
-      pvRelation: validateName(agreement.pvRelation, 'PV relation'),
-      svName: validateName(agreement.svName, 'SV name'),
-      agreementEndDate: validateDateRange(agreement.agreementStartDate, agreement.agreementEndDate, 'Agreement end date'),
       agreementMobileNo: validateMobile(agreement.agreementMobileNo, 'Agreement mobile'),
+      tokenNumber: validateTokenNo(agreement.tokenNumber),
     } as Record<string, string | null>;
   }, [isEditable, agreement]);
 
-  const paymentErrors = useMemo(() => {
-    if (!isEditable) return {} as Record<string, string | null>;
-    return {
-      totalAmount: validateAmount(payment.totalAmount, 'Legal fees'),
-      commissionAmount: validateAmount(payment.commissionAmount, 'AC amount'),
-      grnAmount: validateAmount(payment.grnAmount, 'GRN amount'),
-      dhcAmount: validateAmount(payment.dhcAmount, 'DHC amount'),
-      commissionName: validateName(payment.commissionName, 'Commission name'),
-    } as Record<string, string | null>;
-  }, [isEditable, payment]);
+  // Payment fields are not validated.
+  const paymentErrors = {} as Record<string, string | null>;
 
-  // Per-row errors for owner / tenant payments (transaction number is required).
-  const ownerPaymentErrors = useMemo(
-    () => ownerPayments.map(p => (isEditable ? validatePaymentRow(p) : ({} as PaymentRowErrors))),
-    [isEditable, ownerPayments]
-  );
-  const tenantPaymentErrors = useMemo(
-    () => tenantPayments.map(p => (isEditable ? validatePaymentRow(p) : ({} as PaymentRowErrors))),
-    [isEditable, tenantPayments]
-  );
+  const ownerPaymentErrors = ownerPayments.map(() => ({} as Record<string, string | undefined>));
+  const tenantPaymentErrors = tenantPayments.map(() => ({} as Record<string, string | undefined>));
 
   // ============================================================================
   // 🔹 FETCH DROPDOWNS
@@ -1171,7 +1144,7 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Agreement Details</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" />
+                <Input label="Token Number" value={agreement.tokenNumber} onChange={(v) => updateAgreement('tokenNumber', v.replace(/[^0-9]/g, '').slice(0, 14))} maxLength={14} disabled={!isEditable} placeholder="Token Number" id="agreement-tokenNumber" error={agreementErrors.tokenNumber} />
 
                 <Input label="Period (Month)" value={daysToMonthsStr(agreement.periodDays)} onChange={(v) => updateAgreementPeriod(monthsToDaysStr(v))} disabled={!isEditable} placeholder="e.g. 11" id="agreement-periodDays" />
                 <DateField label="Agreement Start Date" value={agreement.agreementStartDate} onChange={updateAgreementStart} isEditable={isEditable} id="agreement-agreementStartDate" />
@@ -1343,6 +1316,7 @@ function LeadFormContent() {
                   disabled={!isEditable} 
                   placeholder="Token Number" 
                   id="payment-tokenNumber" 
+                  error={agreementErrors.tokenNumber}
                 />
               </div>
 
@@ -1448,7 +1422,7 @@ function LeadFormContent() {
                   </div>
                   {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
                     <input
                       type="text"
                       placeholder="Transaction No."
@@ -1528,7 +1502,7 @@ function LeadFormContent() {
                   </div>
                   {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
                     <input
                       type="text"
                       placeholder="Transaction No."
