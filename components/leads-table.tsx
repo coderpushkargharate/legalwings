@@ -765,11 +765,10 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   };
 
   // Live field errors — a field turns red as soon as something invalid is typed.
-  // Empty optional fields (incl. Transaction Number) never show an error.
+  // Empty optional fields never show an error; Transaction Number is required once a payment row is filled.
   const ag = formData.agreement;
   const pay = formData.payment;
   const fieldErrors: Record<string, string | null> = {
-    firstName: validateName(formData.client?.firstName, 'First name'),
     lastName: validateName(formData.client?.lastName, 'Last name'),
     phoneNo: validateMobile(formData.client?.phoneNo, 'Contact number'),
     email: validateEmail(formData.client?.email),
@@ -1203,7 +1202,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={ownerPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={cls(ownerPaymentErrors[i]?.payerName)} /><Err e={ownerPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number <span className="text-slate-400">(optional)</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1227,7 +1226,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={tenantPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={cls(tenantPaymentErrors[i]?.payerName)} /><Err e={tenantPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number <span className="text-slate-400">(optional)</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">

@@ -431,7 +431,6 @@ function LeadFormContent() {
   const leadErrors = useMemo(() => {
     if (!isEditable) return {} as Record<string, string | null>;
     return {
-      firstName: validateName(lead.firstName, 'First name'),
       lastName: validateName(lead.lastName, 'Last name'),
       contactNumber: validateMobile(lead.contactNumber, 'Contact number'),
       email: validateEmail(lead.email),
@@ -439,7 +438,7 @@ function LeadFormContent() {
       referenceNumber: validateMobile(lead.referenceNumber, 'Reference number'),
       amount: validateAmount(lead.amount),
     } as Record<string, string | null>;
-  }, [isEditable, lead.firstName, lead.lastName, lead.contactNumber, lead.email, lead.referenceName, lead.referenceNumber, lead.amount]);
+  }, [isEditable, lead.lastName, lead.contactNumber, lead.email, lead.referenceName, lead.referenceNumber, lead.amount]);
 
   const agreementErrors = useMemo(() => {
     if (!isEditable) return {} as Record<string, string | null>;
@@ -477,7 +476,7 @@ function LeadFormContent() {
     } as Record<string, string | null>;
   }, [isEditable, payment]);
 
-  // Per-row errors for owner / tenant payments (transaction number is optional).
+  // Per-row errors for owner / tenant payments (transaction number is required).
   const ownerPaymentErrors = useMemo(
     () => ownerPayments.map(p => (isEditable ? validatePaymentRow(p) : ({} as PaymentRowErrors))),
     [isEditable, ownerPayments]
@@ -1447,9 +1446,9 @@ function LeadFormContent() {
                     />
                     <FieldError error={ownerPaymentErrors[i]?.payerName} />
                   </div>
-                  {/* Transaction Number — optional */}
+                  {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-xs font-normal text-slate-400">(optional)</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       placeholder="Transaction No."
@@ -1527,9 +1526,9 @@ function LeadFormContent() {
                     />
                     <FieldError error={tenantPaymentErrors[i]?.payerName} />
                   </div>
-                  {/* Transaction Number — optional */}
+                  {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-xs font-normal text-slate-400">(optional)</span></label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       placeholder="Transaction No."

@@ -47,7 +47,7 @@ export function validatePan(value?: string, label = 'PAN number'): string | null
 export const NAME_REGEX = /^[A-Za-z][A-Za-z .'-]*$/;
 // Money: positive number with at most 2 decimals.
 export const AMOUNT_REGEX = /^\d+(\.\d{1,2})?$/;
-// Transaction / UTR / cheque reference: 4-30 letters or digits (optional field).
+// Transaction / UTR / cheque reference: 4-30 letters or digits.
 export const TRANSACTION_REGEX = /^[A-Za-z0-9]{4,30}$/;
 
 export function validateName(value?: string, label = 'Name'): string | null {
@@ -92,7 +92,7 @@ export interface PaymentRowLike {
 export type PaymentRowErrors = Partial<Record<'paymentDate' | 'paymentAmount' | 'modeOfPayment' | 'payerName' | 'transactionNumber', string>>;
 
 // A payment row is optional as a whole, but once anything is filled in it needs
-// a date, an amount and a mode. Transaction number is NEVER required.
+// a date, an amount, a mode and a transaction number.
 export function validatePaymentRow(p: PaymentRowLike): PaymentRowErrors {
   const errs: PaymentRowErrors = {};
   const amount = p.paymentAmount == null ? '' : String(p.paymentAmount);
@@ -105,8 +105,11 @@ export function validatePaymentRow(p: PaymentRowLike): PaymentRowErrors {
   if (isBlank(p.modeOfPayment)) errs.modeOfPayment = 'Select payment mode';
   const nameErr = validateName(p.payerName, 'Payer name');
   if (nameErr) errs.payerName = nameErr;
-  const txnErr = validateTransactionNumber(p.transactionNumber);
-  if (txnErr) errs.transactionNumber = txnErr;
+  if (isBlank(p.transactionNumber)) errs.transactionNumber = 'Transaction number is required';
+  else {
+    const txnErr = validateTransactionNumber(p.transactionNumber);
+    if (txnErr) errs.transactionNumber = txnErr;
+  }
   return errs;
 }
 
