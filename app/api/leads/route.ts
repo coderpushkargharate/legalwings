@@ -232,6 +232,10 @@ export async function GET(request: Request) {
     // Backend team tab (All Work / Submitted / Completed) — filtered server-side so
     // each page returns a full 20 matching leads instead of the tab reducing the count.
     const backendStatus = searchParams.get('backendStatus');
+    // Backend team "Today Submitted / Completed" counters — range on backendStatusAt
+    // (stamped by PATCH whenever backendStatus changes).
+    const backendStatusFrom = searchParams.get('backendStatusFrom');
+    const backendStatusTo = searchParams.get('backendStatusTo');
     const grnNo = searchParams.get('grnNo');
     const dhcNo = searchParams.get('dhcNo');
     const commissionDate = searchParams.get('commissionDate');
@@ -349,6 +353,7 @@ export async function GET(request: Request) {
     // leads where backendStatus was never set. Otherwise an exact status match.
     if (backendStatus === 'ALL_WORK') filter.backendStatus = { $nin: ['SUBMITTED', 'COMPLETED'] };
     else if (backendStatus) filter.backendStatus = backendStatus;
+    addDateRange(filter, 'backendStatusAt', backendStatusFrom, backendStatusTo, true);
     if (grnNo) filter['payment.grnNumber'] = { $regex: grnNo, $options: 'i' };
     if (dhcNo) filter['payment.dhcNumber'] = { $regex: dhcNo, $options: 'i' };
     if (commissionDate) filter['payment.commissionDate'] = commissionDate;
@@ -670,12 +675,16 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
-    
+
     updateData.updatedAt = new Date();
     updateData.updatedByUserId = user.userId;
     updateData.updatedByUserName = `${user.firstName} ${user.lastName}`;
 
     if (updateData._id) delete updateData._id;
+
+    // Backend team: remember WHEN a lead moved between All Work / Submitted / Completed
+    // so the dashboard can count today's Submitted / Completed work.
+    if ('backendStatus' in updateData) updateData.backendStatusAt = new Date();
 
     // 📎 Never let an edit wipe already-uploaded files (see preserveAgreementFiles).
     await preserveAgreementFiles(db, id, updateData);

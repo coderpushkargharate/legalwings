@@ -105,6 +105,12 @@ const backWorkAccountFor = (lead: ExpenseLead): string =>
 
 const ROWS_PER_PAGE = 20;
 
+// Local YYYY-MM-DD "today" (avoids UTC shifting the day).
+const todayLocal = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
 // ---------------------------------------------------------------------------
 // Manual expenses (money going OUT) — entered via the "Add Expense" form and
 // stored in the `expenses` collection through /api/expenses. Kept separate from
@@ -137,15 +143,25 @@ const EXPENSE_PAYMENT_MODES = [
   { key: 'CHEQUE', label: 'Cheque', icon: FileCheck },
   { key: 'BANK_TRANSFER', label: 'Bank Transfer', icon: Building2 },
 ];
-const EXPENSE_CATEGORY_OPTS = [
-  { key: 'OFFICE', label: 'Office' },
-  { key: 'TRAVEL', label: 'Travel' },
-  { key: 'SALARY', label: 'Salary' },
-  { key: 'RENT', label: 'Rent' },
-  { key: 'UTILITIES', label: 'Utilities' },
-  { key: 'GOVT', label: 'Govt' },
-  { key: 'COMMISSION', label: 'Commission' },
-  { key: 'OTHER', label: 'Other' },
+// `service: true` = service-related (grouped with GRN / DHC / Commission on the Net
+// Amount tab); everything else is an Operating Expense.
+export const EXPENSE_CATEGORY_OPTS = [
+  { key: 'SALARY', label: 'Salary', service: false },
+  { key: 'RENT', label: 'Office Rent', service: false },
+  { key: 'ELECTRICITY', label: 'Electricity', service: false },
+  { key: 'INTERNET', label: 'Internet', service: false },
+  { key: 'SOFTWARE', label: 'Software', service: false },
+  { key: 'GOOGLE_ADS', label: 'Google Ads', service: false },
+  { key: 'META_ADS', label: 'Meta Ads', service: false },
+  { key: 'TRAVEL', label: 'Petrol / Travel', service: false },
+  { key: 'TELEPHONE', label: 'Telephone', service: false },
+  { key: 'BANK_CHARGES', label: 'Bank Charges', service: false },
+  { key: 'OFFICE', label: 'Other Office Expenses', service: false },
+  { key: 'UTILITIES', label: 'Utilities', service: false },
+  { key: 'OTHER', label: 'Other', service: false },
+  { key: 'GOVT', label: 'Govt (Service)', service: true },
+  { key: 'COMMISSION', label: 'Commission (Service)', service: true },
+  { key: 'SERVICE', label: 'Service-related', service: true },
 ];
 const paymentModeLabel = (key: string): string =>
   EXPENSE_PAYMENT_MODES.find((m) => m.key === key)?.label || key;
@@ -562,6 +578,21 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
     for (const r of rows) { g += r.grnAmount; d += r.dhcAmount; a += r.acAmount; }
     return { totalGrn: g, totalDhc: d, totalAc: a };
   }, [rows]);
+  const totalAll = totalGrn + totalDhc + totalAc;
+
+  // Today's GRN / DHC / Commission — each by its own date, over ALL rows
+  // (independent of the date-range filter, like the Statement's "Today" cards).
+  const { todayGrn, todayDhc, todayAc } = useMemo(() => {
+    const t = todayLocal();
+    let g = 0, d = 0, a = 0;
+    for (const r of allRows) {
+      if (r.govtGrnDate.slice(0, 10) === t) g += r.grnAmount;
+      if (r.dhcDate.slice(0, 10) === t) d += r.dhcAmount;
+      if (r.commissionDate.slice(0, 10) === t) a += r.acAmount;
+    }
+    return { todayGrn: g, todayDhc: d, todayAc: a };
+  }, [allRows]);
+  const todayAll = todayGrn + todayDhc + todayAc;
 
   const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
   useEffect(() => { setPage(0); }, [fromDate, toDate]);
@@ -654,8 +685,34 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
         </button>
       </div>
 
-      {/* Summary */}
+      {/* Summary — Today's GRN/DHC/Commission/Total, then the (filtered) totals */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Today GRN</p>
+          <p className="text-lg font-semibold text-blue-600 flex items-center gap-1">
+            <IndianRupee className="w-4 h-4" /> {formatINR(todayGrn)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Today DHC</p>
+          <p className="text-lg font-semibold text-purple-600 flex items-center gap-1">
+            <IndianRupee className="w-4 h-4" /> {formatINR(todayDhc)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Today Commission</p>
+          <p className="text-lg font-semibold text-amber-600 flex items-center gap-1">
+            <IndianRupee className="w-4 h-4" /> {formatINR(todayAc)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Today Total (GRN + DHC + Commission)</p>
+          <p className="text-lg font-semibold text-red-600 flex items-center gap-1">
+            <IndianRupee className="w-4 h-4" /> {formatINR(todayAll)}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-xs text-slate-500 mb-1">Total GRN Amount</p>
           <p className="text-lg font-semibold text-blue-600 flex items-center gap-1">
@@ -672,6 +729,12 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
           <p className="text-xs text-slate-500 mb-1">Total AC Amount</p>
           <p className="text-lg font-semibold text-amber-600 flex items-center gap-1">
             <IndianRupee className="w-4 h-4" /> {formatINR(totalAc)}
+          </p>
+        </div>
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <p className="text-xs text-slate-500 mb-1">Total (GRN + DHC + AC)</p>
+          <p className="text-lg font-semibold text-red-600 flex items-center gap-1">
+            <IndianRupee className="w-4 h-4" /> {formatINR(totalAll)}
           </p>
         </div>
         <div className="bg-white rounded-xl border border-slate-200 p-4">

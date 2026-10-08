@@ -14,7 +14,13 @@ import { ObjectId } from 'mongodb';
 const PAYMENT_MODES = ['CASH', 'UPI', 'CARD', 'CHEQUE', 'BANK_TRANSFER'];
 
 // Expense categories. Kept in sync with the frontend dropdown.
-const EXPENSE_CATEGORIES = ['OFFICE', 'TRAVEL', 'SALARY', 'RENT', 'UTILITIES', 'GOVT', 'COMMISSION', 'OTHER'];
+const EXPENSE_CATEGORIES = [
+  // Operating expenses
+  'SALARY', 'RENT', 'ELECTRICITY', 'INTERNET', 'SOFTWARE', 'GOOGLE_ADS', 'META_ADS',
+  'TRAVEL', 'TELEPHONE', 'BANK_CHARGES', 'OFFICE', 'UTILITIES', 'OTHER',
+  // Service-related expenses (sit with GRN / DHC / Commission)
+  'GOVT', 'COMMISSION', 'SERVICE',
+];
 
 // GET /api/expenses — list expenses (newest first) with optional filters + summary.
 export async function GET(request: Request) {

@@ -1832,6 +1832,11 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   const [pendingApptCount, setPendingApptCount] = useState(0);
   // Backend team: All Work / Submitted / Completed buckets.
   const [backendView, setBackendView] = useState<'all' | 'submitted' | 'completed'>('all');
+  // Backend team: Today / Total counts per bucket, shown as summary cards above the tabs.
+  const [backendCounts, setBackendCounts] = useState({
+    todayAll: 0, todaySubmitted: 0, todayCompleted: 0,
+    totalAll: 0, totalSubmitted: 0, totalCompleted: 0,
+  });
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   // Accounting / appointment list: sort by appointment date (ascending / descending).
   const [appointmentSort, setAppointmentSort] = useState<'none' | 'asc' | 'desc'>('none');
@@ -2171,6 +2176,40 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     })();
     return () => { cancelled = true; };
   }, [isCallingDashboard, authLoading, user, transitLevel, today, apiFetch, leads]);
+
+  // Backend team: Today / Total counts for All Work · Submitted · Completed.
+  //   Today All Work  = leads that came into the team today (created or forwarded in today).
+  //   Today Submitted / Completed = leads moved into that bucket today (backendStatusAt).
+  // Independent of the active tab and filters; re-runs when the table reloads so the
+  // numbers follow forwards between buckets.
+  useEffect(() => {
+    if (!isBackendDashboard || authLoading || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const countOf = async (extra: Record<string, string>) => {
+          const params = new URLSearchParams({ transitLevel, page: '0', pageSize: '1', ...extra });
+          const res = await apiFetch(`/api/leads?${params.toString()}`);
+          const data = await res.json();
+          return (data?.leadPage?.totalElements as number) || 0;
+        };
+        const todayRange = { backendStatusFrom: today, backendStatusTo: today };
+        const [todayAll, todaySubmitted, todayCompleted, totalAll, totalSubmitted, totalCompleted] = await Promise.all([
+          countOf({ backendStatus: 'ALL_WORK', fromDate: today, toDate: today, filterOn: 'Created Date' }),
+          countOf({ backendStatus: 'SUBMITTED', ...todayRange }),
+          countOf({ backendStatus: 'COMPLETED', ...todayRange }),
+          countOf({ backendStatus: 'ALL_WORK' }),
+          countOf({ backendStatus: 'SUBMITTED' }),
+          countOf({ backendStatus: 'COMPLETED' }),
+        ]);
+        if (cancelled) return;
+        setBackendCounts({ todayAll, todaySubmitted, todayCompleted, totalAll, totalSubmitted, totalCompleted });
+      } catch (error) {
+        if (!cancelled) console.error('Failed to fetch backend counts:', error);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isBackendDashboard, authLoading, user, transitLevel, today, apiFetch, leads]);
 
   const handleApplyFilters = () => setPage(0);
   const handleClearFilters = () => {
@@ -2657,6 +2696,24 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             >
               {view === 'leads' ? 'Lead' : 'Appointment'}
             </button>
+          ))}
+        </div>
+      )}
+
+      {isBackendDashboard && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+          {([
+            ['Today All Work', backendCounts.todayAll, 'text-slate-800'],
+            ['Today Submitted', backendCounts.todaySubmitted, 'text-amber-600'],
+            ['Today Completed', backendCounts.todayCompleted, 'text-[#00843d]'],
+            ['Total All Work', backendCounts.totalAll, 'text-slate-800'],
+            ['Total Submitted', backendCounts.totalSubmitted, 'text-amber-600'],
+            ['Total Completed', backendCounts.totalCompleted, 'text-[#00843d]'],
+          ] as const).map(([label, value, color]) => (
+            <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
+              <p className="text-xs text-slate-500 mb-1">{label}</p>
+              <p className={`text-lg font-semibold ${color}`}>{value}</p>
+            </div>
           ))}
         </div>
       )}
