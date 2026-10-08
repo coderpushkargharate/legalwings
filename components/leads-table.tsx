@@ -2619,7 +2619,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
 
       {showAddButton && transitLevel !== 'MARKETING' && transitLevel !== 'MARKETING_TEAM' && (
         <div className="flex justify-end">
-          <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
+          <Link href={`/leads/new?transitLevel=${transitLevel}`} className="inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all shadow-sm"><Plus className="w-4 h-4" /> Add New Lead</Link>
         </div>
       )}
 
