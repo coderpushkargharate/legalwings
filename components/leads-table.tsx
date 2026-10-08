@@ -357,10 +357,10 @@ const ROW_COLORS: { key: string; label: string; swatch: string; row: string }[] 
   { key: 'violet', label: 'Violet', swatch: 'bg-violet-600', row: 'bg-violet-500' },
   { key: 'blue', label: 'Blue', swatch: 'bg-blue-600', row: 'bg-blue-500' },
   { key: 'yellow', label: 'Yellow', swatch: 'bg-amber-500', row: 'bg-amber-500' },
+  { key: 'red', label: 'Red', swatch: 'bg-red-600', row: 'bg-red-500' },
 ];
 // Tags saved before the palette changed: still rendered, just no longer offered in the picker.
 const LEGACY_ROW_COLORS: Record<string, string> = {
-  red: 'bg-red-500',
   'dark-green': 'bg-green-700',
   'light-green': 'bg-emerald-500',
   purple: 'bg-purple-500',
