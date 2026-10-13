@@ -26,6 +26,8 @@ async function ensureIndexes(db: Db): Promise<void> {
       leads.createIndex({ isAppointment: 1 }),
       leads.createIndex({ 'agreement.tokenNo': 1 }),
       leads.createIndex({ 'client.phoneNo': 1 }),
+      // Business profile templates are looked up by their public page link.
+      db.collection('business_templates').createIndex({ slug: 1 }, { unique: true }),
     ]);
   } catch (err) {
     // Never fatal — indexing is a best-effort optimization.

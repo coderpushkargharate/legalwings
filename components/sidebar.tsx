@@ -20,6 +20,7 @@ import {
   X,
   Scale,
   Users,
+  LayoutTemplate,
 } from 'lucide-react';
 
 // 🔹 Nav items configuration
@@ -33,6 +34,7 @@ const navItems = [
   { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, role: 'marketing' },
   { name: 'Shop Employee', path: '/shop-team', icon: Store, role: 'shop' },
   { name: 'Employees', path: '/employees', icon: Users, role: 'admin' },
+  { name: 'Templates', path: '/template', icon: LayoutTemplate, role: 'admin' },
 ];
 
 const dataManagement = {
