@@ -34,7 +34,6 @@ const navItems = [
   { name: 'Marketing Team', path: '/marketing-team', icon: Megaphone, role: 'marketing' },
   { name: 'Shop Employee', path: '/shop-team', icon: Store, role: 'shop' },
   { name: 'Employees', path: '/employees', icon: Users, role: 'admin' },
-  { name: 'Templates', path: '/template', icon: LayoutTemplate, role: 'admin' },
 ];
 
 const dataManagement = {
@@ -43,6 +42,7 @@ const dataManagement = {
   role: 'admin',
   subRoutes: [
     { name: 'Clients', path: '/clients', icon: Database },
+    { name: 'Templates', path: '/template', icon: LayoutTemplate },
   ],
 };
 
