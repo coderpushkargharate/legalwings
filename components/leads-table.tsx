@@ -6,7 +6,7 @@ import LeadFileField from '@/components/lead-file-field';
 import { FILE_SLOTS, slotHasFile, withoutLegacyBlobs } from '@/lib/lead-files';
 import { useAuth } from '@/components/auth-provider';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, collectErrors,
 } from '@/lib/validation';
 import {
   Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
@@ -720,9 +720,9 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     mobileNo: validateMobile(ag?.mobileNo, 'Agreement mobile'),
     tokenNo: validateTokenNo(ag?.tokenNo),
   };
-  // Payment rows are not validated.
-  const ownerPaymentErrors = ownerPayments.map(() => ({} as Record<string, string | undefined>));
-  const tenantPaymentErrors = tenantPayments.map(() => ({} as Record<string, string | undefined>));
+  // Payment lines: Transaction Number is mandatory (except Cash) — see validatePaymentRow.
+  const ownerPaymentErrors = ownerPayments.map(validatePaymentRow);
+  const tenantPaymentErrors = tenantPayments.map(validatePaymentRow);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1057,7 +1057,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={ownerPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={cls(ownerPaymentErrors[i]?.payerName)} /><Err e={ownerPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1081,7 +1081,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                     </select><Err e={tenantPaymentErrors[i]?.modeOfPayment} />
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={cls(tenantPaymentErrors[i]?.payerName)} /><Err e={tenantPaymentErrors[i]?.payerName} /></div>
-                  <div><label className={labelClass}>Transaction Number</label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
+                  <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
                 </div>
               ))}
               <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">

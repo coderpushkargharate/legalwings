@@ -9,7 +9,7 @@ import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucid
 import LeadFileField from '@/components/lead-file-field';
 import { formatDate } from '@/lib/date-utils';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, collectErrors,
 } from '@/lib/validation';
 
 // ============================================================================
@@ -444,8 +444,9 @@ function LeadFormContent() {
   // Payment fields are not validated.
   const paymentErrors = {} as Record<string, string | null>;
 
-  const ownerPaymentErrors = ownerPayments.map(() => ({} as Record<string, string | undefined>));
-  const tenantPaymentErrors = tenantPayments.map(() => ({} as Record<string, string | undefined>));
+  // Payment lines: Transaction Number is mandatory (except Cash) — see validatePaymentRow.
+  const ownerPaymentErrors = ownerPayments.map((p) => (isEditable ? validatePaymentRow(p) : {}));
+  const tenantPaymentErrors = tenantPayments.map((p) => (isEditable ? validatePaymentRow(p) : {}));
 
   // ============================================================================
   // 🔹 FETCH DROPDOWNS
@@ -1278,7 +1279,7 @@ function LeadFormContent() {
                   </div>
                   {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       placeholder="Transaction No."
@@ -1358,7 +1359,7 @@ function LeadFormContent() {
                   </div>
                   {/* Transaction Number — required */}
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Transaction Number <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       placeholder="Transaction No."

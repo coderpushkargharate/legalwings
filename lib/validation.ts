@@ -52,6 +52,17 @@ export function validateTokenNo(value?: string, label = 'Token number'): string 
   return TOKEN_REGEX.test(value!.trim()) ? null : `${label} must contain only digits (max 14)`;
 }
 
+// Payment line (owner / tenant). Transaction Number is mandatory for every real
+// payment (one with an amount) except Cash, which has no transaction reference.
+export function validatePaymentRow(p: { paymentAmount?: string; modeOfPayment?: string; transactionNumber?: string }): Record<string, string | undefined> {
+  if (isBlank(p.paymentAmount)) return {};
+  const isCash = (p.modeOfPayment || '').toUpperCase() === 'CASH';
+  if (!isCash && isBlank(p.transactionNumber)) {
+    return { transactionNumber: 'Transaction number is required' };
+  }
+  return {};
+}
+
 // Collect the non-null messages from a set of validator results into one list.
 export function collectErrors(...results: (string | null)[]): string[] {
   return results.filter((r): r is string => r != null);
