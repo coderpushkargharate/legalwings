@@ -2558,8 +2558,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       )}
 
       {isBackendDashboard && (
-        // Admins don't see the Completed counts; back office employees still do.
-        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-6'}`}>
+        // Admins see the Completed counts; back office employees don't.
+        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 ${isAdmin ? 'lg:grid-cols-6' : 'lg:grid-cols-4'}`}>
           {([
             ['Today All Work', backendCounts.todayAll, 'text-slate-800'],
             ['Today Submitted', backendCounts.todaySubmitted, 'text-amber-600'],
@@ -2567,7 +2567,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             ['Total All Work', backendCounts.totalAll, 'text-slate-800'],
             ['Total Submitted', backendCounts.totalSubmitted, 'text-amber-600'],
             ['Total Completed', backendCounts.totalCompleted, 'text-[#00843d]'],
-          ] as const).filter(([label]) => !(isAdmin && label.endsWith('Completed'))).map(([label, value, color]) => (
+          ] as const).filter(([label]) => isAdmin || !label.endsWith('Completed')).map(([label, value, color]) => (
             <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500 mb-1">{label}</p>
               <p className={`text-lg font-semibold ${color}`}>{value}</p>
