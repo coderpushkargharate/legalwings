@@ -6,7 +6,7 @@
 // lead's paymentDetails into one row per payment (newest date on top) and
 // exports to Excel.
 //
-// Columns: Lead Date · Appointment Date · Token Number · Lead No · Lead Name ·
+// Columns: Payment Date · Lead Date · Appointment Date · Token Number · Lead No · Lead Name ·
 //          Phone · Payer Name · Mode · Transaction ID · Amount ·
 //          Collector / Receiver (editable) · Executive Name · Verify (Yes/No).
 //
@@ -24,6 +24,7 @@ import ExpensesPanel from '@/components/expenses-panel';
 import PnlPanel from '@/components/pnl-panel';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { balanceDueOf } from '@/lib/payment-math';
 
 // ---------------------------------------------------------------------------
 // Types (kept local & minimal — only the fields this panel reads)
@@ -62,6 +63,7 @@ interface Lead {
     outstandingAmount?: number | string;
     pendingAmount?: number | string;
     balanceAmount?: number | string;
+    expenseVerified?: boolean; // Expenses tab "Verify"
   };
   paymentDetails?: PaymentDetail[];
   forwardedHistory?: Array<{
@@ -299,6 +301,11 @@ export default function PaymentStatementPage() {
     [leads, apiFetch],
   );
 
+  // Expenses tab Verify toggle — keep the shared leads list in sync (the panel saves it).
+  const setExpenseVerified = useCallback((leadId: string, verified: boolean) => {
+    setLeads((prev) => prev.map((l) => (l.id === leadId ? { ...l, payment: { ...l.payment, expenseVerified: verified } } : l)));
+  }, []);
+
   // All rows (newest first), then apply the optional date-range filter.
   const allRows = useMemo(() => buildRows(leads), [leads]);
   const rows = useMemo(() => {
@@ -351,10 +358,7 @@ export default function PaymentStatementPage() {
     const t = todayLocal();
     let pending = 0, todayP = 0;
     for (const lead of leads) {
-      const outstanding = toNum(lead.payment?.totalAmount ?? lead.payment?.outstandingAmount);
-      if (outstanding <= 0) continue;
-      const received = (lead.paymentDetails || []).reduce((s, p) => s + toNum(p.paymentAmount), 0);
-      const balance = outstanding - received;
+      const balance = balanceDueOf(lead);
       if (balance <= 0) continue;
       pending += balance;
       // "Today" pending = balance still owed on leads dated today.
@@ -368,6 +372,7 @@ export default function PaymentStatementPage() {
   const handleExport = useCallback(() => {
     const exportData = rows.map((r, i) => ({
       'Sr. No': i + 1,
+      'Payment Date': formatDate(r.date),
       'Lead Date': formatDate(r.leadDate),
       'Appointment Date': formatDate(r.appointmentDate),
       'Token No': r.tokenNo,
@@ -390,7 +395,7 @@ export default function PaymentStatementPage() {
 
   const th = 'px-4 py-3.5 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap';
   const td = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';
-  const COLS = 14;
+  const COLS = 15;
 
   return (
     <AppShell>
@@ -415,7 +420,13 @@ export default function PaymentStatementPage() {
         {tab === 'billing' ? (
           <BillingPanel />
         ) : tab === 'expenses' ? (
-          <ExpensesPanel leads={leads} loading={loading} error={error} onRefresh={fetchAll} />
+          <ExpensesPanel
+            leads={leads}
+            loading={loading}
+            error={error}
+            onRefresh={fetchAll}
+            onLeadVerifiedChange={setExpenseVerified}
+          />
         ) : tab === 'pnl' ? (
           <PnlPanel leads={leads} loading={loading} error={error} onRefresh={fetchAll} />
         ) : (
@@ -535,6 +546,7 @@ export default function PaymentStatementPage() {
               <thead className="bg-gradient-to-r from-[#00843d] via-[#0d9488] to-[#0e7490] border-b border-[#00622d]">
                 <tr>
                   <th className={th}>Sr. No</th>
+                  <th className={th}>Payment Date</th>
                   <th className={th}>Lead Date</th>
                   <th className={th}>Appointment Date</th>
                   <th className={th}>Token No</th>
@@ -572,6 +584,7 @@ export default function PaymentStatementPage() {
                       className={`transition-colors ${r.verified ? 'bg-orange-400 hover:bg-orange-500' : 'hover:bg-slate-50'}`}
                     >
                       <td className={`${td} font-medium`}>{safePage * ROWS_PER_PAGE + i + 1}</td>
+                      <td className={`${td} font-semibold text-slate-800`}>{formatDate(r.date)}</td>
                       <td className={td}>{formatDate(r.leadDate)}</td>
                       <td className={td}>{formatDate(r.appointmentDate)}</td>
                       <td className={`${td} font-medium`}>{r.tokenNo}</td>
@@ -623,7 +636,7 @@ export default function PaymentStatementPage() {
               {rows.length > 0 && (
                 <tfoot className="bg-slate-50 border-t border-slate-200">
                   <tr>
-                    <td className={`${td} font-semibold`} colSpan={10}>Total</td>
+                    <td className={`${td} font-semibold`} colSpan={11}>Total</td>
                     <td className={`${td} text-right font-bold text-[#00843d]`}>{formatINR(total)}</td>
                     <td className={td} colSpan={3} />
                   </tr>

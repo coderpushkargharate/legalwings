@@ -1,6 +1,9 @@
 'use client';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
+import { balanceDueOf, receivedOf } from '@/lib/payment-math';
+import LeadFileField from '@/components/lead-file-field';
+import { FILE_SLOTS, slotHasFile, withoutLegacyBlobs } from '@/lib/lead-files';
 import { useAuth } from '@/components/auth-provider';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
@@ -81,6 +84,10 @@ interface Lead {
     svLocation?: string;
     assignStatus?: string;
     agreementFile?: string;
+    // References to files stored in /api/files (chunked storage).
+    fileId?: string;
+    pvrFileId?: string;
+    otherFileId?: string;
     agreementFileName?: string;
     fileData?: string;
     fileName?: string;
@@ -444,52 +451,22 @@ const RowColorPicker: React.FC<{ current?: string; onPick: (color: string) => vo
   );
 };
 
-// Dropdown listing a lead's uploaded files with download links (Backend team).
-// The leads LIST no longer ships the base64 file blobs (kept reloads fast), so the
-// full lead — including the blobs — is fetched by id the first time the dropdown opens.
+// Dropdown listing a lead's uploaded files with View / Download (Backend team).
+// File bytes are fetched on demand from /api/files, so the list stays light.
 const FilesDropdown: React.FC<{ lead: Lead }> = ({ lead }) => {
-  const { apiFetch } = useApi();
-  const { open, setOpen, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
-  const [fullLead, setFullLead] = useState<Lead | null>(null);
-  const [loadingFiles, setLoadingFiles] = useState(false);
-
-  useEffect(() => {
-    if (!open || fullLead || loadingFiles) return;
-    // If the row already carries file data (e.g. just edited in this session), reuse it.
-    const ag = lead.agreement;
-    if (ag?.fileData || ag?.agreementFile || ag?.pvrFileData || ag?.otherFileData) {
-      setFullLead(lead);
-      return;
-    }
-    setLoadingFiles(true);
-    apiFetch(`/api/leads?id=${lead.id}`)
-      .then((r) => r.json())
-      .then((d) => setFullLead(d))
-      .catch(() => setFullLead(lead))
-      .finally(() => setLoadingFiles(false));
-  }, [open, fullLead, loadingFiles, lead, apiFetch]);
-
-  const source = fullLead || lead;
-  const files = [
-    { data: source.agreement?.fileData || source.agreement?.agreementFile, name: source.agreement?.fileName || source.agreement?.agreementFileName || 'agreement', label: 'Agreement File' },
-    { data: source.agreement?.pvrFileData, name: source.agreement?.pvrFileName || 'pvr-file', label: 'PVR File' },
-    { data: source.agreement?.otherFileData, name: source.agreement?.otherFileName || 'other-file', label: 'Other File' },
-  ].filter((f) => !!f.data);
+  const { open, pos, btnRef, panelRef, toggle } = useAnchoredPanel();
+  const slots = (["agreement", "pvr", "other"] as const).filter((s) => slotHasFile(lead.agreement, s));
   return (
     <>
       <button ref={btnRef} onClick={toggle} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition-all" title="Download uploaded files">
         <FileText className="w-3.5 h-3.5" /> Files <ChevronDown className="w-3 h-3" />
       </button>
       {open && pos && typeof document !== 'undefined' && createPortal(
-        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-xl w-48">
-          {loadingFiles ? (
-            <div className="px-2 py-2 text-xs text-slate-400 text-center flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading…</div>
-          ) : files.length === 0 ? (
+        <div ref={panelRef} style={{ position: 'fixed', top: pos.top, left: pos.left, transform: 'translateX(-100%)', zIndex: 60 }} className="p-2 bg-white border border-slate-200 rounded-lg shadow-xl w-80 space-y-2">
+          {slots.length === 0 ? (
             <div className="px-2 py-2 text-xs text-slate-400 text-center">No files uploaded</div>
-          ) : files.map((f, i) => (
-            <a key={i} href={f.data} download={f.name} className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 hover:bg-slate-50 rounded-md transition-colors">
-              <Download className="w-3.5 h-3.5 text-[#00843d]" /> <span className="truncate">{f.label}</span>
-            </a>
+          ) : slots.map((slot) => (
+            <LeadFileField key={slot} label={FILE_SLOTS[slot].label} leadId={lead.id} slot={slot} agreement={lead.agreement} />
           ))}
         </div>,
         document.body,
@@ -658,54 +635,6 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     }
   }, [lead]);
 
-  // When this modal is opened straight from a table row, the `lead` came from the
-  // LIST query, which strips the heavy file blobs (fileData / pvrFileData / otherFileData)
-  // for performance. Fetch the full lead by id so the "View current file" links show and
-  // the blobs travel back on save. (The server also guards against wiping them, but this
-  // makes the current file visible while editing.)
-  useEffect(() => {
-    if (!isOpen || !lead?.id) return;
-    const a = lead.agreement;
-    const hasBlobs = !!(a?.fileData || a?.agreementFile || a?.pvrFileData || a?.otherFileData);
-    const hasFileNames = !!(a?.fileName || a?.pvrFileName || a?.otherFileName);
-    // Only fetch when a file is referenced (by name) but its blob is missing.
-    if (!hasFileNames || hasBlobs) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await apiFetch(`/api/leads?id=${lead.id}`);
-        if (!res.ok) return;
-        const full = await res.json();
-        if (cancelled || !full?.agreement) return;
-        setFormData(prev => ({
-          ...prev,
-          agreement: {
-            ...prev.agreement,
-            fileName: full.agreement.fileName ?? prev.agreement?.fileName,
-            fileData: full.agreement.fileData ?? prev.agreement?.fileData,
-            agreementFile: full.agreement.agreementFile ?? prev.agreement?.agreementFile,
-            pvrFileName: full.agreement.pvrFileName ?? prev.agreement?.pvrFileName,
-            pvrFileData: full.agreement.pvrFileData ?? prev.agreement?.pvrFileData,
-            otherFileName: full.agreement.otherFileName ?? prev.agreement?.otherFileName,
-            otherFileData: full.agreement.otherFileData ?? prev.agreement?.otherFileData,
-          },
-        }));
-      } catch { /* non-fatal: server still preserves the stored files on save */ }
-    })();
-    return () => { cancelled = true; };
-  }, [isOpen, lead?.id, lead?.agreement, apiFetch]);
-
-  // Files are stored as base64 inside the lead document (MongoDB caps documents at 16MB;
-  // base64 adds ~33%). Reject oversized uploads up front so they never silently fail to save.
-  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-  const isFileTooLarge = (file: File): boolean => {
-    if (file.size > MAX_FILE_BYTES) {
-      setError(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed is 10 MB.`);
-      return true;
-    }
-    return false;
-  };
-
   const handleInputChange = (section: 'client' | 'agreement' | 'payment' | 'general' | 'owner' | 'tenant', field: string, value: any) => {
     setFormData(prev => {
       if (section === 'general') return { ...prev, [field]: value };
@@ -824,8 +753,24 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
       const selectedCity = dropdowns?.cities.find(c => c.id === formData.cityId);
       const selectedArea = dropdowns?.areas.find(a => a.id === formData.areaId);
 
+      // Re-derive the stored payment totals from the edited fees & payment lines so
+      // they don't go stale (Outstanding = Legal Fees; Balance = Outstanding − Received).
+      const fees = parseFloat(formData.payment?.totalAmount?.toString() || '0') || 0;
+      const received = paymentDetails.reduce((s, p) => s + (parseFloat(p.paymentAmount) || 0), 0);
+      const balance = fees - received;
+
       const updateData = {
         ...formData,
+        payment: {
+          ...formData.payment,
+          outstandingAmount: fees,
+          paidAmount: received,
+          balanceAmount: balance,
+          pendingAmount: balance,
+        },
+        // Files are saved by /api/files on upload; never resend legacy base64 blobs
+        // (keeps this request small — the server keeps the stored file fields anyway).
+        agreement: withoutLegacyBlobs(formData.agreement),
         city: selectedCity ? { id: selectedCity.id, name: selectedCity.name } : formData.city,
         area: selectedArea ? { id: selectedArea.id, name: selectedArea.name } : formData.area,
         paymentDetails,
@@ -860,8 +805,9 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
   const sectionHeaderClass = "text-base font-semibold text-slate-800 mb-4 flex items-center gap-2";
 
   const totalAmount = parseFloat(formData.payment?.totalAmount?.toString() || '0');
-  const commissionAmount = parseFloat(formData.payment?.commissionAmount?.toString() || '0');
-  const outstandingAmount = totalAmount + commissionAmount;
+  // Outstanding = Legal Fees (Total Agreement Amount). Commission (AC Amount) is our
+  // expense, not something the client owes, so it is NOT added here.
+  const outstandingAmount = totalAmount;
   // Received = sum of all owner + tenant payments; Balance = Outstanding − Received.
   const receivedAmount =
     [...ownerPayments, ...tenantPayments]
@@ -1042,102 +988,19 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   </select>
                 </div>
                 )}
-                <div className="md:col-span-3">
-                  <label className={labelClass}>Agreement File (PDF)</label>
-                  {(formData.agreement?.fileData || formData.agreement?.agreementFile) && (
-                    <div className="flex items-center gap-3 mb-1">
-                      <a
-                        href={formData.agreement.fileData || formData.agreement.agreementFile}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline"
-                      >
-                        <FileText className="w-3.5 h-3.5" /> View current file
-                      </a>
-                      <a
-                        href={formData.agreement.fileData || formData.agreement.agreementFile}
-                        download={formData.agreement.fileName || formData.agreement.agreementFileName || 'agreement.pdf'}
-                        className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline"
-                      >
-                        <Download className="w-3.5 h-3.5" /> Download
-                      </a>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="application/pdf"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || isFileTooLarge(file)) return;
-                      setError(null);
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        handleInputChange('agreement', 'fileName', file.name);
-                        handleInputChange('agreement', 'fileData', typeof reader.result === 'string' ? reader.result : '');
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                    className={inputClass}
+                {(["agreement", "pvr", "other"] as const).map((slot) => (
+                  <LeadFileField
+                    key={slot}
+                    className="md:col-span-3"
+                    label={FILE_SLOTS[slot].label}
+                    slot={slot}
+                    accept={slot === "agreement" ? "application/pdf" : "application/pdf,image/*"}
+                    leadId={lead.id}
+                    agreement={formData.agreement}
+                    editable
+                    onChange={(patch) => setFormData(prev => ({ ...prev, agreement: { ...prev.agreement, ...patch } as Lead["agreement"] }))}
                   />
-                </div>
-                <div className="md:col-span-3">
-                  <label className={labelClass}>PVR File</label>
-                  {formData.agreement?.pvrFileData && (
-                    <div className="flex items-center gap-3 mb-1">
-                      <a href={formData.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline">
-                        <FileText className="w-3.5 h-3.5" /> View current file
-                      </a>
-                      <a href={formData.agreement.pvrFileData} download={formData.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
-                        <Download className="w-3.5 h-3.5" /> Download
-                      </a>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || isFileTooLarge(file)) return;
-                      setError(null);
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        handleInputChange('agreement', 'pvrFileName', file.name);
-                        handleInputChange('agreement', 'pvrFileData', typeof reader.result === 'string' ? reader.result : '');
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                    className={inputClass}
-                  />
-                </div>
-                <div className="md:col-span-3">
-                  <label className={labelClass}>Other File</label>
-                  {formData.agreement?.otherFileData && (
-                    <div className="flex items-center gap-3 mb-1">
-                      <a href={formData.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-[#00843d] hover:underline">
-                        <FileText className="w-3.5 h-3.5" /> View current file
-                      </a>
-                      <a href={formData.agreement.otherFileData} download={formData.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-xs text-amber-600 hover:underline">
-                        <Download className="w-3.5 h-3.5" /> Download
-                      </a>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept="application/pdf,image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (!file || isFileTooLarge(file)) return;
-                      setError(null);
-                      const reader = new FileReader();
-                      reader.onload = () => {
-                        handleInputChange('agreement', 'otherFileName', file.name);
-                        handleInputChange('agreement', 'otherFileData', typeof reader.result === 'string' ? reader.result : '');
-                      };
-                      reader.readAsDataURL(file);
-                    }}
-                    className={inputClass}
-                  />
-                </div>
+                ))}
               </div>
             </div>
           </div>
@@ -1163,7 +1026,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                 <div>
                   <label className={labelClass}>Outstanding Amount</label>
                   <input type="text" value={`₹ ${outstandingAmount.toFixed(2)}`} readOnly className={`${inputClass} bg-slate-50 text-red-600 font-semibold cursor-not-allowed`} />
-                  <p className="text-xs text-slate-500 mt-1">Calculated: Total + Commission</p>
+                  <p className="text-xs text-slate-500 mt-1">= Total Agreement Amount</p>
                 </div>
                 <div>
                   <label className={labelClass}>Received Amount</label>
@@ -1457,57 +1320,14 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <InfoItem label="Execute Date" value={formatDate(lead.agreement?.executeDate)} icon={CalendarDays} />
                     <InfoItem label="Mobile No" value={lead.agreement?.mobileNo || '-'} icon={Phone} />
                     <InfoItem label="Address Line 1" value={lead.agreement?.addressLine1 || '-'} multiline />
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Agreement File
-                      </label>
-                      {(lead.agreement?.fileData || lead.agreement?.agreementFile) ? (
-                        <div className="flex items-center gap-3">
-                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
-                            <Eye className="w-3.5 h-3.5" /> View
-                          </a>
-                          <a href={lead.agreement.fileData || lead.agreement.agreementFile} download={lead.agreement.fileName || lead.agreement.agreementFileName || 'agreement.pdf'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
-                            <Download className="w-3.5 h-3.5" /> Download
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-700">-</p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> PVR File
-                      </label>
-                      {lead.agreement?.pvrFileData ? (
-                        <div className="flex items-center gap-3">
-                          <a href={lead.agreement.pvrFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
-                            <Eye className="w-3.5 h-3.5" /> View
-                          </a>
-                          <a href={lead.agreement.pvrFileData} download={lead.agreement.pvrFileName || 'pvr-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
-                            <Download className="w-3.5 h-3.5" /> Download
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-700">-</p>
-                      )}
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                        <FileText className="w-3 h-3" /> Other File
-                      </label>
-                      {lead.agreement?.otherFileData ? (
-                        <div className="flex items-center gap-3">
-                          <a href={lead.agreement.otherFileData} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm text-[#00843d] hover:underline">
-                            <Eye className="w-3.5 h-3.5" /> View
-                          </a>
-                          <a href={lead.agreement.otherFileData} download={lead.agreement.otherFileName || 'other-file'} className="inline-flex items-center gap-1 text-sm text-amber-600 hover:underline">
-                            <Download className="w-3.5 h-3.5" /> Download
-                          </a>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-slate-700">-</p>
-                      )}
-                    </div>
+                    {(["agreement", "pvr", "other"] as const).map((slot) => (
+                      <div key={slot} className="space-y-1">
+                        <label className="text-xs font-medium text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                          <FileText className="w-3 h-3" /> {FILE_SLOTS[slot].label}
+                        </label>
+                        <LeadFileField leadId={lead.id} slot={slot} agreement={lead.agreement} />
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
@@ -1520,7 +1340,7 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <SummaryCard label="Total Amount" value={formatCurrency(lead.payment?.totalAmount)} />
                     <SummaryCard label="Commission" value={formatCurrency(lead.payment?.commissionAmount)} />
-                    <SummaryCard label="Outstanding" value={formatCurrency((lead.payment?.outstandingAmount ?? (Number(lead.payment?.totalAmount) + Number(lead.payment?.commissionAmount))))} highlight />
+                    <SummaryCard label="Outstanding (Balance)" value={formatCurrency(balanceDueOf(lead))} highlight />
                   </div>
                 </div>
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
@@ -1768,6 +1588,10 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
   // Holds the AbortController of the in-flight /api/leads request so a new fetch
   // (from typing/filtering) can cancel the previous one — see fetchLeads.
   const leadsAbortRef = useRef<AbortController | null>(null);
+  // Filters of the latest list request, so Excel export can pull EVERY matching lead
+  // (all pages), not just the 20 on screen.
+  const lastQueryRef = useRef<URLSearchParams | null>(null);
+  const [exporting, setExporting] = useState(false);
   // Default to empty so NO date filter is applied on load — the table shows all
   // data until the user picks a date range and clicks Apply. (Previously these
   // defaulted to `today`, which silently filtered every dashboard to today's rows.)
@@ -1927,8 +1751,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         { key: 'clientName', label: 'Client Name', width: '180px', render: (lead) => `${lead.client?.firstName || ''} ${lead.client?.lastName || ''}`.trim() || '-' },
         { key: 'phone', label: 'Phone', width: '130px', render: (lead) => lead.client?.phoneNo || '-' },
         { key: 'totalAmount', label: 'Total Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.totalAmount) },
-        { key: 'paidAmount', label: 'Paid Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.paidAmount) },
-        { key: 'pendingAmount', label: 'Pending Amount', width: '120px', render: (lead) => formatCurrency(lead.payment?.pendingAmount || lead.payment?.outstandingAmount) },
+        { key: 'paidAmount', label: 'Paid Amount', width: '120px', render: (lead) => formatCurrency(receivedOf(lead)) },
+        { key: 'pendingAmount', label: 'Pending Amount', width: '120px', render: (lead) => formatCurrency(balanceDueOf(lead)) },
         { key: 'paymentDate', label: 'Date', width: '120px', render: (lead) => { const date = lead.paymentDetails?.[0]?.paymentDate; return formatDate(date); } },
         { key: 'status', label: 'Status', width: '120px', render: (lead) => getStatusBadge(lead.agreement?.status || lead.leadStatus) },
         { key: 'commissionAmount', label: 'Commission Amt', width: '120px', render: (lead) => formatCurrency(lead.payment?.commissionAmount) },
@@ -2111,6 +1935,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
         if (tenantMobile) params.set('tenantMobile', tenantMobile);
         if (tenantDob) params.set('tenantDob', tenantDob);
       }
+      lastQueryRef.current = new URLSearchParams(params);
       const res = await apiFetch(`/api/leads?${params.toString()}`, { signal: controller.signal });
       const data = await res.json();
       // A newer request superseded this one — drop this (possibly stale) result.
@@ -2347,16 +2172,45 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
     setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
   };
 
-  const handleExportExcel = () => {
+  // Every lead matching the current filters, across all pages (200 per request).
+  const fetchAllMatchingLeads = async (): Promise<Lead[]> => {
+    const base = new URLSearchParams(lastQueryRef.current || { transitLevel });
+    const pageUrl = (p: number) => {
+      const q = new URLSearchParams(base);
+      q.set('page', String(p));
+      q.set('pageSize', '200');
+      return `/api/leads?${q.toString()}`;
+    };
+    const first = await apiFetch(pageUrl(0));
+    if (!first.ok) throw new Error('Failed to load leads for export');
+    const firstData = await first.json();
+    const all: Lead[] = [...(firstData?.leadPage?.content || [])];
+    const pages = Math.min(firstData?.leadPage?.totalPages || 1, 100);
+    for (let p = 1; p < pages; p++) {
+      const res = await apiFetch(pageUrl(p));
+      if (!res.ok) throw new Error('Failed to load leads for export');
+      all.push(...((await res.json())?.leadPage?.content || []));
+    }
+    return filterFn ? all.filter(filterFn) : all;
+  };
+
+  const handleExportExcel = async () => {
     if (leads.length === 0) return alert('No data to export.');
 
-    // Caller-supplied export (e.g. Accounts team's fixed 12-column report).
+    // Caller-supplied export (e.g. Accounts / Marketing reports) — all matching leads.
     if (exportRows) {
-      const rows = exportRows(leads);
-      const ws = XLSX.utils.json_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, exportSheetName || 'Report');
-      XLSX.writeFile(wb, `${exportFileName || 'Report'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      setExporting(true);
+      try {
+        const rows = exportRows(await fetchAllMatchingLeads());
+        const ws = XLSX.utils.json_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, exportSheetName || 'Report');
+        XLSX.writeFile(wb, `${exportFileName || 'Report'}_${new Date().toISOString().split('T')[0]}.xlsx`);
+      } catch (err: any) {
+        alert(err?.message || 'Export failed. Please try again.');
+      } finally {
+        setExporting(false);
+      }
       return;
     }
 
@@ -2531,6 +2385,9 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
           <div className="flex gap-2 justify-end pt-2 border-t border-slate-100">
             <button onClick={handleApplyFilters} className="px-5 py-2.5 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-all shadow-sm">Apply Filters</button>
             <button onClick={handleClearFilters} className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-medium hover:bg-slate-200 transition-all">Clear</button>
+            <button onClick={handleExportExcel} disabled={exporting} className="px-4 py-2.5 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-all flex items-center justify-center gap-2 shadow-sm">
+              {exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} {exporting ? 'Exporting…' : 'Export Excel'}
+            </button>
           </div>
         </>
       );
@@ -2701,7 +2558,8 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
       )}
 
       {isBackendDashboard && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+        // Admins don't see the Completed counts; back office employees still do.
+        <div className={`grid grid-cols-2 sm:grid-cols-3 gap-4 ${isAdmin ? 'lg:grid-cols-4' : 'lg:grid-cols-6'}`}>
           {([
             ['Today All Work', backendCounts.todayAll, 'text-slate-800'],
             ['Today Submitted', backendCounts.todaySubmitted, 'text-amber-600'],
@@ -2709,7 +2567,7 @@ export default function LeadsTable({ transitLevel, title, columns: customColumns
             ['Total All Work', backendCounts.totalAll, 'text-slate-800'],
             ['Total Submitted', backendCounts.totalSubmitted, 'text-amber-600'],
             ['Total Completed', backendCounts.totalCompleted, 'text-[#00843d]'],
-          ] as const).map(([label, value, color]) => (
+          ] as const).filter(([label]) => !(isAdmin && label.endsWith('Completed'))).map(([label, value, color]) => (
             <div key={label} className="bg-white rounded-xl border border-slate-200 p-4">
               <p className="text-xs text-slate-500 mb-1">{label}</p>
               <p className={`text-lg font-semibold ${color}`}>{value}</p>

@@ -60,11 +60,11 @@ const receivedAmount = (lead: Lead): number => {
   return toNum(lead.payment?.totalReceivedAmount) || toNum(lead.payment?.paidAmount);
 };
 
-const outstandingAmount = (lead: Lead): number => {
-  if (lead.payment?.outstandingAmount != null) return toNum(lead.payment.outstandingAmount);
-  if (lead.payment?.pendingAmount != null) return toNum(lead.payment.pendingAmount);
-  return totalAgreementFees(lead) - receivedAmount(lead);
-};
+// Outstanding = what the client still owes = Fees − Received (live, never below 0).
+// The stored payment.outstandingAmount equals the full Legal Fees (not reduced by
+// payments) and pendingAmount goes stale on edits, so neither is used here.
+const outstandingAmount = (lead: Lead): number =>
+  Math.max(0, totalAgreementFees(lead) - receivedAmount(lead));
 
 const commissionAmount = (lead: Lead): number => toNum(lead.payment?.commissionAmount);
 const commissionDate = (lead: Lead): string => formatDate(lead.payment?.commissionDate);

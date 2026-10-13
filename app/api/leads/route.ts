@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { preserveAgreementFiles, stripAgreementBlobs } from '@/lib/lead-files-server';
 
 function getAuth(request: Request): JWTPayload | null {
   const token = getTokenFromHeaders(request);
@@ -51,35 +52,6 @@ function addDateRange(
   filter[field] = range;
 }
 
-// 📎 Guard against edits wiping already-uploaded files.
-// Files are stored as base64 blobs inside the lead's `agreement` (fileData / pvrFileData /
-// otherFileData + their names). The dashboard LIST query strips these heavy blobs for
-// performance, so an Edit opened straight from a table row carries an `agreement` object
-// with NO file data. Because the update `$set`s the whole `agreement` subdocument, saving
-// that stripped copy would erase the previously uploaded files. When the incoming agreement
-// omits (or sends an empty) file field, backfill it from the currently stored agreement so
-// the files persist and keep showing on every later view/edit.
-async function preserveAgreementFiles(
-  db: Awaited<ReturnType<typeof connectToDatabase>>['db'],
-  id: string,
-  updateData: Record<string, unknown>,
-) {
-  if (!updateData.agreement || typeof updateData.agreement !== 'object') return;
-  const fileFields = [
-    'fileData', 'fileName', 'agreementFile',
-    'pvrFileData', 'pvrFileName',
-    'otherFileData', 'otherFileName',
-  ];
-  const existing = await db.collection('leads').findOne(
-    { _id: new ObjectId(id) },
-    { projection: Object.fromEntries(fileFields.map(f => [`agreement.${f}`, 1])) },
-  );
-  const prev = ((existing?.agreement as Record<string, unknown>) || {});
-  const incoming = updateData.agreement as Record<string, unknown>;
-  for (const field of fileFields) {
-    if (!incoming[field] && prev[field]) incoming[field] = prev[field];
-  }
-}
 
 // ✅ External CRM integration sends a lean shape (no agreement/payment/history
 // blobs). Strip the lead down to the core fields the external service needs.
@@ -200,7 +172,8 @@ export async function GET(request: Request) {
       const lead = await db.collection('leads').findOne({ _id: objId, ...accessFilter });
       if (!lead) return NextResponse.json({ error: 'Lead not found or access denied' }, { status: 404 });
       // Expose `createdDate` (the UI reads it) derived from the stored `createdAt`.
-      return NextResponse.json({ ...lead, id: lead._id.toString(), createdDate: lead.createdDate || lead.createdAt, _id: undefined });
+      // Legacy base64 file blobs are served on demand by /api/files, not with the lead.
+      return NextResponse.json({ ...stripAgreementBlobs(lead), id: lead._id.toString(), createdDate: lead.createdDate || lead.createdAt, _id: undefined });
     }
 
     // 📋 Apply filters
@@ -649,7 +622,7 @@ export async function PUT(request: Request) {
     if (updateData._id) delete updateData._id;
 
     // 📎 Never let an edit wipe already-uploaded files (see preserveAgreementFiles).
-    await preserveAgreementFiles(db, id, updateData);
+    await preserveAgreementFiles(db, id, updateData.agreement);
 
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },
@@ -687,7 +660,7 @@ export async function PATCH(request: Request) {
     if ('backendStatus' in updateData) updateData.backendStatusAt = new Date();
 
     // 📎 Never let an edit wipe already-uploaded files (see preserveAgreementFiles).
-    await preserveAgreementFiles(db, id, updateData);
+    await preserveAgreementFiles(db, id, updateData.agreement);
 
     const result = await db.collection('leads').updateOne(
       { _id: new ObjectId(id) },

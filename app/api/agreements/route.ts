@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { preserveAgreementFiles, stripAgreementBlobs } from '@/lib/lead-files-server';
 
 export async function POST(request: Request) {
   const token = getTokenFromHeaders(request);
@@ -18,8 +19,12 @@ export async function POST(request: Request) {
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+    // 📎 File fields are owned by /api/files — keep whatever is stored on the lead so
+    // saving the agreement form can never wipe an uploaded file.
+    if (body.leadId) await preserveAgreementFiles(db, body.leadId, agreement);
 
-    const result = await db.collection('agreements').insertOne(agreement);
+    // History copy without the heavy base64 blobs (they'd be duplicated on every save).
+    const result = await db.collection('agreements').insertOne(stripAgreementBlobs({ agreement }).agreement);
 
     // Update the lead with agreement reference
     if (body.leadId) {
@@ -29,7 +34,7 @@ export async function POST(request: Request) {
       );
     }
 
-    return NextResponse.json({ ...agreement, id: result.insertedId.toString() }, { status: 201 });
+    return NextResponse.json({ ...stripAgreementBlobs({ agreement }).agreement, id: result.insertedId.toString() }, { status: 201 });
   } catch (error) {
     console.error('Agreement POST error:', error);
     return NextResponse.json({ error: 'Failed to create agreement' }, { status: 500 });

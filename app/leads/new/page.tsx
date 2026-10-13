@@ -5,7 +5,8 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle, Download } from 'lucide-react';
+import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucide-react';
+import LeadFileField from '@/components/lead-file-field';
 import { formatDate } from '@/lib/date-utils';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, collectErrors,
@@ -111,12 +112,6 @@ interface AgreementFormData {
   assignStatus?: string;
   agreementMobileNo?: string;
   agreementExecuteDate?: string;
-  agreementFileName?: string;
-  agreementFileData?: string; // base64 data URL of the uploaded file
-  pvrFileName?: string;
-  pvrFileData?: string;
-  otherFileName?: string;
-  otherFileData?: string;
 }
 
 interface PaymentFormData {
@@ -132,15 +127,6 @@ interface PaymentFormData {
   dhcDate: string;
   description: string;
 }
-
-// ============================================================================
-// 🔹 FILE TYPE HELPERS (works with base64 data URLs or file names)
-// ============================================================================
-const isPdfFile = (data?: string, name?: string): boolean =>
-  !!(data?.startsWith('data:application/pdf') || name?.toLowerCase().endsWith('.pdf'));
-
-const isImageFile = (data?: string, name?: string): boolean =>
-  !!(data?.startsWith('data:image/') || /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(name || ''));
 
 // ============================================================================
 // 🔹 REUSABLE COMPONENTS
@@ -377,6 +363,8 @@ function LeadFormContent() {
     leadDate: '',
   });
 
+  // Uploaded-file references (fileId / pvrFileId / otherFileId + names) for LeadFileField.
+  const [agreementFiles, setAgreementFiles] = useState<Record<string, any>>({});
   const [agreement, setAgreement] = useState<AgreementFormData>({
     tokenNumber: '', periodDays: '', agreementStartDate: '', agreementEndDate: '', addressLine1: '', addressLine2: '',
     agreementStatus: '', backOfficeStatus: '', description: '', ownerFirstName: '', ownerLastName: '', ownerEmail: '',
@@ -562,13 +550,9 @@ function LeadFormContent() {
               svLocation: data.agreement.svLocation || '', assignStatus: data.agreement.assignStatus || '',
               agreementMobileNo: data.agreement.mobileNo || '',
               agreementExecuteDate: data.agreement.executeDate || '',
-              agreementFileName: data.agreement.fileName || '',
-              agreementFileData: data.agreement.fileData || '',
-              pvrFileName: data.agreement.pvrFileName || '',
-              pvrFileData: data.agreement.pvrFileData || '',
-              otherFileName: data.agreement.otherFileName || '',
-              otherFileData: data.agreement.otherFileData || '',
             });
+            // Only the file references — the files themselves are fetched on demand.
+            setAgreementFiles(data.agreement);
           }
 
           if (data.payment) {
@@ -625,48 +609,6 @@ function LeadFormContent() {
   const updateAgreementPeriod = useCallback((v: string) => {
     setAgreement(prev => ({ ...prev, periodDays: v }));
   }, []);
-
-  // Files are stored as base64 inside the lead document, which MongoDB caps at 16MB.
-  // base64 inflates size by ~33%, so anything over ~10MB risks silently failing to
-  // save (and then "disappearing"). Reject oversized files up front with a clear message.
-  const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-  const isFileTooLarge = useCallback((file: File): boolean => {
-    if (file.size > MAX_FILE_BYTES) {
-      setFormError(`"${file.name}" is too large (${(file.size / (1024 * 1024)).toFixed(1)} MB). Maximum allowed is 10 MB.`);
-      return true;
-    }
-    return false;
-  }, []);
-
-  // ✅ Read uploaded agreement file as a base64 data URL so it can be stored & downloaded later
-  const handleAgreementFile = useCallback((file: File | null) => {
-    if (!file || isFileTooLarge(file)) return;
-    setFormError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAgreement(prev => ({
-        ...prev,
-        agreementFileName: file.name,
-        agreementFileData: typeof reader.result === 'string' ? reader.result : '',
-      }));
-    };
-    reader.readAsDataURL(file);
-  }, [isFileTooLarge]);
-
-  // ✅ Read an extra uploaded file (PVR / Other) as a base64 data URL for storage & download.
-  const handleExtraFile = useCallback((nameField: keyof AgreementFormData, dataField: keyof AgreementFormData, file: File | null) => {
-    if (!file || isFileTooLarge(file)) return;
-    setFormError(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setAgreement(prev => ({
-        ...prev,
-        [nameField]: file.name,
-        [dataField]: typeof reader.result === 'string' ? reader.result : '',
-      }));
-    };
-    reader.readAsDataURL(file);
-  }, [isFileTooLarge]);
 
   const updatePayment = useCallback((field: keyof PaymentFormData, value: string) => {
     setPayment(prev => prev[field] === value ? prev : { ...prev, [field]: value });
@@ -827,9 +769,6 @@ function LeadFormContent() {
           addressLine1: agreement.addressLine1, addressLine2: agreement.addressLine2,
           mobileNo: agreement.agreementMobileNo,
           executeDate: agreement.agreementExecuteDate,
-          fileName: agreement.agreementFileName, fileData: agreement.agreementFileData,
-          pvrFileName: agreement.pvrFileName, pvrFileData: agreement.pvrFileData,
-          otherFileName: agreement.otherFileName, otherFileData: agreement.otherFileData,
           pvName: agreement.pvName, pvAge: agreement.pvAge,
           pvMobile: agreement.pvMobile, pvRelation: agreement.pvRelation,
           svName: agreement.svName, svNo: agreement.svNo,
@@ -1187,106 +1126,23 @@ function LeadFormContent() {
                     </select>
                   </div>
                 )}
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Agreement File</label>
-                  {isEditable && (
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={(e) => handleAgreementFile(e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
-                      id="agreement-file"
-                    />
-                  )}
-                  {/* ✅ Inline preview of the uploaded file + download option */}
-                  {agreement.agreementFileData ? (
-                    <div className="mt-2 space-y-2">
-                      <a
-                        href={agreement.agreementFileData}
-                        download={agreement.agreementFileName || 'agreement-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        {agreement.agreementFileName || 'Download file'}
-                      </a>
-                      {isPdfFile(agreement.agreementFileData, agreement.agreementFileName) ? (
-                        <object
-                          data={agreement.agreementFileData}
-                          type="application/pdf"
-                          className="w-full h-[600px] border border-slate-200 rounded-lg"
-                        >
-                          <iframe
-                            src={agreement.agreementFileData}
-                            title="Agreement PDF"
-                            className="w-full h-[600px] border border-slate-200 rounded-lg"
-                          />
-                        </object>
-                      ) : isImageFile(agreement.agreementFileData, agreement.agreementFileName) ? (
-                        <img
-                          src={agreement.agreementFileData}
-                          alt={agreement.agreementFileName || 'Agreement file'}
-                          className="max-w-full max-h-[600px] border border-slate-200 rounded-lg"
-                        />
-                      ) : null}
-                    </div>
-                  ) : (
-                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
-                  )}
-                </div>
-                {/* PVR File upload */}
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">PVR File</label>
-                  {isEditable && (
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={(e) => handleExtraFile('pvrFileName', 'pvrFileData', e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
-                      id="agreement-pvrFile"
-                    />
-                  )}
-                  {agreement.pvrFileData ? (
-                    <div className="mt-2">
-                      <a
-                        href={agreement.pvrFileData}
-                        download={agreement.pvrFileName || 'pvr-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        {agreement.pvrFileName || 'Download file'}
-                      </a>
-                    </div>
-                  ) : (
-                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
-                  )}
-                </div>
-                {/* Other File upload */}
-                <div className="md:col-span-3">
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Other File</label>
-                  {isEditable && (
-                    <input
-                      type="file"
-                      accept="application/pdf,image/*"
-                      onChange={(e) => handleExtraFile('otherFileName', 'otherFileData', e.target.files?.[0] || null)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 transition-all"
-                      id="agreement-otherFile"
-                    />
-                  )}
-                  {agreement.otherFileData ? (
-                    <div className="mt-2">
-                      <a
-                        href={agreement.otherFileData}
-                        download={agreement.otherFileName || 'other-file'}
-                        className="inline-flex items-center gap-2 px-3 py-2 border border-slate-200 rounded-lg text-sm text-[#00843d] hover:bg-[#f0fdf4] transition-colors"
-                      >
-                        <Download className="w-4 h-4" />
-                        {agreement.otherFileName || 'Download file'}
-                      </a>
-                    </div>
-                  ) : (
-                    !isEditable && <div className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500">No file uploaded</div>
-                  )}
-                </div>
+                {/* 📎 Files upload straight to /api/files (chunked) and attach to the lead
+                    immediately — they don't depend on the Save Agreement button. */}
+                <LeadFileField
+                  className="md:col-span-3" label="Agreement File" slot="agreement" preview
+                  leadId={currentLeadId} agreement={agreementFiles} editable={isEditable}
+                  onChange={(patch) => setAgreementFiles(prev => ({ ...prev, ...patch }))}
+                />
+                <LeadFileField
+                  className="md:col-span-3" label="PVR File" slot="pvr"
+                  leadId={currentLeadId} agreement={agreementFiles} editable={isEditable}
+                  onChange={(patch) => setAgreementFiles(prev => ({ ...prev, ...patch }))}
+                />
+                <LeadFileField
+                  className="md:col-span-3" label="Other File" slot="other"
+                  leadId={currentLeadId} agreement={agreementFiles} editable={isEditable}
+                  onChange={(patch) => setAgreementFiles(prev => ({ ...prev, ...patch }))}
+                />
               </div>
             </div>
             {isEditable && (

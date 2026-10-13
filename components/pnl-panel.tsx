@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
+import { balanceDueOf } from '@/lib/payment-math';
 import { EXPENSE_CATEGORY_OPTS } from '@/components/expenses-panel';
 
 // ---------------------------------------------------------------------------
@@ -148,12 +149,7 @@ export default function PnlPanel({ leads, loading, error, onRefresh }: PnlPanelP
       }
 
       // Outstanding — Legal Fees (totalAmount) − received, clamped at 0, by lead date.
-      const legalFees = toNum(lead.payment?.totalAmount ?? lead.payment?.outstandingAmount);
-      if (legalFees > 0 && inRange(leadDateOf(lead), from, to)) {
-        const received = (lead.paymentDetails || []).reduce((s, p) => s + toNum(p.paymentAmount), 0);
-        const balance = legalFees - received;
-        if (balance > 0) outstanding += balance;
-      }
+      if (inRange(leadDateOf(lead), from, to)) outstanding += balanceDueOf(lead);
 
       // GRN / DHC / Commission — each by its own date.
       const pay = lead.payment;

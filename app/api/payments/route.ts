@@ -23,6 +23,16 @@ export async function POST(request: Request) {
 
     // Update the lead with payment reference
     if (body.leadId) {
+      // The Expenses tab's Verify flag lives on lead.payment but isn't part of the
+      // payment form — carry it over so re-saving the form doesn't reset it.
+      const existing = await db.collection('leads').findOne(
+        { _id: new ObjectId(body.leadId) },
+        { projection: { 'payment.expenseVerified': 1 } },
+      );
+      if (body.expenseVerified === undefined && existing?.payment?.expenseVerified !== undefined) {
+        payment.expenseVerified = existing.payment.expenseVerified;
+      }
+
       // Mirror the owner/tenant payment lines onto the top-level `paymentDetails`
       // field too. Every UI that renders individual payments (View modal, the
       // add/edit lead form, the Accounting table) reads `lead.paymentDetails`,

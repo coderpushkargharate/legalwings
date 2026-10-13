@@ -161,6 +161,45 @@ export async function POST(request: Request) {
   }
 }
 
+// PATCH /api/expenses — { id, verified } toggles the "Verify" (Yes/No) flag.
+export async function PATCH(request: Request) {
+  const token = getTokenFromHeaders(request);
+  const payload = token ? verifyToken(token) : null;
+  if (!payload) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  try {
+    const { db } = await connectToDatabase();
+    const body = await request.json();
+    if (!body.id || !ObjectId.isValid(body.id)) {
+      return NextResponse.json({ error: 'Invalid expense ID' }, { status: 400 });
+    }
+    if (typeof body.verified !== 'boolean') {
+      return NextResponse.json({ error: 'verified must be true or false' }, { status: 400 });
+    }
+
+    const result = await db.collection('expenses').updateOne(
+      { _id: new ObjectId(body.id) },
+      {
+        $set: {
+          verified: body.verified,
+          verifiedByUserName: `${payload.firstName || ''} ${payload.lastName || ''}`.trim(),
+          verifiedAt: new Date(),
+          updatedAt: new Date(),
+        },
+      },
+    );
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Expense not found' }, { status: 404 });
+    }
+    return NextResponse.json({ message: 'Expense updated', verified: body.verified });
+  } catch (error: any) {
+    console.error('Expense PATCH error:', error);
+    return NextResponse.json({ error: error.message || 'Failed to update expense' }, { status: 500 });
+  }
+}
+
 // DELETE /api/expenses?id=... — remove an expense record.
 export async function DELETE(request: Request) {
   const token = getTokenFromHeaders(request);

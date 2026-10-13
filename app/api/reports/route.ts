@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
+import { balanceDueOf } from '@/lib/payment-math';
 
 function getAuth(request: Request): JWTPayload | null {
   const token = getTokenFromHeaders(request);
@@ -89,7 +90,8 @@ export async function GET(request: Request) {
       const leadReceived = received || num(lead.payment?.totalReceivedAmount) || num(lead.payment?.paidAmount);
       const leadCommission = num(lead.payment?.commissionAmount);
       totalReceived += leadReceived;
-      totalPending += num(lead.paymentPending) || num(lead.payment?.pendingAmount) || num(lead.payment?.outstandingAmount);
+      // Live balance (Fees − Received) — stored pending/outstanding can be stale or equal the full fees.
+      totalPending += balanceDueOf(lead);
       totalCommission += leadCommission;
       totalAgreement += num(lead.payment?.totalAmount);
 

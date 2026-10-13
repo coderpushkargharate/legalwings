@@ -8,20 +8,22 @@
 //
 // Columns: Sr. No · Lead Date · Token No · Lead Name · Back Work Account ·
 //          Govt GRN Date · GRN Number · GRN Amount · DHC Date · DHC Number ·
-//          DHC Amount · Commission Date · Commission Name · AC Amount.
+//          DHC Amount · Commission Date · Commission Name · AC Amount · Verify.
 //
 // "Back Work Account" = the Backend-team member who worked the lead. Once a lead
 // is forwarded on to the Backend team, `assignedToUserName` becomes that backend
 // employee (see note in payment-statement/page.tsx), so we use it here, falling
 // back to the creator so the column is never blank.
 // "AC Amount" = lead.payment.commissionAmount.
+// "Verify" (Yes/No) — same as the Statement's Verify column. Lead expense rows save
+// it on lead.payment.expenseVerified; manual expenses on the expense record.
 // ============================================================================
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   Download, Loader2, RefreshCw, IndianRupee, ChevronLeft, ChevronRight, TrendingDown,
-  Plus, Trash2, X, Receipt, Wallet, Search,
+  Plus, Trash2, X, Receipt, Wallet, Search, Check,
   Banknote, Smartphone, CreditCard, FileCheck, Building2, Tag,
 } from 'lucide-react';
 import { useApi } from '@/components/api-client';
@@ -51,6 +53,7 @@ interface ExpenseLead {
     commissionName?: string;
     commissionAmount?: number | string;
     commissionDate?: string;
+    expenseVerified?: boolean;
   };
 }
 
@@ -70,6 +73,7 @@ interface ExpenseRow {
   commissionDate: string;
   commissionName: string;
   acAmount: number; // commissionAmount
+  verified: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,6 +132,7 @@ interface ManualExpense {
   note?: string;
   spentAt: string;
   createdByUserName?: string;
+  verified?: boolean;
 }
 interface ExpenseSummary {
   totalAmount: number;
@@ -188,6 +193,25 @@ const formatDateTime = (value?: string): string => {
   h = h % 12 || 12;
   return `${dd}/${mm}/${yyyy} ${String(h).padStart(2, '0')}:${min} ${ampm}`;
 };
+
+// Verify (Yes/No) toggle — same look as the Payment Statement's Verify column.
+function VerifyButton({ verified, onToggle }: { verified: boolean; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+        verified
+          ? 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
+          : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+      }`}
+      title="Click to toggle verification"
+    >
+      {verified ? <Check className="w-3.5 h-3.5" /> : <X className="w-3.5 h-3.5" />}
+      {verified ? 'Yes' : 'No'}
+    </button>
+  );
+}
 
 // ==================== ADD EXPENSE MODAL ====================
 function AddExpenseModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: () => void; onSaved: () => void }) {
@@ -372,6 +396,19 @@ function ManualExpensesSection() {
 
   useEffect(() => { fetchExpenses(); }, [fetchExpenses]);
 
+  // Optimistic Verify toggle; reverts if the save fails.
+  const toggleVerify = async (ex: ManualExpense) => {
+    const next = !ex.verified;
+    setExpenses((prev) => prev.map((e) => (e.id === ex.id ? { ...e, verified: next } : e)));
+    try {
+      const res = await apiFetch('/api/expenses', { method: 'PATCH', body: JSON.stringify({ id: ex.id, verified: next }) });
+      if (!res.ok) throw new Error('save failed');
+    } catch {
+      setExpenses((prev) => prev.map((e) => (e.id === ex.id ? { ...e, verified: !next } : e)));
+      alert('Failed to save the change. Please try again.');
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this expense?')) return;
     try {
@@ -437,19 +474,20 @@ function ManualExpensesSection() {
                 <th className="px-4 py-3 text-right">Amount</th>
                 <th className="px-4 py-3">Ref / Note</th>
                 <th className="px-4 py-3">Added By</th>
+                <th className="px-4 py-3 text-center">Verify</th>
                 <th className="px-4 py-3 text-center">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
+                <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400"><Loader2 className="w-5 h-5 animate-spin inline mr-2" /> Loading...</td></tr>
               ) : expenses.length === 0 ? (
-                <tr><td colSpan={10} className="px-4 py-10 text-center text-slate-400">
+                <tr><td colSpan={11} className="px-4 py-10 text-center text-slate-400">
                   <Receipt className="w-8 h-8 mx-auto mb-2 text-slate-300" />
                   No expenses yet. Click <span className="font-medium">Add Expense</span> to add one.
                 </td></tr>
               ) : expenses.map((ex) => (
-                <tr key={ex.id} className="hover:bg-slate-50/60">
+                <tr key={ex.id} className={`transition-colors ${ex.verified ? 'bg-orange-400 hover:bg-orange-500' : 'hover:bg-slate-50/60'}`}>
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{ex.voucherNo}</td>
                   <td className="px-4 py-3 text-slate-600 whitespace-nowrap">{formatDateTime(ex.spentAt)}</td>
                   <td className="px-4 py-3 font-medium text-slate-800">{ex.title}</td>
@@ -467,6 +505,9 @@ function ManualExpensesSection() {
                     {!ex.transactionRef && !ex.note && '-'}
                   </td>
                   <td className="px-4 py-3 text-slate-500">{ex.createdByUserName || '-'}</td>
+                  <td className="px-4 py-3 text-center">
+                    <VerifyButton verified={!!ex.verified} onToggle={() => toggleVerify(ex)} />
+                  </td>
                   <td className="px-4 py-3 text-center">
                     <button onClick={() => handleDelete(ex.id)} className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Delete">
                       <Trash2 className="w-4 h-4" />
@@ -542,6 +583,7 @@ const buildRows = (leads: ExpenseLead[]): ExpenseRow[] => {
       commissionDate: p.commissionDate || '',
       commissionName: commissionName || '-',
       acAmount,
+      verified: p.expenseVerified === true,
     });
   }
   return rows.sort((a, b) => dateValue(b.date) - dateValue(a.date));
@@ -553,14 +595,33 @@ interface ExpensesPanelProps {
   loading: boolean;
   error: string | null;
   onRefresh: () => void;
+  // Update the parent's copy of a lead's expense Verify flag (so it survives tab switches).
+  onLeadVerifiedChange: (leadId: string, verified: boolean) => void;
 }
 
-export default function ExpensesPanel({ leads, loading, error, onRefresh }: ExpensesPanelProps) {
+export default function ExpensesPanel({ leads, loading, error, onRefresh, onLeadVerifiedChange }: ExpensesPanelProps) {
+  const { apiFetch } = useApi();
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
   const [page, setPage] = useState(0);
 
   const allRows = useMemo(() => buildRows(leads), [leads]);
+
+  // Save the lead expense row's Verify flag on lead.payment.expenseVerified.
+  // Optimistic: update locally first, revert on error.
+  const toggleLeadVerify = useCallback(async (leadId: string, next: boolean) => {
+    onLeadVerifiedChange(leadId, next);
+    try {
+      const res = await apiFetch('/api/leads', {
+        method: 'PATCH',
+        body: JSON.stringify({ id: leadId, 'payment.expenseVerified': next }),
+      });
+      if (!res.ok) throw new Error('save failed');
+    } catch {
+      onLeadVerifiedChange(leadId, !next);
+      alert('Failed to save the change. Please try again.');
+    }
+  }, [apiFetch, onLeadVerifiedChange]);
   const rows = useMemo(() => {
     const from = fromDate ? new Date(fromDate).getTime() : null;
     const to = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 - 1 : null;
@@ -618,6 +679,7 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
       'Commission Date': formatDate(r.commissionDate),
       'Commission Name': r.commissionName,
       'AC Amount': r.acAmount,
+      Verify: r.verified ? 'Yes' : 'No',
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -627,7 +689,7 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
 
   const th = 'px-4 py-3.5 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap';
   const td = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';
-  const COLS = 14;
+  const COLS = 15;
 
   return (
     <>
@@ -765,6 +827,7 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
                 <th className={th}>Commission Date</th>
                 <th className={th}>Commission Name</th>
                 <th className={`${th} text-right`}>AC Amount</th>
+                <th className={`${th} text-center`}>Verify</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -784,7 +847,7 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
                 </tr>
               ) : (
                 pagedRows.map((r, i) => (
-                  <tr key={`${r.leadId}-${i}`} className="hover:bg-slate-50 transition-colors">
+                  <tr key={`${r.leadId}-${i}`} className={`transition-colors ${r.verified ? 'bg-orange-400 hover:bg-orange-500' : 'hover:bg-slate-50'}`}>
                     <td className={`${td} font-medium`}>{safePage * ROWS_PER_PAGE + i + 1}</td>
                     <td className={td}>{formatDate(r.leadDate)}</td>
                     <td className={`${td} font-medium`}>{r.tokenNo}</td>
@@ -799,6 +862,9 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
                     <td className={td}>{formatDate(r.commissionDate)}</td>
                     <td className={td}>{r.commissionName}</td>
                     <td className={`${td} text-right font-semibold text-amber-600`}>{formatINR(r.acAmount)}</td>
+                    <td className={`${td} text-center`}>
+                      <VerifyButton verified={r.verified} onToggle={() => toggleLeadVerify(r.leadId, !r.verified)} />
+                    </td>
                   </tr>
                 ))
               )}
@@ -812,6 +878,7 @@ export default function ExpensesPanel({ leads, loading, error, onRefresh }: Expe
                   <td className={`${td} text-right font-bold text-purple-600`}>{formatINR(totalDhc)}</td>
                   <td className={td} colSpan={2} />
                   <td className={`${td} text-right font-bold text-amber-600`}>{formatINR(totalAc)}</td>
+                  <td className={td} />
                 </tr>
               </tfoot>
             )}
