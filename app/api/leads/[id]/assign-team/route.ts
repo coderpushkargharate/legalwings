@@ -65,6 +65,9 @@ export async function POST(
       forwardedByUserId: user.userId,
       forwardedAt: new Date(),
       reason: reason || null,
+      // Kept in history so team reports can credit the employee even after the lead moves on.
+      assignedToUserId: assignedToUserId || null,
+      assignedToUserName: assignedEmployeeName,
     };
 
     // ✅ Compute new visibility list.
