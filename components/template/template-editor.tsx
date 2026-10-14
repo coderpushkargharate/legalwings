@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useApi } from '@/components/api-client';
 import TemplatePreview from './template-preview';
+import ShareLink from './share-link';
 import { compressImage, downloadDataUrl } from './image-utils';
 import {
   BusinessTemplate, MAX_GALLERY, MAX_SERVICES, OTHER_SERVICE_ICONS, defaultTemplate, emptyReview,
@@ -109,6 +110,8 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
   // Keep the link in sync with the business name until the admin edits the link itself.
   const [slugTouched, setSlugTouched] = useState(!!templateId);
   const [origin, setOrigin] = useState('');
+  // Link/status as last saved — the share link must point at what is live, not unsaved edits.
+  const [saved, setSaved] = useState<Pick<BusinessTemplate, 'slug' | 'status'> | null>(null);
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
@@ -120,7 +123,10 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
         const res = await apiFetch(`/api/template/${templateId}`);
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to load template');
-        if (!cancelled) setT({ ...defaultTemplate(), ...data.template });
+        if (!cancelled) {
+          setT({ ...defaultTemplate(), ...data.template });
+          setSaved({ slug: data.template.slug, status: data.template.status });
+        }
       } catch (err: any) {
         if (!cancelled) setError(err.message);
       } finally {
@@ -157,7 +163,8 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || (res.status === 413 ? 'Images are too large — remove a few photos' : 'Failed to save template'));
       setT({ ...defaultTemplate(), ...data.template });
-      setSuccess('Template saved');
+      setSaved({ slug: data.template.slug, status: data.template.status });
+      setSuccess(data.template.status === 'PUBLISHED' ? 'Template saved — share link is ready' : 'Template saved');
       if (!templateId) router.replace(`/template/${data.template.id}`);
     } catch (err: any) {
       setError(err.name === 'AbortError' ? 'Saving took too long — please try again' : err.message);
@@ -229,6 +236,7 @@ export default function TemplateEditor({ templateId }: { templateId?: string }) 
         </div>
       )}
       {success && <div className="px-4 py-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700">{success}</div>}
+      {saved && <ShareLink slug={saved.slug} businessName={t.businessName} status={saved.status} />}
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_400px] gap-6 items-start">
         {/* Form */}

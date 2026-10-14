@@ -7,11 +7,12 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Plus, Search, Loader2, Pencil, ExternalLink, Link2, Trash2, LayoutTemplate, BadgeCheck, MapPin } from 'lucide-react';
+import { Plus, Search, Loader2, Pencil, Trash2, LayoutTemplate, BadgeCheck, MapPin } from 'lucide-react';
 import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import AdminOnly from '@/components/template/admin-only';
+import ShareLink from '@/components/template/share-link';
 import { formatDate } from '@/lib/date-utils';
 
 interface TemplateRow {
@@ -64,17 +65,6 @@ function TemplateList() {
     const id = window.setTimeout(() => setMessage(''), 2500);
     return () => window.clearTimeout(id);
   }, [message]);
-
-  const pageUrl = (slug: string) => `${window.location.origin}/p/${slug}`;
-
-  const copyLink = async (slug: string) => {
-    try {
-      await navigator.clipboard.writeText(pageUrl(slug));
-      setMessage('Link copied');
-    } catch {
-      setError('Could not copy the link');
-    }
-  };
 
   const handleDelete = async (row: TemplateRow) => {
     if (!window.confirm(`Delete the template "${row.businessName}"? Its public page will stop working.`)) return;
@@ -152,17 +142,12 @@ function TemplateList() {
                 <span>{row.reviewsCount ?? 0} reviews</span>
                 <span className="ml-auto">Updated {formatDate(row.updatedAt)}</span>
               </div>
-              <p className="text-[11px] text-slate-400 truncate">/p/{row.slug}{row.createdByUserName ? ` · by ${row.createdByUserName}` : ''}</p>
+              {row.createdByUserName && <p className="text-[11px] text-slate-400 truncate">by {row.createdByUserName}</p>}
+              <ShareLink slug={row.slug} businessName={row.businessName} status={row.status} compact />
               <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
                 <Link href={`/template/${row.id}`} className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700">
                   <Pencil className="w-3.5 h-3.5" /> Edit / Download
                 </Link>
-                {row.status === 'PUBLISHED' && (
-                  <>
-                    <a href={`/p/${row.slug}`} target="_blank" rel="noreferrer" className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg" title="Open public page"><ExternalLink className="w-4 h-4" /></a>
-                    <button type="button" onClick={() => copyLink(row.slug)} className="p-1.5 text-slate-500 hover:text-teal-700 hover:bg-teal-50 rounded-lg" title="Copy link"><Link2 className="w-4 h-4" /></button>
-                  </>
-                )}
                 <button
                   type="button"
                   onClick={() => handleDelete(row)}

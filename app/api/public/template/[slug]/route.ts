@@ -11,13 +11,13 @@ export async function GET(_request: Request, { params }: { params: Promise<{ slu
   const { slug } = await params;
   try {
     const { db } = await connectToDatabase();
+    // Public visitors get only what the template renders — no ids, authors, timestamps or status.
     const doc = await db.collection('business_templates').findOne(
       { slug, status: 'PUBLISHED' },
-      { projection: { createdByUserId: 0, createdByUserName: 0 } },
+      { projection: { _id: 0, createdByUserId: 0, createdByUserName: 0, createdAt: 0, updatedAt: 0, status: 0 } },
     );
     if (!doc) return NextResponse.json({ error: 'Page not found' }, { status: 404 });
-    const { _id, ...rest } = doc;
-    return NextResponse.json({ template: { id: _id.toString(), ...rest } });
+    return NextResponse.json({ template: doc });
   } catch (error) {
     console.error('Public template GET error:', error);
     return NextResponse.json({ error: 'Failed to load page' }, { status: 500 });
