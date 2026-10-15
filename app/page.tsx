@@ -131,9 +131,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* 🔹 Admin-only: team performance tables (calling, executive, back office, client type, agreements) */}
-        {extendedUser.roles?.includes('admin') && <AdminTeamReports />}
-
         {/* 🔹 Admin-only: "All Data Overview" — manage every CRM lead (view/edit/delete, select-all, delete-all) */}
         {extendedUser.roles?.includes('admin') && <AdminAllLeads />}
 
@@ -142,6 +139,9 @@ export default function DashboardPage() {
 
         {/* 🔹 Admin-only: charts overview (leads per month, revenue, pending, per-employee) */}
         {extendedUser.roles?.includes('admin') && <AdminOverview />}
+
+        {/* 🔹 Admin-only: team performance tables (calling, executive, back office, client type, agreements) — at the bottom */}
+        {extendedUser.roles?.includes('admin') && <AdminTeamReports />}
       </div>
     </AppShell>
   );

@@ -38,13 +38,20 @@ export async function GET(request: Request) {
     const from = fromParam ? new Date(`${fromParam}T00:00:00.000Z`) : null;
     const to = toParam ? new Date(`${toParam}T23:59:59.999Z`) : null;
 
-    const leads = await db.collection('leads').find({}, {
+    const [leads, activeUsers] = await Promise.all([db.collection('leads').find({}, {
       projection: {
-        transitLevel: 1, createdByUserName: 1, forwardedHistory: 1,
+        transitLevel: 1, createdByUserId: 1, createdByUserName: 1, forwardedHistory: 1,
         payment: 1, paymentPending: 1, paymentDetails: 1,
         leadDate: 1, createdAt: 1, createdDate: 1,
       },
-    }).toArray();
+    }).toArray(),
+      db.collection('users').find({ isActive: { $ne: false } }, { projection: { _id: 1 } }).toArray(),
+    ]);
+
+    // Per-person breakdowns skip deleted / deactivated employees. Leads with no user id
+    // (e.g. created via the public API) are still counted under their stored name.
+    const activeIds = new Set(activeUsers.map((u: any) => u._id.toString()));
+    const isGoneUser = (id: unknown) => id != null && id !== '' && !activeIds.has(String(id));
 
     const perTeam: Record<string, number> = {};
     const createdByPerson: Record<string, number> = {};
@@ -66,11 +73,14 @@ export async function GET(request: Request) {
       const team = (lead.transitLevel || 'UNASSIGNED').toString();
       perTeam[team] = (perTeam[team] || 0) + 1;
 
-      const creator = lead.createdByUserName || 'System';
-      createdByPerson[creator] = (createdByPerson[creator] || 0) + 1;
+      if (!isGoneUser(lead.createdByUserId)) {
+        const creator = lead.createdByUserName || 'System';
+        createdByPerson[creator] = (createdByPerson[creator] || 0) + 1;
+      }
 
       if (Array.isArray(lead.forwardedHistory)) {
         for (const h of lead.forwardedHistory) {
+          if (isGoneUser(h?.forwardedByUserId)) continue;
           const who = h?.forwardedBy || 'Unknown';
           forwardedByPerson[who] = (forwardedByPerson[who] || 0) + 1;
         }

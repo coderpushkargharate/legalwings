@@ -40,7 +40,8 @@ export async function GET(request: Request) {
 
     const [users, leads] = await Promise.all([
       db.collection('users').find(
-        { roles: { $in: ['calling', 'executive', 'backend'] } },
+        // Deactivated / deleted employees are left out, same as the Employees list.
+        { roles: { $in: ['calling', 'executive', 'backend'] }, isActive: { $ne: false } },
         { projection: { firstName: 1, lastName: 1, roles: 1 } },
       ).toArray(),
       db.collection('leads').find({}, {
