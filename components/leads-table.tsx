@@ -6,7 +6,7 @@ import LeadFileField from '@/components/lead-file-field';
 import { FILE_SLOTS, slotHasFile, withoutLegacyBlobs } from '@/lib/lead-files';
 import { useAuth } from '@/components/auth-provider';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, collectErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
 } from '@/lib/validation';
 import {
   Eye, Plus, Search, ChevronLeft, ChevronRight, Calendar, Download, Send, X, Filter,
@@ -719,6 +719,9 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
     pvMobile: validateMobile(ag?.pvMobile, 'PV mobile'),
     mobileNo: validateMobile(ag?.mobileNo, 'Agreement mobile'),
     tokenNo: validateTokenNo(ag?.tokenNo),
+    grnAmount: validateAmount(pay?.grnAmount, 'GRN amount'),
+    dhcAmount: validateAmount(pay?.dhcAmount, 'DHC amount'),
+    commissionAmount: validateAmount(pay?.commissionAmount, 'Commission amount'),
   };
   // Payment lines: Transaction Number is mandatory (except Cash) — see validatePaymentRow.
   const ownerPaymentErrors = ownerPayments.map(validatePaymentRow);

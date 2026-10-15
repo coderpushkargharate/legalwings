@@ -9,7 +9,7 @@ import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucid
 import LeadFileField from '@/components/lead-file-field';
 import { formatDate } from '@/lib/date-utils';
 import {
-  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, collectErrors,
+  validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
 } from '@/lib/validation';
 
 // ============================================================================
@@ -441,8 +441,13 @@ function LeadFormContent() {
     } as Record<string, string | null>;
   }, [isEditable, agreement]);
 
-  // Payment fields are not validated.
-  const paymentErrors = {} as Record<string, string | null>;
+  // Payment amounts must be sane numbers (catches a GRN/DHC number typed into an amount field).
+  const paymentErrors = (isEditable ? {
+    totalAmount: validateAmount(payment.totalAmount, 'Legal fees'),
+    commissionAmount: validateAmount(payment.commissionAmount, 'Commission amount'),
+    grnAmount: validateAmount(payment.grnAmount, 'GRN amount'),
+    dhcAmount: validateAmount(payment.dhcAmount, 'DHC amount'),
+  } : {}) as Record<string, string | null>;
 
   // Payment lines: Transaction Number is mandatory (except Cash) — see validatePaymentRow.
   const ownerPaymentErrors = ownerPayments.map((p) => (isEditable ? validatePaymentRow(p) : {}));

@@ -52,6 +52,20 @@ export function validateTokenNo(value?: string, label = 'Token number'): string 
   return TOKEN_REGEX.test(value!.trim()) ? null : `${label} must contain only digits (max 14)`;
 }
 
+// Money amount (GRN / DHC / Commission / Legal Fees…): a plain number within a
+// sane ceiling. Catches a GRN/DHC *number* typed into an *amount* field, which
+// otherwise inflates every total (e.g. ₹1,02,61,15,40,43,61 as a DHC amount).
+export const MAX_AMOUNT = 1000000; // ₹10,00,000
+
+export function validateAmount(value?: string | number | null, label = 'Amount', max = MAX_AMOUNT): string | null {
+  if (value == null) return null;
+  const s = String(value).trim();
+  if (!s) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(s)) return `${label} must be a valid number`;
+  if (parseFloat(s) > max) return `${label} looks too large (max ₹${max.toLocaleString('en-IN')}) — did you enter a number/ID here?`;
+  return null;
+}
+
 // Payment line (owner / tenant). Transaction Number is mandatory for every real
 // payment (one with an amount) except Cash, which has no transaction reference.
 export function validatePaymentRow(p: { paymentAmount?: string; modeOfPayment?: string; transactionNumber?: string }): Record<string, string | undefined> {
