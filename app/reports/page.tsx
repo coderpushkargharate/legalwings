@@ -5,7 +5,8 @@ import AppShell from '@/components/app-shell';
 import Header from '@/components/header';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
-import { Users, UserCheck, CreditCard, CalendarDays, Loader2, BarChart3, Send, PhoneCall, Briefcase, FileCheck2, Building2 } from 'lucide-react';
+import { TeamReportTables, TeamReportData } from '@/components/team-reports';
+import { Users, UserCheck, CreditCard, CalendarDays, Loader2, BarChart3, Send } from 'lucide-react';
 
 interface NameCount { name: string; count: number; }
 interface ReportData {
@@ -17,21 +18,6 @@ interface ReportData {
   perMonth: NameCount[];
   payments: { totalReceived: number; totalPending: number; totalCommission: number; totalAgreement: number };
 }
-
-type Row = Record<string, string | number>;
-interface TeamReportData {
-  calling: Row[];
-  executive: Row[];
-  backOffice: Row[];
-  clientTypeByDay: Row[];
-  agreementByDay: Row[];
-}
-
-// "2026-10-01" -> "01 Oct 2026"
-const fmtDay = (v: string | number) => {
-  const d = new Date(`${v}T00:00:00Z`);
-  return isNaN(d.getTime()) ? String(v) : d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', timeZone: 'UTC' });
-};
 
 const inr = (n: number) =>
   new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(n || 0);
@@ -170,60 +156,7 @@ export default function ReportsPage() {
             {team && (
               <>
                 <h2 className="text-lg font-semibold text-slate-800 pt-2">Team Performance Reports</h2>
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <ReportTable
-                    title="1. Calling Team Report" icon={PhoneCall} rows={team.calling}
-                    columns={[
-                      { key: 'name', label: 'Calling Girl' },
-                      { key: 'leadCreated', label: 'Lead Created' },
-                      { key: 'interested', label: 'Interested' },
-                      { key: 'appointment', label: 'Appointment' },
-                      { key: 'sentToExecutive', label: 'Send to Executive' },
-                      { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
-                    ]}
-                  />
-                  <ReportTable
-                    title="2. Executive Report" icon={Briefcase} rows={team.executive}
-                    columns={[
-                      { key: 'name', label: 'Executive Name' },
-                      { key: 'appointment', label: 'Appointment' },
-                      { key: 'leadCreated', label: 'Lead Created' },
-                      { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
-                      { key: 'postponed', label: 'Postponed', tone: 'text-amber-600' },
-                    ]}
-                  />
-                  <ReportTable
-                    title="3. Back Office Report" icon={FileCheck2} rows={team.backOffice}
-                    columns={[
-                      { key: 'name', label: 'Back Office Employee' },
-                      { key: 'totalWork', label: 'Total Work' },
-                      { key: 'submitted', label: 'Submitted' },
-                      { key: 'completed', label: 'Completed', tone: 'text-emerald-600' },
-                      { key: 'pending', label: 'Pending', tone: 'text-amber-600' },
-                    ]}
-                  />
-                  <ReportTable
-                    title="4. Date-wise Client Type Report" icon={Building2} rows={team.clientTypeByDay}
-                    columns={[
-                      { key: 'date', label: 'Date', format: fmtDay },
-                      { key: 'agent', label: 'Agent' },
-                      { key: 'owner', label: 'Owner' },
-                      { key: 'tenant', label: 'Tenant' },
-                    ]}
-                  />
-                </div>
-                <ReportTable
-                  title="5. Date-wise Agreement Report" icon={CalendarDays} rows={team.agreementByDay}
-                  columns={[
-                    { key: 'date', label: 'Date', format: fmtDay },
-                    { key: 'totalLeads', label: 'Total Leads' },
-                    { key: 'appointment', label: 'Appointment' },
-                    { key: 'totalWork', label: 'Total Work' },
-                    { key: 'submitted', label: 'Submitted' },
-                    { key: 'completed', label: 'Completed', tone: 'text-emerald-600' },
-                    { key: 'pending', label: 'Pending', tone: 'text-amber-600' },
-                  ]}
-                />
+                <TeamReportTables team={team} />
               </>
             )}
           </>
@@ -240,56 +173,6 @@ function SummaryCard({ icon: Icon, label, value, color }: { icon: React.ElementT
         <Icon className={`w-4 h-4 ${color}`} /> {label}
       </div>
       <p className={`text-xl font-bold ${color}`}>{value}</p>
-    </div>
-  );
-}
-
-interface ReportColumn { key: string; label: string; tone?: string; format?: (v: string | number) => string; }
-
-// Multi-column report table with a totals row (the first column is the row label).
-function ReportTable({ title, icon: Icon, columns, rows }: { title: string; icon: React.ElementType; columns: ReportColumn[]; rows: Row[] }) {
-  const [labelCol, ...numCols] = columns;
-  const totals = numCols.map((c) => rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0));
-  return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-200 bg-slate-50">
-        <Icon className="w-5 h-5 text-[#00843d]" />
-        <h3 className="font-semibold text-slate-800">{title}</h3>
-        <span className="ml-auto text-xs text-slate-500">{rows.length} rows</span>
-      </div>
-      <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
-            <tr>
-              {columns.map((c, i) => (
-                <th key={c.key} className={`px-4 py-2.5 font-semibold text-slate-600 text-xs uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>{c.label}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100">
-            {rows.length === 0 ? (
-              <tr><td colSpan={columns.length} className="text-center py-8 text-slate-400">No data</td></tr>
-            ) : rows.map((r, idx) => (
-              <tr key={`${r[labelCol.key]}-${idx}`} className="hover:bg-slate-50/80">
-                <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{labelCol.format ? labelCol.format(r[labelCol.key]) : r[labelCol.key]}</td>
-                {numCols.map((c) => (
-                  <td key={c.key} className={`px-4 py-2.5 text-right font-semibold ${c.tone || 'text-slate-800'}`}>{r[c.key] ?? 0}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-          {rows.length > 1 && (
-            <tfoot className="bg-slate-50 border-t border-slate-200">
-              <tr>
-                <td className="px-4 py-2.5 font-semibold text-slate-700">Total</td>
-                {numCols.map((c, i) => (
-                  <td key={c.key} className={`px-4 py-2.5 text-right font-bold ${c.tone || 'text-slate-900'}`}>{totals[i]}</td>
-                ))}
-              </tr>
-            </tfoot>
-          )}
-        </table>
-      </div>
     </div>
   );
 }

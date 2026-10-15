@@ -8,6 +8,7 @@ import { useApi } from '@/components/api-client';
 import AdminUserHistory from '@/components/admin-user-history';
 import AdminOverview from '@/components/admin-overview';
 import AdminAllLeads from '@/components/admin-all-leads';
+import AdminTeamReports from '@/components/team-reports';
 import {
   Users,
   FileText,
@@ -129,6 +130,9 @@ export default function DashboardPage() {
             </div>
           ))}
         </div>
+
+        {/* 🔹 Admin-only: team performance tables (calling, executive, back office, client type, agreements) */}
+        {extendedUser.roles?.includes('admin') && <AdminTeamReports />}
 
         {/* 🔹 Admin-only: "All Data Overview" — manage every CRM lead (view/edit/delete, select-all, delete-all) */}
         {extendedUser.roles?.includes('admin') && <AdminAllLeads />}
