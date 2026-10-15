@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
+import { paymentAmountError } from '@/lib/validation';
 
 export async function POST(request: Request) {
   const token = getTokenFromHeaders(request);
@@ -12,6 +13,8 @@ export async function POST(request: Request) {
   try {
     const { db } = await connectToDatabase();
     const body = await request.json();
+    const amountErr = paymentAmountError(body);
+    if (amountErr) return NextResponse.json({ error: amountErr }, { status: 400 });
 
     const payment = {
       ...body,
@@ -70,6 +73,8 @@ export async function PUT(request: Request) {
     const { id, ...updateData } = body;
 
     if (!id) return NextResponse.json({ error: 'Payment ID is required' }, { status: 400 });
+    const amountErr = paymentAmountError(updateData);
+    if (amountErr) return NextResponse.json({ error: amountErr }, { status: 400 });
 
     updateData.updatedAt = new Date();
     await db.collection('payments').updateOne(

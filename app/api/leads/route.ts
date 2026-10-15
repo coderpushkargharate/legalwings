@@ -3,6 +3,7 @@ import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
 import { ObjectId } from 'mongodb';
 import { preserveAgreementFiles, stripAgreementBlobs } from '@/lib/lead-files-server';
+import { paymentAmountError } from '@/lib/validation';
 
 function getAuth(request: Request): JWTPayload | null {
   const token = getTokenFromHeaders(request);
@@ -554,7 +555,9 @@ export async function POST(request: Request) {
   try {
     const { db } = await connectToDatabase();
     const body = await request.json();
-    
+    const amountErr = paymentAmountError(body.payment);
+    if (amountErr) return NextResponse.json({ error: amountErr }, { status: 400 });
+
     const userTeam = (((user as JWTPayload & { team?: string }).team) || 'UNKNOWN').toUpperCase();
     const transitLevel = body.transitLevel || `${userTeam}_TEAM`;
     
@@ -587,7 +590,9 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const { id, ...updateData } = body;
     if (!id) return NextResponse.json({ error: 'Lead ID is required' }, { status: 400 });
-    
+    const amountErr = paymentAmountError(updateData.payment);
+    if (amountErr) return NextResponse.json({ error: amountErr }, { status: 400 });
+
     // 🔐 PROTECT CRITICAL FIELDS from modification via the generic edit.
     // Team visibility / assignment / audit fields are owned exclusively by the
     // dedicated assign-team route (which stores assignedToUserId as a real

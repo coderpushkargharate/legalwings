@@ -61,8 +61,22 @@ export function validateAmount(value?: string | number | null, label = 'Amount',
   if (value == null) return null;
   const s = String(value).trim();
   if (!s) return null;
-  if (!/^\d+(\.\d{1,2})?$/.test(s)) return `${label} must be a valid number`;
+  if (!/^\d+(\.\d+)?$/.test(s)) return `${label} must be a valid number`;
   if (parseFloat(s) > max) return `${label} looks too large (max ₹${max.toLocaleString('en-IN')}) — did you enter a number/ID here?`;
+  return null;
+}
+
+// Server-side guard: first invalid money field on a payment object, or null.
+export function paymentAmountError(p?: Record<string, unknown> | null): string | null {
+  if (!p || typeof p !== 'object') return null;
+  const fields: Array<[string, string]> = [
+    ['totalAmount', 'Legal fees'], ['commissionAmount', 'Commission amount'],
+    ['grnAmount', 'GRN amount'], ['dhcAmount', 'DHC amount'],
+  ];
+  for (const [key, label] of fields) {
+    const err = validateAmount(p[key] as string | number | null | undefined, label);
+    if (err) return err;
+  }
   return null;
 }
 
