@@ -3,6 +3,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useApi } from '@/components/api-client';
 import { balanceDueOf, receivedOf } from '@/lib/payment-math';
 import LeadFileField from '@/components/lead-file-field';
+import OnlinePaymentPanel, { mergeOnlineLines } from '@/components/online-payment-panel';
 import { FILE_SLOTS, slotHasFile, withoutLegacyBlobs } from '@/lib/lead-files';
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -1044,6 +1045,27 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
               </div>
             </div>
 
+            {/* Online payment: Cashfree link + QR + verify */}
+            <OnlinePaymentPanel
+              leadId={lead?.id}
+              tokenNo={formData.agreement?.tokenNo}
+              owner={{
+                name: `${formData.agreement?.owner?.firstName || ''} ${formData.agreement?.owner?.lastName || ''}`.trim(),
+                phone: formData.agreement?.owner?.phoneNo || (formData.client?.clientType === 'OWNER' ? formData.client?.phoneNo : ''),
+                email: formData.agreement?.owner?.email || '',
+              }}
+              tenant={{
+                name: `${formData.agreement?.tenant?.firstName || ''} ${formData.agreement?.tenant?.lastName || ''}`.trim(),
+                phone: formData.agreement?.tenant?.phoneNo || (formData.client?.clientType === 'TENANT' ? formData.client?.phoneNo : ''),
+                email: formData.agreement?.tenant?.email || '',
+              }}
+              suggestedAmount={balanceAmount > 0 ? balanceAmount : undefined}
+              onPaymentsRecorded={(lines) => {
+                setOwnerPayments(prev => mergeOnlineLines(prev, lines, 'OWNER'));
+                setTenantPayments(prev => mergeOnlineLines(prev, lines, 'TENANT'));
+              }}
+            />
+
             <div className={sectionClass}>
               <h4 className={sectionHeaderClass}><UserCheck className="w-5 h-5 text-[#00843d]" /> Owner Payments</h4>
               {ownerPayments.map((p, i) => (
@@ -1346,6 +1368,32 @@ const ViewLeadModal: React.FC<ViewLeadModalProps> = ({ isOpen, leadId, onClose, 
                     <SummaryCard label="Outstanding (Balance)" value={formatCurrency(balanceDueOf(lead))} highlight />
                   </div>
                 </div>
+                {/* Online payment: Cashfree link + QR + verify */}
+                <OnlinePaymentPanel
+                  leadId={lead.id}
+                  tokenNo={lead.agreement?.tokenNo}
+                  owner={{
+                    name: `${lead.agreement?.owner?.firstName || ''} ${lead.agreement?.owner?.lastName || ''}`.trim(),
+                    phone: lead.agreement?.owner?.phoneNo || (lead.client?.clientType === 'OWNER' ? lead.client?.phoneNo : ''),
+                    email: lead.agreement?.owner?.email || '',
+                  }}
+                  tenant={{
+                    name: `${lead.agreement?.tenant?.firstName || ''} ${lead.agreement?.tenant?.lastName || ''}`.trim(),
+                    phone: lead.agreement?.tenant?.phoneNo || (lead.client?.clientType === 'TENANT' ? lead.client?.phoneNo : ''),
+                    email: lead.agreement?.tenant?.email || '',
+                  }}
+                  suggestedAmount={balanceDueOf(lead) || undefined}
+                  onPaymentsRecorded={async (lines) => {
+                    // Server already saved the line on the lead; reload it once so the lists/totals here update.
+                    const have = new Set((lead.paymentDetails || []).map((p) => p.transactionNumber));
+                    if (lines.every((l) => have.has(l.transactionNumber))) return;
+                    const res = await apiFetch(`/api/leads?id=${lead.id}`);
+                    if (!res.ok) return;
+                    const data = await res.json();
+                    setLead(data);
+                    if (onLeadUpdated) onLeadUpdated(data);
+                  }}
+                />
                 <div className="bg-slate-50 rounded-xl p-5 border border-slate-200">
                   <h4 className="text-base font-semibold text-slate-800 mb-4 flex items-center gap-2"><UserCheck className="w-5 h-5 text-[#00843d]" /> Owner Payments</h4>
                   {lead.paymentDetails?.filter(p => p.clientType === 'OWNER')?.length ? (

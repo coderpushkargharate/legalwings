@@ -7,6 +7,7 @@ import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { ArrowLeft, Save, ChevronRight, Plus, Loader2, AlertCircle } from 'lucide-react';
 import LeadFileField from '@/components/lead-file-field';
+import OnlinePaymentPanel, { mergeOnlineLines, type OnlinePaymentLine } from '@/components/online-payment-panel';
 import { formatDate } from '@/lib/date-utils';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
@@ -618,6 +619,13 @@ function LeadFormContent() {
 
   const updatePayment = useCallback((field: keyof PaymentFormData, value: string) => {
     setPayment(prev => prev[field] === value ? prev : { ...prev, [field]: value });
+  }, []);
+
+  // Verified Cashfree payments → show them as ONLINE lines in the owner/tenant rows,
+  // so "Save Payment" keeps them (the server already added them to the lead).
+  const handleOnlinePayments = useCallback((lines: OnlinePaymentLine[]) => {
+    setOwnerPayments(prev => mergeOnlineLines(prev, lines, 'OWNER'));
+    setTenantPayments(prev => mergeOnlineLines(prev, lines, 'TENANT'));
   }, []);
 
   const updateOwnerPayment = useCallback((index: number, field: keyof PaymentDetail, value: string) => {
@@ -1233,6 +1241,24 @@ function LeadFormContent() {
                 </div>
               </div>
             </div>
+
+            {/* Online payment: Cashfree link + QR + verify */}
+            <OnlinePaymentPanel
+              leadId={currentLeadId || undefined}
+              tokenNo={agreement.tokenNumber}
+              owner={{
+                name: `${agreement.ownerFirstName || ''} ${agreement.ownerLastName || ''}`.trim() || (lead.clientType === 'OWNER' ? `${lead.firstName} ${lead.lastName}`.trim() : ''),
+                phone: agreement.ownerContact || (lead.clientType === 'OWNER' ? lead.contactNumber : ''),
+                email: agreement.ownerEmail || (lead.clientType === 'OWNER' ? lead.email : ''),
+              }}
+              tenant={{
+                name: `${agreement.tenantFirstName || ''} ${agreement.tenantLastName || ''}`.trim() || (lead.clientType === 'TENANT' ? `${lead.firstName} ${lead.lastName}`.trim() : ''),
+                phone: agreement.tenantContact || (lead.clientType === 'TENANT' ? lead.contactNumber : ''),
+                email: agreement.tenantEmail || (lead.clientType === 'TENANT' ? lead.email : ''),
+              }}
+              suggestedAmount={balanceAmount > 0 ? balanceAmount : undefined}
+              onPaymentsRecorded={handleOnlinePayments}
+            />
 
             {/* Owner Payments */}
             <div className="bg-white rounded-xl border border-slate-200 p-6">
