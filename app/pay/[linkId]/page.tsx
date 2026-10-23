@@ -1,6 +1,8 @@
 'use client';
 // Public payment page the customer opens from the shared link / QR.
-// It shows the amount and opens Cashfree's secure checkout.
+// Payment links: sends the customer to Cashfree's link (UPI app on phones) and,
+// after paying, shows the verified status with a "Try again" option.
+// Older records: opens Cashfree's checkout / direct UPI as before.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, XCircle, ShieldCheck, Clock } from 'lucide-react';
@@ -18,6 +20,7 @@ interface PayInfo {
   lastAttempt: string | null;
   mode?: 'production' | 'sandbox';
   paymentSessionId?: string | null;
+  checkoutUrl?: string | null; // Cashfree payment link (opens the UPI app on phones)
 }
 
 declare global {
@@ -95,15 +98,25 @@ export default function PayPage() {
   const [upiQr, setUpiQr] = useState('');
   const autoTried = useRef(false);
   const isActive = info?.status === 'ACTIVE';
+  const isLink = !!info?.checkoutUrl;
+  const returned = !!search.get('done');
+
+  // Payment link: go straight to Cashfree's link (not when coming back from it).
+  const linkOpened = useRef(false);
+  useEffect(() => {
+    if (!isActive || !info?.checkoutUrl || returned || linkOpened.current) return;
+    linkOpened.current = true;
+    window.location.replace(info.checkoutUrl);
+  }, [isActive, info?.checkoutUrl, returned]);
   const isMobile = typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
   useEffect(() => {
-    if (!isActive || upi) return;
+    if (!isActive || upi || isLink) return;
     fetch(`/api/public/pay/${encodeURIComponent(linkId)}/upi`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => setUpi(d?.available ? d : { available: false }))
       .catch(() => setUpi({ available: false }));
-  }, [isActive, upi, linkId]);
+  }, [isActive, upi, linkId, isLink]);
 
   useEffect(() => {
     if (!upi?.available) return;
@@ -126,7 +139,7 @@ export default function PayPage() {
 
   // While the customer pays in their UPI app, keep checking (and right when they come back).
   useEffect(() => {
-    if (!isActive || !upi?.available) return;
+    if (!isActive || !(upi?.available || (isLink && returned))) return;
     const quick = async () => {
       try {
         const res = await fetch(`/api/public/pay/${encodeURIComponent(linkId)}`, { method: 'POST' });
@@ -139,7 +152,7 @@ export default function PayPage() {
     document.addEventListener('visibilitychange', onVis);
     const stop = setTimeout(() => clearInterval(t), 15 * 60 * 1000);
     return () => { clearInterval(t); clearTimeout(stop); document.removeEventListener('visibilitychange', onVis); };
-  }, [isActive, upi, linkId]);
+  }, [isActive, upi, linkId, isLink, returned]);
 
   const APPS: { key: string; label: string; color: string }[] = [
     { key: 'phonepe', label: 'PhonePe', color: '#5f259f' },
@@ -211,7 +224,29 @@ export default function PayPage() {
                 </div>
               )}
 
-              {status === 'ACTIVE' && !upi && (
+              {status === 'ACTIVE' && isLink && (
+                <div className="space-y-3">
+                  {checking ? (
+                    <div className="flex items-center justify-center py-3 text-slate-600 text-sm"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Checking payment with the bank…</div>
+                  ) : returned || info.lastAttempt ? (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 text-center">
+                      Payment is not completed yet. If money was already debited, this page will update by itself in a few minutes — please don&apos;t pay twice.
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-center py-3 text-slate-500 text-sm"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Opening your UPI app…</div>
+                  )}
+                  <a href={info.checkoutUrl as string}
+                    className={`block w-full py-3.5 rounded-xl bg-[#00843d] hover:bg-[#00622d] text-white font-semibold text-base text-center shadow-sm ${checking ? 'pointer-events-none opacity-60' : ''}`}>
+                    {returned || info.lastAttempt ? 'Try again' : `Pay ${inr(info.amount)}`}
+                  </a>
+                  <p className="text-xs text-center text-slate-500">PhonePe · Google Pay · Paytm · any UPI app</p>
+                  {returned && !checking && (
+                    <button type="button" onClick={checkStatus} className="block mx-auto text-xs text-[#00843d] hover:underline">I have paid — check again</button>
+                  )}
+                </div>
+              )}
+
+              {status === 'ACTIVE' && !isLink && !upi && (
                 <div className="flex items-center justify-center py-6 text-slate-500 text-sm"><Loader2 className="w-5 h-5 animate-spin mr-2" /> Opening payment…</div>
               )}
 

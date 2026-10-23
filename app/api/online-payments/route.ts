@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
-import { appOrigin, cashfreeConfigured, createOrder, newLinkId, serialize } from '@/lib/cashfree';
+import { appOrigin, cashfreeConfigured, createOrder, createPaymentLink, newLinkId, serialize } from '@/lib/cashfree';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/online-payments → create a Cashfree payment link (QR is drawn on the client from the link)
+// POST /api/online-payments → create a Cashfree Payment Link (opens the UPI app on phones); the QR is drawn from the link
 export async function POST(request: Request) {
   const token = getTokenFromHeaders(request);
   const user = token ? verifyToken(token) : null;
@@ -55,31 +55,57 @@ export async function POST(request: Request) {
   const linkId = newLinkId(leadId);
   const purpose = String(body.purpose || '').trim() || `LegalWings payment${body.tokenNo ? ` - Token ${body.tokenNo}` : ''}`;
   const origin = appOrigin(request);
-  const linkUrl = `${origin}/pay/${linkId}`;
+  const payPageUrl = `${origin}/pay/${linkId}`; // our status / retry page (customer lands here after paying)
+
+  const common = {
+    returnUrl: `${payPageUrl}?done=1`,
+    notifyUrl: `${origin}/api/public/cashfree-webhook`, // Cashfree tells us as soon as the user pays
+    expiryDays: Number(body.expiryDays) || 7,
+  };
 
   try {
-    const order: any = await createOrder({
-      orderId: linkId,
-      amount,
-      note: purpose,
-      customerId: `LW${phone}`,
-      customerName: name,
-      customerPhone: phone,
-      customerEmail: email,
-      returnUrl: `${linkUrl}?done=1`,
-      notifyUrl: `${origin}/api/public/cashfree-webhook`, // Cashfree tells us as soon as the user pays
-      expiryDays: Number(body.expiryDays) || 7,
-    });
+    // 1) Preferred: Cashfree Payment Link (opens the UPI app on phones).
+    // 2) If Cashfree hasn't enabled link creation on this account, fall back to a
+    //    plain order + our own pay page, so staff can always generate a link.
+    let kindFields: Record<string, any>;
+    let expiry: string | undefined;
+    try {
+      const link: any = await createPaymentLink({
+        linkId, amount, purpose, customerName: name, customerPhone: phone, customerEmail: email, ...common,
+      });
+      if (!link?.link_url) throw new Error('Cashfree did not return a payment link');
+      kindFields = {
+        kind: 'link',
+        orderId: '',
+        cfLinkId: link.cf_link_id ? String(link.cf_link_id) : '',
+        linkUrl: String(link.link_url), // what the customer gets, and what the QR holds
+        payPageUrl,
+      };
+      expiry = link.link_expiry_time;
+    } catch (e: any) {
+      const notEnabled = /not enabled|not approved/i.test(e?.message || '') || /not_enabled|not_approved/i.test(e?.code || '');
+      if (!notEnabled) throw e;
+      console.warn('Cashfree link creation not enabled on this account; using order checkout instead');
+      const order: any = await createOrder({
+        orderId: linkId, amount, note: purpose, customerId: `LW${phone}`,
+        customerName: name, customerPhone: phone, customerEmail: email, ...common,
+      });
+      kindFields = {
+        orderId: order.order_id || linkId,
+        cfOrderId: order.cf_order_id ? String(order.cf_order_id) : '',
+        paymentSessionId: order.payment_session_id,
+        linkUrl: payPageUrl,
+        payPageUrl,
+      };
+      expiry = order.order_expiry_time;
+    }
 
     const { db } = await connectToDatabase();
     const doc = {
+      ...kindFields,
       leadId,
       tokenNo: body.tokenNo || '',
       linkId,
-      orderId: order.order_id || linkId,
-      cfOrderId: order.cf_order_id ? String(order.cf_order_id) : '',
-      paymentSessionId: order.payment_session_id,
-      linkUrl,
       amount,
       amountPaid: 0,
       currency: 'INR',
@@ -88,8 +114,8 @@ export async function POST(request: Request) {
       customerName: name,
       customerPhone: phone,
       customerEmail: email,
-      status: order.order_status || 'ACTIVE',
-      expiresAt: order.order_expiry_time ? new Date(order.order_expiry_time) : null,
+      status: 'ACTIVE',
+      expiresAt: expiry ? new Date(expiry) : null,
       transactions: [],
       recordedInLead: false,
       createdByUserId: user.userId,
@@ -100,7 +126,7 @@ export async function POST(request: Request) {
     const result = await db.collection('online_payments').insertOne(doc);
     return NextResponse.json(serialize({ _id: result.insertedId, ...doc }), { status: 201 });
   } catch (e: any) {
-    console.error('Cashfree create order error:', e);
+    console.error('Cashfree create link error:', e?.message || e);
     return NextResponse.json({ error: e.message || 'Failed to create payment link' }, { status: e.status && e.status < 500 ? 400 : 502 });
   }
 }

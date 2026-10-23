@@ -43,6 +43,8 @@ interface OnlinePayment {
   transactions?: { cfPaymentId: string; amount: number; method: string; utr: string; paidAt: string }[];
   recordedInLead?: boolean;
   recordedLine?: OnlinePaymentLine;
+  kind?: 'link';
+  lastAttempt?: { status: string; message?: string; at?: string | null };
 }
 
 interface Props {
@@ -358,7 +360,7 @@ export default function OnlinePaymentPanel({ leadId, tokenNo, owner, tenant, sug
         </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-3 mt-4">
-        <p className="text-xs text-slate-500">Customer can pay by UPI, card or net banking. Link is valid for 7 days.</p>
+        <p className="text-xs text-slate-500">Customer pays by UPI (PhonePe / GPay / Paytm / any UPI app). Valid for 7 days.</p>
         <button
           type="button" onClick={create} disabled={creating || !leadId || !configured}
           className="px-5 py-2.5 bg-[#00843d] hover:bg-[#00622d] disabled:opacity-60 text-white font-medium rounded-lg transition-colors flex items-center gap-2 shadow-sm"
@@ -388,8 +390,12 @@ export default function OnlinePaymentPanel({ leadId, tokenNo, owner, tenant, sug
             ) : (
               <>
                 <QrImage url={selected.linkUrl} />
-                <p className="text-xs text-center text-slate-500">Scan opens the payment page (UPI apps).</p>
-                {selected.status === 'ACTIVE' && upi && !upi.available && (
+                <p className="text-xs text-center text-slate-500">
+                  {selected.kind === 'link'
+                    ? `Scan with the phone camera (or tap the link on the phone) to pay ${inr(selected.amount)} by UPI.`
+                    : 'Scan opens the payment page (UPI apps).'}
+                </p>
+                {selected.kind !== 'link' && selected.status === 'ACTIVE' && upi && !upi.available && (
                   <p className="text-[11px] text-center text-amber-700">Direct UPI QR will appear here once Cashfree enables it on your account.</p>
                 )}
               </>
@@ -416,6 +422,7 @@ export default function OnlinePaymentPanel({ leadId, tokenNo, owner, tenant, sug
                 {busyId === selected.linkId ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />} Verify Payment
               </button>
             </div>
+            {selected.status === 'ACTIVE' && selected.lastAttempt && <p className="text-xs text-red-600">Customer&apos;s last attempt failed{selected.lastAttempt.message ? `: ${selected.lastAttempt.message}` : ''}. They can open the same link again.</p>}
             {selected.status === 'ACTIVE' && <p className="text-xs text-slate-500">Status is checked automatically every 15 seconds while this page is open.</p>}
           </div>
         </div>
@@ -450,7 +457,8 @@ export default function OnlinePaymentPanel({ leadId, tokenNo, owner, tenant, sug
                       <td className="px-3 py-2 text-right whitespace-nowrap">{inr(p.amount)}</td>
                       <td className="px-3 py-2 text-right whitespace-nowrap font-medium text-[#00843d]">{p.amountPaid ? inr(p.amountPaid) : '—'}</td>
                       <td className="px-3 py-2"><span className={`text-xs px-2 py-0.5 rounded-full border whitespace-nowrap ${STATUS_STYLE[p.status] || STATUS_STYLE.EXPIRED}`}>{STATUS_LABEL[p.status] || p.status}</span>
-                        {p.paidAt && <div className="text-xs text-slate-400 mt-0.5">{fmtDateTime(p.paidAt)}</div>}</td>
+                        {p.paidAt && <div className="text-xs text-slate-400 mt-0.5">{fmtDateTime(p.paidAt)}</div>}
+                        {p.status === 'ACTIVE' && p.lastAttempt && <div className="text-xs text-red-500 mt-0.5" title={p.lastAttempt.message || ''}>Last attempt failed</div>}</td>
                       <td className="px-3 py-2 text-xs font-mono">{tx ? <>{tx.utr || tx.cfPaymentId}<div className="text-slate-400 font-sans">{tx.method}</div></> : '—'}</td>
                       <td className="px-3 py-2">
                         <div className="flex justify-end gap-1">

@@ -19,6 +19,8 @@ function publicView(r: any) {
     paidAt: r.paidAt || null,
     reference: r.transactions?.[0]?.utr || r.transactions?.[0]?.cfPaymentId || '',
     lastAttempt: r.lastAttempt?.status || null,
+    // Payment links: Cashfree's link (opens the UPI app) — used for "Pay" / "Try again".
+    checkoutUrl: r.kind === 'link' && r.status === 'ACTIVE' ? r.linkUrl || null : null,
   };
 }
 

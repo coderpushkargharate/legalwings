@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
-import { syncOnlinePayment, terminateOrder } from '@/lib/cashfree';
+import { cancelLink, syncOnlinePayment, terminateOrder } from '@/lib/cashfree';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,7 +16,8 @@ export async function POST(request: Request, { params }: { params: { linkId: str
     if (record.status !== 'ACTIVE') {
       return NextResponse.json({ error: `Payment is ${record.status}, cannot cancel`, record }, { status: 400 });
     }
-    await terminateOrder(record.orderId || params.linkId);
+    if (record.kind === 'link') await cancelLink(params.linkId);
+    else await terminateOrder(record.orderId || params.linkId);
     return NextResponse.json(await syncOnlinePayment(db, params.linkId));
   } catch (e: any) {
     console.error('Cashfree cancel error:', e);
