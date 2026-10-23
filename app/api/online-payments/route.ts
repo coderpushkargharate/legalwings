@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
 import { appOrigin, cashfreeConfigured, createOrder, createPaymentLink, newLinkId, serialize } from '@/lib/cashfree';
@@ -52,6 +53,16 @@ export async function POST(request: Request) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return NextResponse.json({ error: 'Invalid email' }, { status: 400 });
 
   const leadId = String(body.leadId);
+  // The payment must belong to a real lead, or it could never be recorded against it.
+  if (!ObjectId.isValid(leadId)) return NextResponse.json({ error: 'Invalid lead' }, { status: 400 });
+  try {
+    const { db } = await connectToDatabase();
+    const lead = await db.collection('leads').findOne({ _id: new ObjectId(leadId) }, { projection: { _id: 1 } });
+    if (!lead) return NextResponse.json({ error: 'Lead not found. Save the lead first.' }, { status: 400 });
+  } catch (e) {
+    console.error('Online payment lead check failed:', e);
+    return NextResponse.json({ error: 'Could not check the lead. Try again.' }, { status: 500 });
+  }
   const linkId = newLinkId(leadId);
   const purpose = String(body.purpose || '').trim() || `LegalWings payment${body.tokenNo ? ` - Token ${body.tokenNo}` : ''}`;
   const origin = appOrigin(request);
