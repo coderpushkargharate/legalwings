@@ -10,10 +10,10 @@ Ye API dusre developers / dusri websites ke liye hai. Isse koi bhi external app
 Har request mein API key bhejni hai, in three me se kisi bhi tarike se:
 
 ```
-x-api-key: your_super_secret_key_12345
+x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>
 ```
-ya `Authorization: Bearer your_super_secret_key_12345`
-ya query param `?apiKey=your_super_secret_key_12345`
+ya `Authorization: Bearer <YOUR_EXTERNAL_LEADS_API_KEY>`
+ya query param `?apiKey=<YOUR_EXTERNAL_LEADS_API_KEY>`
 
 Key `.env` ke `EXTERNAL_LEADS_API_KEY` se aati hai. Production mein isse zaroor
 badlein. CORS by default sab origins ke liye open hai; lock karne ke liye
@@ -30,7 +30,7 @@ Base URL: `https://<your-domain>/api/public`
 
 ```bash
 curl -X POST https://<domain>/api/public/leads \
-  -H "x-api-key: your_super_secret_key_12345" \
+  -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{
     "firstName": "Ravi",
@@ -71,7 +71,7 @@ Saare query params optional hain aur combine kiye ja sakte hain (AND):
 ```bash
 # specific employee ke NEW leads, search "ravi", page 0
 curl "https://<domain>/api/public/leads?assignedToUserId=<id>&leadStatus=NEW_LEAD&searchText=ravi&page=0&pageSize=20" \
-  -H "x-api-key: your_super_secret_key_12345"
+  -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>"
 ```
 
 Response:
@@ -95,7 +95,7 @@ yani poora **status tracking / activity timeline**.
 
 ```bash
 curl -X PATCH https://<domain>/api/public/leads/<id> \
-  -H "x-api-key: your_super_secret_key_12345" \
+  -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{ "leadStatus": "FOLLOW_UP", "note": "Called customer, will visit Monday" }'
 ```
@@ -111,7 +111,7 @@ Response: `{ "success": true, "message": "Lead updated", "lead": { ... } }`
 
 ```bash
 curl -X POST https://<domain>/api/public/leads/<id>/forward \
-  -H "x-api-key: your_super_secret_key_12345" \
+  -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>" \
   -H "Content-Type: application/json" \
   -d '{ "team": "BACKEND", "assignedToUserId": "<optional employee id>", "reason": "Docs ready" }'
 ```
@@ -147,7 +147,7 @@ Response:
 
 ```bash
 curl "https://<domain>/api/public/employees?team=Calling&searchText=amit" \
-  -H "x-api-key: your_super_secret_key_12345"
+  -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>"
 ```
 
 Response: `{ "success": true, "employees": [ { id, name, firstName, lastName, email, team, roles } ] }`
@@ -167,7 +167,7 @@ Response: `{ "success": true, "employees": [ { id, name, firstName, lastName, em
 `agreementStatuses`, `backOfficeStatuses`, plus static `clientTypes` aur `teams`.
 
 ```bash
-curl https://<domain>/api/public/dropdowns -H "x-api-key: your_super_secret_key_12345"
+curl https://<domain>/api/public/dropdowns -H "x-api-key: <YOUR_EXTERNAL_LEADS_API_KEY>"
 ```
 
 ---
@@ -186,7 +186,7 @@ curl https://<domain>/api/public/dropdowns -H "x-api-key: your_super_secret_key_
 
 ```js
 const API = "https://<domain>/api/public";
-const KEY = "your_super_secret_key_12345";
+const KEY = "<YOUR_EXTERNAL_LEADS_API_KEY>";
 
 // lead add
 await fetch(`${API}/leads`, {
