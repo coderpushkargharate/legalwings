@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
+import { reportDateOf } from '@/lib/date-utils';
 
 function getAuth(request: Request): JWTPayload | null {
   const token = getTokenFromHeaders(request);
@@ -16,15 +17,16 @@ const NOT_INTERESTED_STATUSES = new Set(['', 'NEW', 'NEW_LEAD', 'NOT_INTERESTED'
 const APPOINTMENT_STATUSES = new Set(['BOOKING_APPOINTMENT', 'ASSIGNED_APPOINTMENT', 'CANCEL_APPOINTMENT', 'POSTPONE_APPOINTMENT']);
 const isBackend = (t: unknown) => ['BACKEND', 'BACKEND_TEAM'].includes(norm(t));
 const isExecutive = (t: unknown) => ['EXECUTIVE', 'EXECUTIVE_TEAM'].includes(norm(t));
+const isShop = (t: unknown) => ['SHOP', 'SHOP_TEAM'].includes(norm(t));
+const isCalling = (t: unknown) => ['CALLING', 'CALLING_TEAM'].includes(norm(t));
+// The Executive report covers the field executives AND the Notary Shop.
+const isExecOrShop = (t: unknown) => isExecutive(t) || isShop(t);
 
-function leadDate(lead: any): Date | null {
-  const raw = lead.leadDate || lead.createdAt || lead.createdDate;
-  if (!raw) return null;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? null : d;
-}
+// Same date the "Total Leads" card uses, so every report agrees on the lead count.
+const leadDate = reportDateOf;
 
 const idOf = (v: unknown) => (v == null ? '' : String(v));
+const UNASSIGNED = 'UNASSIGNED';
 
 export async function GET(request: Request) {
   const user = getAuth(request);
@@ -41,7 +43,8 @@ export async function GET(request: Request) {
     const [users, leads] = await Promise.all([
       db.collection('users').find(
         // Deactivated / deleted employees are left out, same as the Employees list.
-        { roles: { $in: ['calling', 'executive', 'backend'] }, isActive: { $ne: false } },
+        // Their leads still count, under "Unassigned / Admin", so totals never drop.
+        { roles: { $in: ['calling', 'executive', 'backend', 'shop'] }, isActive: { $ne: false } },
         { projection: { firstName: 1, lastName: 1, roles: 1 } },
       ).toArray(),
       db.collection('leads').find({}, {
@@ -68,46 +71,57 @@ export async function GET(request: Request) {
     type DayRow = { date: string; totalLeads: number; appointment: number; totalWork: number; submitted: number; completed: number; pending: number };
 
     // Seed every team member so people with zero activity still show up.
+    const newCallingRow = (name: string): CallingRow => ({ name, leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, pendingAppointment: 0, cancelled: 0 });
     const calling = new Map<string, CallingRow>();
-    for (const u of byRole('calling')) calling.set(u._id.toString(), { name: nameOf(u), leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, pendingAppointment: 0, cancelled: 0 });
-    const executive = new Map<string, ExecRow>();
+    for (const u of byRole('calling')) calling.set(u._id.toString(), newCallingRow(nameOf(u)));
+
     const newExecRow = (name: string): ExecRow => ({
       name, appointment: 0, leadCreated: 0, sentToBackend: 0, sentToCalling: 0,
       firstVisit: 0, secondVisit: 0, cancelPostpone: 0, otherReason: 0,
     });
+    const executive = new Map<string, ExecRow>();
     for (const u of byRole('executive')) executive.set(u._id.toString(), newExecRow(nameOf(u)));
+    // Notary Shop employees get their own rows in the Executive report.
+    for (const u of byRole('shop')) {
+      if (!executive.has(u._id.toString())) executive.set(u._id.toString(), newExecRow(nameOf(u)));
+    }
+    // Some older leads only stored the creator's name — match those by name.
+    const execIdByName = new Map<string, string>();
+    for (const [id, row] of Array.from(executive.entries())) execIdByName.set(norm(row.name), id);
+    const execRow = (id: string) => {
+      if (!executive.has(id)) executive.set(id, newExecRow('Unassigned / Admin'));
+      return executive.get(id)!;
+    };
+
+    const backOffice = new Map<string, BackRow>();
+    for (const u of byRole('backend')) backOffice.set(u._id.toString(), { name: nameOf(u), totalWork: 0, submitted: 0, completed: 0, pending: 0 });
+
     const inRange = (raw: unknown) => {
       const d = raw ? new Date(raw as any) : null;
       if (!d || isNaN(d.getTime())) return !from && !to;
       return (!from || d >= from) && (!to || d <= to);
     };
-    const backOffice = new Map<string, BackRow>();
-    for (const u of byRole('backend')) backOffice.set(u._id.toString(), { name: nameOf(u), totalWork: 0, submitted: 0, completed: 0, pending: 0 });
 
     const clientTypeByDay = new Map<string, TypeRow>();
     const agreementByDay = new Map<string, DayRow>();
 
     for (const lead of leads as any[]) {
-      // Executive forwards are counted on the day they were SENT (forwardedAt), not the
-      // lead's created date — so an old lead sent to Backend today counts for today.
+      // Executive / Shop forwards are counted on the day they were SENT (forwardedAt), not
+      // the lead's created date — so an old lead sent to Backend today counts for today.
       const fwd: any[] = Array.isArray(lead.forwardedHistory) ? lead.forwardedHistory : [];
       fwd.forEach((h, i) => {
-        if (!isExecutive(h?.fromTeam) || !inRange(h?.forwardedAt)) return;
+        if (!isExecOrShop(h?.fromTeam) || !inRange(h?.forwardedAt)) return;
         const toBackend = isBackend(h?.toTeam);
-        const toCalling = ['CALLING', 'CALLING_TEAM'].includes(norm(h?.toTeam));
+        const toCalling = isCalling(h?.toTeam);
         if (!toBackend && !toCalling) return;
-        // Credit the executive who forwarded it; if an admin forwarded on their behalf,
-        // credit the executive the lead was last assigned to.
+        // Credit the person who forwarded it; if an admin forwarded on their behalf,
+        // credit the executive / shop employee the lead was last assigned to.
         let execId = executive.has(idOf(h?.forwardedByUserId)) ? idOf(h?.forwardedByUserId) : '';
         for (let j = i - 1; !execId && j >= 0; j--) {
           const a = idOf(fwd[j]?.assignedToUserId);
-          if (isExecutive(fwd[j]?.toTeam) && executive.has(a)) execId = a;
+          if (isExecOrShop(fwd[j]?.toTeam) && executive.has(a)) execId = a;
         }
-        if (!execId) {
-          execId = 'UNASSIGNED';
-          if (!executive.has(execId)) executive.set(execId, newExecRow('Unassigned / Admin'));
-        }
-        const e = executive.get(execId)!;
+        const e = execRow(execId || UNASSIGNED);
         if (toBackend) { e.sentToBackend++; return; }
         e.sentToCalling++;
         const r = norm(h?.reason);
@@ -122,7 +136,7 @@ export async function GET(request: Request) {
       if (to && (!d || d > to)) continue;
 
       const status = norm(lead.leadStatus);
-      const history: any[] = Array.isArray(lead.forwardedHistory) ? lead.forwardedHistory : [];
+      const history = fwd;
       const cancelled = status === 'CANCEL_APPOINTMENT' || norm(lead.agreement?.status) === 'CANCELLED';
       const hasAppointment = !!lead.isAppointment || !!lead.appointmentTime || APPOINTMENT_STATUSES.has(status);
       const sentToExecutive = isExecutive(lead.transitLevel) || history.some((h) => isExecutive(h?.toTeam));
@@ -133,34 +147,41 @@ export async function GET(request: Request) {
       const backendStatus = norm(lead.backendStatus);
       const completed = backendStatus === 'COMPLETED';
       const submitted = completed || backendStatus === 'SUBMITTED';
-
-      // 1. Calling girl — leads she created and how far they progressed.
       const creatorId = idOf(lead.createdByUserId);
-      const c = calling.get(creatorId);
-      if (c) {
-        c.leadCreated++;
-        if (!NOT_INTERESTED_STATUSES.has(status)) c.interested++;
-        if (hasAppointment) c.appointment++;
-        if (sentToExecutive) c.sentToExecutive++;
-        // Still waiting in the Appointment list (not yet sent to Executive / Backend).
-        if (hasAppointment && !sentToExecutive && !reachedBackend && !cancelled) c.pendingAppointment++;
-        if (cancelled) c.cancelled++;
-      }
-
-      // 2. Executive — leads created by them, plus every appointment they handled
-      // (currently assigned to them, assigned via a forward, or forwarded on by them).
-      const execCreator = executive.get(creatorId);
-      if (execCreator) execCreator.leadCreated++;
-      const handledBy = new Set<string>();
       const assignee = idOf(lead.assignedToUserId);
-      if (executive.has(assignee)) handledBy.add(assignee);
-      for (const h of history) {
-        const a = idOf(h?.assignedToUserId);
-        if (isExecutive(h?.toTeam) && executive.has(a)) handledBy.add(a);
-        const by = idOf(h?.forwardedByUserId);
-        if (isExecutive(h?.fromTeam) && executive.has(by)) handledBy.add(by);
+
+      // 1. Calling team — every lead counts exactly once: under the calling girl who
+      // created it, or under "Unassigned / Admin". So the Total row = all leads.
+      const c = calling.get(creatorId) || (() => {
+        if (!calling.has(UNASSIGNED)) calling.set(UNASSIGNED, newCallingRow('Unassigned / Admin'));
+        return calling.get(UNASSIGNED)!;
+      })();
+      c.leadCreated++;
+      if (!NOT_INTERESTED_STATUSES.has(status)) c.interested++;
+      if (hasAppointment) c.appointment++;
+      if (sentToExecutive) c.sentToExecutive++;
+      // Still waiting in the Appointment list (not yet sent to Executive / Backend).
+      if (hasAppointment && !sentToExecutive && !reachedBackend && !cancelled) c.pendingAppointment++;
+      if (cancelled) c.cancelled++;
+
+      // 2. Executive report (executives + Notary Shop).
+      const creatorExec = executive.has(creatorId) ? creatorId : (execIdByName.get(norm(lead.createdByUserName)) || '');
+      if (creatorExec) executive.get(creatorExec)!.leadCreated++;
+      // Each appointment counts for exactly ONE person — whoever handled it last
+      // (current assignee, then forward history, then creator), else "Unassigned / Admin".
+      // So the Appointment total here = the Appointment total in the other reports.
+      if (hasAppointment) {
+        let owner = executive.has(assignee) ? assignee : '';
+        for (let i = history.length - 1; !owner && i >= 0; i--) {
+          const h = history[i];
+          const a = idOf(h?.assignedToUserId);
+          const by = idOf(h?.forwardedByUserId);
+          if (isExecOrShop(h?.toTeam) && executive.has(a)) owner = a;
+          else if (isExecOrShop(h?.fromTeam) && executive.has(by)) owner = by;
+        }
+        if (!owner) owner = creatorExec;
+        execRow(owner || UNASSIGNED).appointment++;
       }
-      for (const id of Array.from(handledBy)) executive.get(id)!.appointment++;
 
       // 3. Back office — the backend employee the lead is (or was last) assigned to.
       if (reachedBackend) {
@@ -172,7 +193,7 @@ export async function GET(request: Request) {
           }
         }
         if (!owner) {
-          owner = 'UNASSIGNED';
+          owner = UNASSIGNED;
           if (!backOffice.has(owner)) backOffice.set(owner, { name: 'Unassigned', totalWork: 0, submitted: 0, completed: 0, pending: 0 });
         }
         const b = backOffice.get(owner)!;
@@ -182,8 +203,9 @@ export async function GET(request: Request) {
         else b.pending++;
       }
 
-      if (!d) continue;
-      const day = d.toISOString().slice(0, 10);
+      // Leads always have a date unless every date field is missing/garbled; keep them
+      // in the day-wise totals anyway so those totals still match the other reports.
+      const day = d ? d.toISOString().slice(0, 10) : 'No date';
 
       // 4. Date-wise client type split.
       const t = clientTypeByDay.get(day) || { date: day, agent: 0, owner: 0, tenant: 0, other: 0 };
@@ -207,8 +229,11 @@ export async function GET(request: Request) {
       agreementByDay.set(day, a);
     }
 
+    // Alphabetical, with the "Unassigned" catch-all row last.
     const byName = <T extends { name: string }>(m: Map<string, T>) =>
-      Array.from(m.values()).sort((x, y) => x.name.localeCompare(y.name));
+      Array.from(m.entries())
+        .sort(([ka, x], [kb, y]) => (Number(ka === UNASSIGNED) - Number(kb === UNASSIGNED)) || x.name.localeCompare(y.name))
+        .map(([, v]) => v);
     const byDateDesc = <T extends { date: string }>(m: Map<string, T>) =>
       Array.from(m.values()).sort((x, y) => y.date.localeCompare(x.date));
 

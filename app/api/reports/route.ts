@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders, JWTPayload } from '@/lib/auth';
 import { balanceDueOf } from '@/lib/payment-math';
+import { reportDateOf } from '@/lib/date-utils';
 
 function getAuth(request: Request): JWTPayload | null {
   const token = getTokenFromHeaders(request);
@@ -16,13 +17,8 @@ function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-// Resolve the most relevant date for a lead and return it (or null).
-function leadDate(lead: any): Date | null {
-  const raw = lead.leadDate || lead.createdAt || lead.createdDate;
-  if (!raw) return null;
-  const d = new Date(raw);
-  return isNaN(d.getTime()) ? null : d;
-}
+// Same lead date as the team reports, so "Total Leads" always matches them.
+const leadDate = reportDateOf;
 
 export async function GET(request: Request) {
   const user = getAuth(request);

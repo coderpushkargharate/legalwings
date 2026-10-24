@@ -80,3 +80,15 @@ export const getLeadDisplayDate = (lead: any): string | null => {
   ];
   return dates.find(d => d) || null;
 };
+// The date a lead is reported under: leadDate, else createdAt / createdDate.
+// A mistyped leadDate (e.g. year "92026") is skipped so the lead still lands on a real day.
+// Both report APIs use this, so their lead totals always match.
+export const reportDateOf = (lead: any): Date | null => {
+  for (const raw of [lead?.leadDate, lead?.createdAt, lead?.createdDate]) {
+    if (!raw) continue;
+    const d = new Date(raw);
+    const y = d.getUTCFullYear();
+    if (!isNaN(d.getTime()) && y >= 2000 && y <= 2100) return d;
+  }
+  return null;
+};

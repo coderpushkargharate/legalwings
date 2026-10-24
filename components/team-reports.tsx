@@ -25,8 +25,9 @@ export function TeamReportTables({ team }: { team: TeamReportData }) {
     <>
       <ReportTable
         title="1. Calling Team Report" icon={PhoneCall} rows={team.calling}
+        note="Every lead counts once — leads not created by a calling girl show under Unassigned / Admin."
         columns={[
-          { key: 'name', label: 'Calling Girl' },
+          { key: 'name', label: 'Created By' },
           { key: 'leadCreated', label: 'Total Lead' },
           { key: 'appointment', label: 'Send to Appointment' },
           { key: 'sentToExecutive', label: 'Send to Executive' },
@@ -36,10 +37,10 @@ export function TeamReportTables({ team }: { team: TeamReportData }) {
         ]}
       />
       <ReportTable
-        title="2. Executive Report" icon={Briefcase} rows={team.executive}
-        note="Send to Backend / Calling are counted on the date the lead was sent."
+        title="2. Executive & Notary Shop Report" icon={Briefcase} rows={team.executive}
+        note="Each appointment counts once, for whoever handled it last. Send to Backend / Calling are counted on the date the lead was sent."
         columns={[
-          { key: 'name', label: 'Executive Name' },
+          { key: 'name', label: 'Executive / Shop' },
           { key: 'appointment', label: 'Appointment' },
           { key: 'sentToBackend', label: 'Send to Backend', tone: 'text-emerald-600' },
           { key: 'sentToCalling', label: 'Send to Calling' },
