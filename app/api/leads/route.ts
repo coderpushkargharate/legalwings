@@ -115,7 +115,11 @@ export async function GET(request: Request) {
       // — while the admin's MAIN dashboard still shows it (it filters by visibleToTeams,
       // which forwarding no longer strips).
       const ownId = toObjectId(user.userId);
+      const isMarketing = user.roles?.some(r => String(r).toLowerCase() === 'marketing');
+      const wantsMarketing = /^MARKETING(_TEAM)?$/i.test(searchParams.get('transitLevel') || '');
       addOrGroup(andConditions, [
+        // Marketing employees see every completed agreement (team-wide), not just their own.
+        ...(isMarketing && wantsMarketing ? [{ backendStatus: 'COMPLETED' }] : []),
         // Leads I created — but once I forward/assign one to a DIFFERENT employee it
         // leaves my dashboard (it stays with admins via the shared team view).
         { $and: [
@@ -253,7 +257,16 @@ export async function GET(request: Request) {
       const normalizedTeam = upperTransit.endsWith('_TEAM') 
         ? upperTransit 
         : `${upperTransit}_TEAM`;
-      filter.visibleToTeams = { $in: [normalizedTeam] };
+      if (normalizedTeam === 'MARKETING_TEAM') {
+        // Marketing also lists every agreement Backend marked COMPLETED. The lead is
+        // not moved — it stays in Backend's Completed tab as well.
+        addOrGroup(andConditions, [
+          { visibleToTeams: { $in: [normalizedTeam] } },
+          { backendStatus: 'COMPLETED' },
+        ]);
+      } else {
+        filter.visibleToTeams = { $in: [normalizedTeam] };
+      }
     }
     
     // clientType / userType are aliases for the lead contact's type (OWNER/TENANT/AGENT)

@@ -23,28 +23,33 @@ const fmtDay = (v: string | number) => {
 export function TeamReportTables({ team }: { team: TeamReportData }) {
   return (
     <>
+      <ReportTable
+        title="1. Calling Team Report" icon={PhoneCall} rows={team.calling}
+        columns={[
+          { key: 'name', label: 'Calling Girl' },
+          { key: 'leadCreated', label: 'Total Lead' },
+          { key: 'appointment', label: 'Send to Appointment' },
+          { key: 'sentToExecutive', label: 'Send to Executive' },
+          { key: 'pendingAppointment', label: 'Pending in Appointment', tone: 'text-amber-600' },
+          { key: 'interested', label: 'Interested' },
+          { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
+        ]}
+      />
+      <ReportTable
+        title="2. Executive Report" icon={Briefcase} rows={team.executive}
+        note="Send to Backend / Calling are counted on the date the lead was sent."
+        columns={[
+          { key: 'name', label: 'Executive Name' },
+          { key: 'appointment', label: 'Appointment' },
+          { key: 'sentToBackend', label: 'Send to Backend', tone: 'text-emerald-600' },
+          { key: 'sentToCalling', label: 'Send to Calling' },
+          { key: 'firstVisit', label: 'Calling: 1st Visit' },
+          { key: 'secondVisit', label: 'Calling: 2nd Visit' },
+          { key: 'cancelPostpone', label: 'Calling: Cancel / Postpone', tone: 'text-red-600' },
+          { key: 'otherReason', label: 'Calling: Other Reason' },
+        ]}
+      />
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <ReportTable
-          title="1. Calling Team Report" icon={PhoneCall} rows={team.calling}
-          columns={[
-            { key: 'name', label: 'Calling Girl' },
-            { key: 'leadCreated', label: 'Lead Created' },
-            { key: 'interested', label: 'Interested' },
-            { key: 'appointment', label: 'Appointment' },
-            { key: 'sentToExecutive', label: 'Send to Executive' },
-            { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
-          ]}
-        />
-        <ReportTable
-          title="2. Executive Report" icon={Briefcase} rows={team.executive}
-          columns={[
-            { key: 'name', label: 'Executive Name' },
-            { key: 'appointment', label: 'Appointment' },
-            { key: 'leadCreated', label: 'Lead Created' },
-            { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
-            { key: 'postponed', label: 'Postponed', tone: 'text-amber-600' },
-          ]}
-        />
         <ReportTable
           title="3. Back Office Report" icon={FileCheck2} rows={team.backOffice}
           columns={[
@@ -59,19 +64,19 @@ export function TeamReportTables({ team }: { team: TeamReportData }) {
           title="4. Date-wise Client Type Report" icon={Building2} rows={team.clientTypeByDay}
           columns={[
             { key: 'date', label: 'Date', format: fmtDay },
-            { key: 'agent', label: 'Agent' },
             { key: 'owner', label: 'Owner' },
+            { key: 'agent', label: 'Agent' },
             { key: 'tenant', label: 'Tenant' },
           ]}
         />
       </div>
       <ReportTable
-        title="5. Date-wise Agreement Report" icon={CalendarDays} rows={team.agreementByDay}
+        title="5. All Agreement Count (Day-wise)" icon={CalendarDays} rows={team.agreementByDay}
         columns={[
           { key: 'date', label: 'Date', format: fmtDay },
-          { key: 'totalLeads', label: 'Total Leads' },
+          { key: 'totalLeads', label: 'Total Lead' },
           { key: 'appointment', label: 'Appointment' },
-          { key: 'totalWork', label: 'Total Work' },
+          { key: 'totalWork', label: 'All Work' },
           { key: 'submitted', label: 'Submitted' },
           { key: 'completed', label: 'Completed', tone: 'text-emerald-600' },
           { key: 'pending', label: 'Pending', tone: 'text-amber-600' },
@@ -146,14 +151,15 @@ export default function AdminTeamReports() {
 interface ReportColumn { key: string; label: string; tone?: string; format?: (v: string | number) => string; }
 
 // Multi-column report table with a totals row (the first column is the row label).
-function ReportTable({ title, icon: Icon, columns, rows }: { title: string; icon: React.ElementType; columns: ReportColumn[]; rows: Row[] }) {
+function ReportTable({ title, icon: Icon, columns, rows, note }: { title: string; icon: React.ElementType; columns: ReportColumn[]; rows: Row[]; note?: string }) {
   const [labelCol, ...numCols] = columns;
   const totals = numCols.map((c) => rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0));
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-200 bg-slate-50">
+      <div className="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-slate-200 bg-slate-50">
         <Icon className="w-5 h-5 text-[#00843d]" />
         <h3 className="font-semibold text-slate-800">{title}</h3>
+        {note && <span className="text-xs text-slate-500">— {note}</span>}
         <span className="ml-auto text-xs text-slate-500">{rows.length} rows</span>
       </div>
       <div className="overflow-x-auto max-h-[480px] overflow-y-auto">

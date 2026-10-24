@@ -57,17 +57,30 @@ export async function GET(request: Request) {
     const nameOf = (u: any) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown';
     const byRole = (role: string) => users.filter((u: any) => (u.roles || []).includes(role));
 
-    type CallingRow = { name: string; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; cancelled: number };
-    type ExecRow = { name: string; appointment: number; leadCreated: number; cancelled: number; postponed: number };
+    type CallingRow = { name: string; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; pendingAppointment: number; cancelled: number };
+    type ExecRow = {
+      name: string; appointment: number; leadCreated: number;
+      sentToBackend: number; sentToCalling: number;
+      firstVisit: number; secondVisit: number; cancelPostpone: number; otherReason: number;
+    };
     type BackRow = { name: string; totalWork: number; submitted: number; completed: number; pending: number };
     type TypeRow = { date: string; agent: number; owner: number; tenant: number; other: number };
     type DayRow = { date: string; totalLeads: number; appointment: number; totalWork: number; submitted: number; completed: number; pending: number };
 
     // Seed every team member so people with zero activity still show up.
     const calling = new Map<string, CallingRow>();
-    for (const u of byRole('calling')) calling.set(u._id.toString(), { name: nameOf(u), leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, cancelled: 0 });
+    for (const u of byRole('calling')) calling.set(u._id.toString(), { name: nameOf(u), leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, pendingAppointment: 0, cancelled: 0 });
     const executive = new Map<string, ExecRow>();
-    for (const u of byRole('executive')) executive.set(u._id.toString(), { name: nameOf(u), appointment: 0, leadCreated: 0, cancelled: 0, postponed: 0 });
+    const newExecRow = (name: string): ExecRow => ({
+      name, appointment: 0, leadCreated: 0, sentToBackend: 0, sentToCalling: 0,
+      firstVisit: 0, secondVisit: 0, cancelPostpone: 0, otherReason: 0,
+    });
+    for (const u of byRole('executive')) executive.set(u._id.toString(), newExecRow(nameOf(u)));
+    const inRange = (raw: unknown) => {
+      const d = raw ? new Date(raw as any) : null;
+      if (!d || isNaN(d.getTime())) return !from && !to;
+      return (!from || d >= from) && (!to || d <= to);
+    };
     const backOffice = new Map<string, BackRow>();
     for (const u of byRole('backend')) backOffice.set(u._id.toString(), { name: nameOf(u), totalWork: 0, submitted: 0, completed: 0, pending: 0 });
 
@@ -75,6 +88,35 @@ export async function GET(request: Request) {
     const agreementByDay = new Map<string, DayRow>();
 
     for (const lead of leads as any[]) {
+      // Executive forwards are counted on the day they were SENT (forwardedAt), not the
+      // lead's created date — so an old lead sent to Backend today counts for today.
+      const fwd: any[] = Array.isArray(lead.forwardedHistory) ? lead.forwardedHistory : [];
+      fwd.forEach((h, i) => {
+        if (!isExecutive(h?.fromTeam) || !inRange(h?.forwardedAt)) return;
+        const toBackend = isBackend(h?.toTeam);
+        const toCalling = ['CALLING', 'CALLING_TEAM'].includes(norm(h?.toTeam));
+        if (!toBackend && !toCalling) return;
+        // Credit the executive who forwarded it; if an admin forwarded on their behalf,
+        // credit the executive the lead was last assigned to.
+        let execId = executive.has(idOf(h?.forwardedByUserId)) ? idOf(h?.forwardedByUserId) : '';
+        for (let j = i - 1; !execId && j >= 0; j--) {
+          const a = idOf(fwd[j]?.assignedToUserId);
+          if (isExecutive(fwd[j]?.toTeam) && executive.has(a)) execId = a;
+        }
+        if (!execId) {
+          execId = 'UNASSIGNED';
+          if (!executive.has(execId)) executive.set(execId, newExecRow('Unassigned / Admin'));
+        }
+        const e = executive.get(execId)!;
+        if (toBackend) { e.sentToBackend++; return; }
+        e.sentToCalling++;
+        const r = norm(h?.reason);
+        if (r === '1ST_VISIT') e.firstVisit++;
+        else if (r === '2ND_VISIT') e.secondVisit++;
+        else if (r.startsWith('CANCEL') || r.startsWith('POSTPONE')) e.cancelPostpone++;
+        else e.otherReason++;
+      });
+
       const d = leadDate(lead);
       if (from && (!d || d < from)) continue;
       if (to && (!d || d > to)) continue;
@@ -82,7 +124,6 @@ export async function GET(request: Request) {
       const status = norm(lead.leadStatus);
       const history: any[] = Array.isArray(lead.forwardedHistory) ? lead.forwardedHistory : [];
       const cancelled = status === 'CANCEL_APPOINTMENT' || norm(lead.agreement?.status) === 'CANCELLED';
-      const postponed = status === 'POSTPONE_APPOINTMENT';
       const hasAppointment = !!lead.isAppointment || !!lead.appointmentTime || APPOINTMENT_STATUSES.has(status);
       const sentToExecutive = isExecutive(lead.transitLevel) || history.some((h) => isExecutive(h?.toTeam));
       const reachedBackend = isBackend(lead.transitLevel)
@@ -101,6 +142,8 @@ export async function GET(request: Request) {
         if (!NOT_INTERESTED_STATUSES.has(status)) c.interested++;
         if (hasAppointment) c.appointment++;
         if (sentToExecutive) c.sentToExecutive++;
+        // Still waiting in the Appointment list (not yet sent to Executive / Backend).
+        if (hasAppointment && !sentToExecutive && !reachedBackend && !cancelled) c.pendingAppointment++;
         if (cancelled) c.cancelled++;
       }
 
@@ -117,12 +160,7 @@ export async function GET(request: Request) {
         const by = idOf(h?.forwardedByUserId);
         if (isExecutive(h?.fromTeam) && executive.has(by)) handledBy.add(by);
       }
-      for (const id of Array.from(handledBy)) {
-        const e = executive.get(id)!;
-        e.appointment++;
-        if (cancelled) e.cancelled++;
-        if (postponed) e.postponed++;
-      }
+      for (const id of Array.from(handledBy)) executive.get(id)!.appointment++;
 
       // 3. Back office — the backend employee the lead is (or was last) assigned to.
       if (reachedBackend) {
