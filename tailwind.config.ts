@@ -14,12 +14,51 @@ const config: Config = {
         'gradient-conic':
           'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
       },
+      fontFamily: {
+        sans: ['var(--font-inter)', 'Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+      },
       borderRadius: {
+        xl: '16px',
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
       },
+      // Mappingg dashboard look: soft card shadows.
+      boxShadow: {
+        sm: '0 1px 2px rgba(16,36,30,.04), 0 8px 24px -16px rgba(16,36,30,.22)',
+        DEFAULT: '0 1px 2px rgba(16,36,30,.05), 0 10px 26px -16px rgba(16,36,30,.26)',
+        md: '0 10px 30px -18px rgba(16,36,30,.4)',
+        lg: '0 18px 40px -20px rgba(16,36,30,.45)',
+      },
       colors: {
+        // Mappingg palette: `teal` is the forest-green accent, `slate` the warm greys.
+        // Every existing teal-* / slate-* class picks these up, so pages need no edits.
+        teal: {
+          50: '#eef7f1',
+          100: '#e3f2ea',
+          200: '#cfe5d8',
+          300: '#a5d0b8',
+          400: '#5fae8a',
+          500: '#0f7a55',
+          600: '#0f5c47',
+          700: '#0a4535',
+          800: '#08392c',
+          900: '#062b22',
+          950: '#031a14',
+        },
+        slate: {
+          50: '#f5f6f2',
+          100: '#eeede7',
+          200: '#e6e2d8',
+          300: '#d6d2c6',
+          400: '#9aa29c',
+          500: '#6b746e',
+          600: '#4e5a54',
+          700: '#34413b',
+          800: '#1b2a24',
+          900: '#13201b',
+          950: '#0b140f',
+        },
         background: 'hsl(var(--background))',
         foreground: 'hsl(var(--foreground))',
         card: {

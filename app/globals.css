@@ -4,31 +4,32 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 210 11% 15%;
+    /* Mappingg dashboard palette (forest green + warm greys) */
+    --background: 75 13% 96%;
+    --foreground: 155 21% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 210 11% 15%;
+    --card-foreground: 155 21% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 210 11% 15%;
-    --primary: 168 58% 34%;
+    --popover-foreground: 155 21% 14%;
+    --primary: 163 72% 21%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 210 14% 96%;
-    --secondary-foreground: 210 11% 15%;
-    --muted: 210 14% 96%;
-    --muted-foreground: 215 14% 46%;
-    --accent: 168 58% 94%;
-    --accent-foreground: 168 58% 24%;
-    --destructive: 0 84% 60%;
+    --secondary: 50 13% 92%;
+    --secondary-foreground: 155 21% 14%;
+    --muted: 50 13% 92%;
+    --muted-foreground: 140 4% 44%;
+    --accent: 146 37% 92%;
+    --accent-foreground: 163 72% 21%;
+    --destructive: 352 61% 54%;
     --destructive-foreground: 0 0% 98%;
-    --border: 214 20% 91%;
-    --input: 214 20% 91%;
-    --ring: 168 58% 34%;
-    --chart-1: 168 58% 34%;
-    --chart-2: 210 70% 50%;
-    --chart-3: 38 92% 50%;
-    --chart-4: 0 84% 60%;
-    --chart-5: 262 60% 55%;
-    --radius: 0.5rem;
+    --border: 43 22% 85%;
+    --input: 43 22% 85%;
+    --ring: 163 72% 21%;
+    --chart-1: 160 78% 27%;
+    --chart-2: 213 67% 50%;
+    --chart-3: 36 64% 48%;
+    --chart-4: 352 61% 54%;
+    --chart-5: 260 66% 58%;
+    --radius: 0.7rem;
   }
 }
 
@@ -39,7 +40,21 @@
   body {
     @apply bg-slate-50 text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
   }
+  h1, h2, h3 {
+    letter-spacing: -0.02em;
+  }
+}
+
+/* Mappingg-style table headers: a little letter spacing */
+thead th {
+  letter-spacing: 0.04em;
+}
+
+/* Inputs: forest-green focus like the Mappingg admin */
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  border-color: #0f5c47;
 }
 
 /* Custom scrollbar */
@@ -53,12 +68,12 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d6d2c6;
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #9aa29c;
 }
 
 /* Smooth transitions */

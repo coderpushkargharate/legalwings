@@ -1,7 +1,10 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import { AuthProvider } from '@/components/auth-provider';
 import PwaRegister from '@/components/pwa-register';
+
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' });
 
 export const metadata: Metadata = {
   title: 'LegalWings CRM',
@@ -26,7 +29,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body className="font-sans antialiased">
         <AuthProvider>{children}</AuthProvider>
         <PwaRegister />
