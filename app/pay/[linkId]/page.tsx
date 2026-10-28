@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Loader2, CheckCircle2, XCircle, ShieldCheck, Clock } from 'lucide-react';
+import { PolicyLinks } from '@/components/legal-page';
 
 interface PayInfo {
   amount: number;
@@ -305,6 +306,7 @@ export default function PayPage() {
               <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-slate-400">
                 <ShieldCheck className="w-4 h-4" /> Payments are processed securely by Cashfree Payments
               </div>
+              <PolicyLinks className="mt-3" />
             </>
           )}
         </div>

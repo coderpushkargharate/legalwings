@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/components/auth-provider';
+import { PolicyLinks } from '@/components/legal-page';
 import { Scale, Eye, EyeOff, CircleAlert as AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -134,6 +135,7 @@ export default function LoginPage() {
           <p className="text-xs text-slate-400 text-center mt-8">
             LegalWings CRM v1.0 - Powered by LegalWings
           </p>
+          <PolicyLinks className="mt-3" />
         </div>
       </div>
     </div>
