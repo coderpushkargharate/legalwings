@@ -2,9 +2,23 @@ import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
-import { appOrigin, cashfreeConfigured, createOrder, createPaymentLink, newLinkId, serialize } from '@/lib/cashfree';
+import {
+  appOrigin, cashfreeConfigured, createOrder, createPaymentLink, getUpiOptions, newLinkId, serialize, terminateOrder,
+} from '@/lib/cashfree';
 
 export const dynamic = 'force-dynamic';
+
+// When Cashfree says direct UPI isn't enabled, skip that attempt for a while.
+let directUpiOffUntil = 0;
+
+// Plain Cashfree order: the CRM / pay page show the direct UPI QR and PhonePe / GPay buttons for it.
+const orderFields = (order: any, payPageUrl: string, linkId: string) => ({
+  orderId: order.order_id || linkId,
+  cfOrderId: order.cf_order_id ? String(order.cf_order_id) : '',
+  paymentSessionId: order.payment_session_id,
+  linkUrl: payPageUrl,
+  payPageUrl,
+});
 
 // GET /api/online-payments?leadId=...  → all online payment links for a lead
 // GET /api/online-payments              → latest 200 (all leads)
@@ -75,12 +89,34 @@ export async function POST(request: Request) {
   };
 
   try {
-    // 1) Preferred: Cashfree Payment Link (opens the UPI app on phones).
-    // 2) If Cashfree hasn't enabled link creation on this account, fall back to a
-    //    plain order + our own pay page, so staff can always generate a link.
-    let kindFields: Record<string, any>;
+    // 1) Best: plain order + direct UPI QR (upi://pay…). Scanning it in PhonePe / GPay
+    //    pays straight away, no web page. Needs Cashfree's S2S "Order Pay" approval;
+    //    without it Cashfree refuses and we move on.
+    // 2) Otherwise: Cashfree Payment Link (opens the UPI app on phones).
+    // 3) If links aren't enabled either: the plain order + our own pay page.
+    let kindFields: Record<string, any> | null = null;
     let expiry: string | undefined;
-    try {
+    const orderInput = {
+      orderId: linkId, amount, note: purpose, customerId: `LW${phone}`,
+      customerName: name, customerPhone: phone, customerEmail: email, ...common,
+    };
+    let order: any = null;
+    if (Date.now() > directUpiOffUntil) {
+      try {
+        order = await createOrder(orderInput);
+        const upi = order?.payment_session_id ? await getUpiOptions(order.payment_session_id) : { available: false };
+        if (upi.available) {
+          kindFields = orderFields(order, payPageUrl, linkId);
+          expiry = order.order_expiry_time;
+        } else {
+          directUpiOffUntil = Date.now() + 30 * 60 * 1000; // don't re-test on every click
+        }
+      } catch (e: any) {
+        console.warn('Direct UPI order failed (non-fatal):', e?.message || e);
+      }
+    }
+
+    if (!kindFields) try {
       const link: any = await createPaymentLink({
         linkId, amount, purpose, customerName: name, customerPhone: phone, customerEmail: email, ...common,
       });
@@ -93,21 +129,13 @@ export async function POST(request: Request) {
         payPageUrl,
       };
       expiry = link.link_expiry_time;
+      if (order?.order_id) terminateOrder(order.order_id).catch(() => {}); // unused test order
     } catch (e: any) {
       const notEnabled = /not enabled|not approved/i.test(e?.message || '') || /not_enabled|not_approved/i.test(e?.code || '');
       if (!notEnabled) throw e;
       console.warn('Cashfree link creation not enabled on this account; using order checkout instead');
-      const order: any = await createOrder({
-        orderId: linkId, amount, note: purpose, customerId: `LW${phone}`,
-        customerName: name, customerPhone: phone, customerEmail: email, ...common,
-      });
-      kindFields = {
-        orderId: order.order_id || linkId,
-        cfOrderId: order.cf_order_id ? String(order.cf_order_id) : '',
-        paymentSessionId: order.payment_session_id,
-        linkUrl: payPageUrl,
-        payPageUrl,
-      };
+      if (!order) order = await createOrder(orderInput);
+      kindFields = orderFields(order, payPageUrl, linkId);
       expiry = order.order_expiry_time;
     }
 
