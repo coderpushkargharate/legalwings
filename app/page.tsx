@@ -14,7 +14,17 @@ import {
   FileText,
   TrendingUp,
   ArrowUpRight,
+  ExternalLink,
+  Link2,
 } from 'lucide-react';
+
+// 🔹 Quick links shown on every user's dashboard (admin + all employees)
+const quickLinks = [
+  { label: '1.9', url: 'https://efilingigr.maharashtra.gov.in/ereg/' },
+  { label: '2.0', url: 'https://leaveandlicense.igrmaharashtra.gov.in/' },
+  { label: 'Thumb Unlock', url: 'https://myaadhaarbeta.uidai.gov.in/lock-unlock-biometrics/en' },
+  { label: 'Fees Calculator', url: 'https://legalwing.in/calculator/' },
+];
 
 interface DashboardStats {
   totalLeads: number;
@@ -129,6 +139,28 @@ export default function DashboardPage() {
               <p className="text-2xl font-bold text-slate-800">{loading ? '...' : card.value}</p>
             </div>
           ))}
+        </div>
+
+        {/* 🔹 Quick links — visible to everyone */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Link2 className="w-5 h-5 text-teal-600" />
+            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Quick Links</h3>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {quickLinks.map((link) => (
+              <a
+                key={link.url}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 text-slate-700 hover:text-teal-700 font-medium transition-colors"
+              >
+                <span>{link.label}</span>
+                <ExternalLink className="w-4 h-4 shrink-0" />
+              </a>
+            ))}
+          </div>
         </div>
 
         {/* 🔹 Admin-only: "All Data Overview" — manage every CRM lead (view/edit/delete, select-all, delete-all) */}
