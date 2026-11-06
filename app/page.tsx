@@ -20,10 +20,10 @@ import {
 
 // 🔹 Quick links shown on every user's dashboard (admin + all employees)
 const quickLinks = [
-  { label: '1.9', url: 'https://efilingigr.maharashtra.gov.in/ereg/' },
-  { label: '2.0', url: 'https://leaveandlicense.igrmaharashtra.gov.in/' },
-  { label: 'Thumb Unlock', url: 'https://myaadhaarbeta.uidai.gov.in/lock-unlock-biometrics/en' },
-  { label: 'Fees Calculator', url: 'https://legalwing.in/calculator/' },
+  { label: '1.9', url: 'https://efilingigr.maharashtra.gov.in/ereg/', color: 'bg-teal-50 border-teal-200 text-teal-700 hover:bg-teal-100 hover:border-teal-400' },
+  { label: '2.0', url: 'https://leaveandlicense.igrmaharashtra.gov.in/', color: 'bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:border-blue-400' },
+  { label: 'Thumb Unlock', url: 'https://myaadhaarbeta.uidai.gov.in/lock-unlock-biometrics/en', color: 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100 hover:border-amber-400' },
+  { label: 'Fees Calculator', url: 'https://legalwing.in/calculator/', color: 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100 hover:border-emerald-400' },
 ];
 
 interface DashboardStats {
@@ -142,22 +142,22 @@ export default function DashboardPage() {
         </div>
 
         {/* 🔹 Quick links — visible to everyone */}
-        <div className="bg-white rounded-xl border border-slate-200 p-5 mb-8">
-          <div className="flex items-center gap-2 mb-4">
-            <Link2 className="w-5 h-5 text-teal-600" />
-            <h3 className="text-sm font-semibold text-slate-800 uppercase tracking-wider">Quick Links</h3>
+        <div className="bg-white rounded-xl border border-slate-200 px-4 py-3 mb-8 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div className="flex items-center gap-1.5">
+            <Link2 className="w-4 h-4 text-teal-600" />
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wider">Quick Links</h3>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="flex flex-wrap gap-2">
             {quickLinks.map((link) => (
               <a
                 key={link.url}
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center justify-between gap-2 px-4 py-3 rounded-lg border border-slate-200 bg-slate-50 hover:bg-teal-50 hover:border-teal-300 text-slate-700 hover:text-teal-700 font-medium transition-colors"
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border text-xs font-medium transition-colors ${link.color}`}
               >
                 <span>{link.label}</span>
-                <ExternalLink className="w-4 h-4 shrink-0" />
+                <ExternalLink className="w-3 h-3 shrink-0" />
               </a>
             ))}
           </div>
