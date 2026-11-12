@@ -25,6 +25,7 @@ import PnlPanel from '@/components/pnl-panel';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { balanceDueOf } from '@/lib/payment-math';
+import { CASH_RECEIVERS } from '@/lib/cash-staff';
 
 // ---------------------------------------------------------------------------
 // Types (kept local & minimal — only the fields this panel reads)
@@ -39,6 +40,7 @@ interface PaymentDetail {
   // Editable, persisted per-payment fields added by this panel.
   collectorReceiver?: string;
   verified?: boolean;
+  verifiedBy?: string; // CASH: who verified it (set from the lead form)
 }
 interface Person {
   firstName?: string;
@@ -92,6 +94,7 @@ interface StatementRow {
   collectorReceiver: string;
   executiveName: string;
   verified: boolean;
+  verifiedBy: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -211,6 +214,7 @@ const buildRows = (leads: Lead[]): StatementRow[] => {
         collectorReceiver: p.collectorReceiver || '',
         executiveName,
         verified: p.verified === true,
+        verifiedBy: p.verifiedBy || '',
       });
     });
   }
@@ -232,6 +236,9 @@ export default function PaymentStatementPage() {
   // Three views in one page: the date-wise "Statement", the commission "Expenses"
   // tab, and the "Billing" system.
   const [tab, setTab] = useState<'statement' | 'expenses' | 'pnl' | 'billing'>('statement');
+  // Statement is split into two: Online payments and Cash payments.
+  const [view, setView] = useState<'online' | 'cash'>('online');
+  const isCashView = view === 'cash';
 
   // Fetch ALL leads. First page tells us the total, then the remaining pages are
   // fetched in PARALLEL (instead of one-by-one) so the statement loads much faster.
@@ -312,20 +319,21 @@ export default function PaymentStatementPage() {
     const from = fromDate ? new Date(fromDate).getTime() : null;
     const to = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 - 1 : null; // include the whole "to" day
     return allRows.filter((r) => {
+      if (isOnlineMode(r.mode) === isCashView) return false; // Online view <-> Cash view
       if (!from && !to) return true;
       const t = dateValue(r.date);
       if (from && t < from) return false;
       if (to && t > to) return false;
       return true;
     });
-  }, [allRows, fromDate, toDate]);
+  }, [allRows, fromDate, toDate, isCashView]);
 
   const total = useMemo(() => rows.reduce((s, r) => s + r.amount, 0), [rows]);
 
   // Client-side pagination for the statement table — 20 rows per page.
   const totalPages = Math.max(1, Math.ceil(rows.length / ROWS_PER_PAGE));
   // Snap back into range if the row set shrinks (e.g. after applying a date filter).
-  useEffect(() => { setPage(0); }, [fromDate, toDate]);
+  useEffect(() => { setPage(0); }, [fromDate, toDate, view]);
   const safePage = Math.min(page, totalPages - 1);
   const pagedRows = useMemo(
     () => rows.slice(safePage * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE + ROWS_PER_PAGE),
@@ -347,6 +355,23 @@ export default function PaymentStatementPage() {
     return { todayCash: tCash, todayOnline: tOnline, totalCash: aCash, totalOnline: aOnline };
   }, [allRows]);
   const todayReceived = todayCash + todayOnline;
+
+  // Cash view: name-wise cash collection (who received the cash).
+  // Today Cash = received today; Total Cash = all cash rows in the current date filter.
+  const cashByName = useMemo(() => {
+    const t = todayLocal();
+    const map = new Map<string, { today: number; total: number }>();
+    for (const n of CASH_RECEIVERS) map.set(n, { today: 0, total: 0 });
+    for (const r of rows) {
+      if (isOnlineMode(r.mode)) continue;
+      const name = effectiveCollector(r) || 'Unassigned';
+      const e = map.get(name) || { today: 0, total: 0 };
+      e.total += r.amount;
+      if ((r.date || '').slice(0, 10) === t) e.today += r.amount;
+      map.set(name, e);
+    }
+    return Array.from(map, ([name, v]) => ({ name, ...v }));
+  }, [rows]);
   const upToDateTotal = totalCash + totalOnline;
 
   // Pending (outstanding) balance across all leads = Σ (Legal Fees − received)
@@ -386,12 +411,18 @@ export default function PaymentStatementPage() {
       'Collector / Receiver': effectiveCollector(r) || '-',
       'Executive Name': r.executiveName,
       Verify: r.verified ? 'Yes' : 'No',
+      ...(isCashView ? { 'Verified By': r.verifiedBy || '-' } : {}),
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Payment Statement');
-    XLSX.writeFile(wb, `Payment_Statement_${new Date().toISOString().split('T')[0]}.xlsx`);
-  }, [rows]);
+    XLSX.utils.book_append_sheet(wb, ws, isCashView ? 'Cash Statement' : 'Online Statement');
+    if (isCashView) {
+      const nameWise = cashByName.map((c) => ({ Name: c.name, 'Today Cash': c.today, 'Total Cash': c.total }));
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(nameWise), 'Name-wise Cash');
+    }
+    const kind = isCashView ? 'Cash' : 'Online';
+    XLSX.writeFile(wb, `${kind}_Payment_Statement_${new Date().toISOString().split('T')[0]}.xlsx`);
+  }, [rows, isCashView, cashByName]);
 
   const th = 'px-4 py-3.5 text-left text-xs font-semibold text-white uppercase tracking-wider whitespace-nowrap';
   const td = 'px-4 py-3 text-sm text-slate-700 whitespace-nowrap';
@@ -431,8 +462,26 @@ export default function PaymentStatementPage() {
           <PnlPanel leads={leads} loading={loading} error={error} onRefresh={fetchAll} />
         ) : (
         <>
+        {/* Online / Cash statement split */}
+        <div className="flex gap-2">
+          {([['online', 'Online Statement'], ['cash', 'Cash Statement']] as const).map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setView(key)}
+              className={`px-5 py-2 text-sm font-semibold rounded-lg border transition-all ${
+                view === key
+                  ? key === 'cash' ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm' : 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
-          🧾 <strong>Date-wise Statement:</strong> Every recorded payment across all leads, newest date on top. Edit the Collector / Receiver and Verify columns inline — changes save automatically.
+          🧾 <strong>{isCashView ? 'Cash Statement' : 'Online Statement'}:</strong> Every recorded {isCashView ? 'cash' : 'online'} payment across all leads, newest date on top. Edit the Collector / Receiver and Verify columns inline — changes save automatically.
         </div>
 
         {/* Toolbar: date filter + actions */}
@@ -539,6 +588,44 @@ export default function PaymentStatementPage() {
           </div>
         </div>
 
+        {/* Cash view: name-wise cash collection */}
+        {isCashView && !loading && !error && (
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-800">Name-wise Cash Collection</h3>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gradient-to-r from-[#00843d] via-[#0d9488] to-[#0e7490]">
+                  <tr>
+                    <th className={th}>Sr. No</th>
+                    <th className={th}>Name</th>
+                    <th className={`${th} text-right`}>Today Cash</th>
+                    <th className={`${th} text-right`}>Total Cash</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {cashByName.map((c, i) => (
+                    <tr key={c.name} className="hover:bg-slate-50">
+                      <td className={td}>{i + 1}</td>
+                      <td className={`${td} font-medium`}>{c.name}</td>
+                      <td className={`${td} text-right`}>{formatINR(c.today)}</td>
+                      <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(c.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-slate-50 border-t border-slate-200">
+                  <tr>
+                    <td className={`${td} font-semibold`} colSpan={2}>Total</td>
+                    <td className={`${td} text-right font-bold`}>{formatINR(cashByName.reduce((s, c) => s + c.today, 0))}</td>
+                    <td className={`${td} text-right font-bold text-[#00843d]`}>{formatINR(cashByName.reduce((s, c) => s + c.total, 0))}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="overflow-x-auto">
@@ -602,6 +689,19 @@ export default function PaymentStatementPage() {
                       <td className={td}>{isOnlineMode(r.mode) ? r.transactionNumber : 'Cash'}</td>
                       <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(r.amount)}</td>
                       <td className={td}>
+                        {isCashView ? (
+                          <select
+                            value={effectiveCollector(r)}
+                            onChange={(e) => savePaymentField(r.leadId, r.paymentIndex, { collectorReceiver: e.target.value })}
+                            className="w-36 px-2 py-1 border border-slate-200 rounded-md text-sm outline-none bg-white focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30"
+                          >
+                            <option value="">—</option>
+                            {(effectiveCollector(r) && !(CASH_RECEIVERS as readonly string[]).includes(effectiveCollector(r))
+                              ? [effectiveCollector(r), ...CASH_RECEIVERS]
+                              : [...CASH_RECEIVERS]
+                            ).map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        ) : (
                         <input
                           key={`${r.leadId}-${r.paymentIndex}-cr`}
                           defaultValue={effectiveCollector(r)}
@@ -612,12 +712,13 @@ export default function PaymentStatementPage() {
                           placeholder="—"
                           className="w-36 px-2 py-1 border border-slate-200 rounded-md text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30"
                         />
+                        )}
                       </td>
                       <td className={td}>{r.executiveName}</td>
                       <td className={`${td} text-center`}>
                         <button
                           type="button"
-                          onClick={() => savePaymentField(r.leadId, r.paymentIndex, { verified: !r.verified })}
+                          onClick={() => savePaymentField(r.leadId, r.paymentIndex, r.verified ? { verified: false, verifiedBy: '' } : { verified: true })}
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                             r.verified
                               ? 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
@@ -628,6 +729,9 @@ export default function PaymentStatementPage() {
                           {r.verified ? <Check className="w-3.5 h-3.5" /> : <XIcon className="w-3.5 h-3.5" />}
                           {r.verified ? 'Yes' : 'No'}
                         </button>
+                        {isCashView && r.verified && r.verifiedBy && (
+                          <span className="block mt-1 text-[11px] text-slate-600">by {r.verifiedBy}</span>
+                        )}
                       </td>
                     </tr>
                   ))

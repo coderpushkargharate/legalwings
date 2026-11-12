@@ -12,6 +12,7 @@ import { formatDate } from '@/lib/date-utils';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
 } from '@/lib/validation';
+import { CASH_RECEIVERS, CASH_VERIFIERS, isCashMode } from '@/lib/cash-staff';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -54,6 +55,10 @@ interface PaymentDetail {
   modeOfPayment: string;
   payerName: string;
   transactionNumber?: string;
+  // CASH only: who received the cash from the client, and who verified it.
+  collectorReceiver?: string;
+  verifiedBy?: string;
+  verified?: boolean;
 }
 
 interface LeadFormData {
@@ -137,6 +142,50 @@ const borderClass = (error?: string | null) =>
   error ? 'border-red-400 focus:ring-red-300' : 'border-slate-200 focus:ring-[#00843d]';
 const FieldError = ({ error }: { error?: string | null }) =>
   error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null;
+
+// CASH payment extras: "Payment Received" (who took the cash) + "Verify Payment"
+// (who verified it). Shown only when the row's Mode is Cash.
+const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
+  p: PaymentDetail;
+  isEditable: boolean;
+  idPrefix: string;
+  onChange: (patch: Partial<PaymentDetail>) => void;
+}) => {
+  const selectCls = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer';
+  // Keep a previously saved name selectable even if it's not in the current list.
+  const withCurrent = (list: readonly string[], v?: string) => (v && !list.includes(v) ? [v, ...list] : list);
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 -mt-1">
+      <div className="hidden md:block md:col-span-3" />
+      <div>
+        <label htmlFor={`${idPrefix}-received`} className="block text-sm font-medium text-slate-700 mb-1">Payment Received</label>
+        <select
+          id={`${idPrefix}-received`}
+          value={p.collectorReceiver || ''}
+          onChange={(e) => onChange({ collectorReceiver: e.target.value })}
+          disabled={!isEditable}
+          className={selectCls}
+        >
+          <option value="">Select Name</option>
+          {withCurrent(CASH_RECEIVERS, p.collectorReceiver).map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+      <div>
+        <label htmlFor={`${idPrefix}-verify`} className="block text-sm font-medium text-slate-700 mb-1">Verify Payment</label>
+        <select
+          id={`${idPrefix}-verify`}
+          value={p.verifiedBy || ''}
+          onChange={(e) => onChange({ verifiedBy: e.target.value, verified: !!e.target.value })}
+          disabled={!isEditable}
+          className={selectCls}
+        >
+          <option value="">Select Verifier</option>
+          {withCurrent(CASH_VERIFIERS, p.verifiedBy).map((n) => <option key={n} value={n}>{n}</option>)}
+        </select>
+      </div>
+    </div>
+  );
+};
 
 interface InputProps {
   label: string;
@@ -578,11 +627,15 @@ function LeadFormContent() {
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
               transactionNumber: p.transactionNumber || '',
+              collectorReceiver: p.collectorReceiver || '', verifiedBy: p.verifiedBy || '',
+              verified: p.verified === true,
             }));
             const tenantPmts = data.paymentDetails.filter((p: any) => p.clientType === 'TENANT').map((p: any) => ({
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
               transactionNumber: p.transactionNumber || '',
+              collectorReceiver: p.collectorReceiver || '', verifiedBy: p.verifiedBy || '',
+              verified: p.verified === true,
             }));
             if (ownerPmts.length > 0) setOwnerPayments(ownerPmts);
             if (tenantPmts.length > 0) setTenantPayments(tenantPmts);
@@ -635,6 +688,13 @@ function LeadFormContent() {
       newArr[index] = { ...newArr[index], [field]: value };
       return newArr;
     });
+  }, []);
+
+  const patchOwnerPayment = useCallback((index: number, patch: Partial<PaymentDetail>) => {
+    setOwnerPayments(prev => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }, []);
+  const patchTenantPayment = useCallback((index: number, patch: Partial<PaymentDetail>) => {
+    setTenantPayments(prev => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
   }, []);
 
   const updateTenantPayment = useCallback((index: number, field: keyof PaymentDetail, value: string) => {
@@ -1264,7 +1324,8 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Owner Payments</h3>
               {ownerPayments.map((p, i) => (
-                <div key={`owner-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                <React.Fragment key={`owner-${i}`}>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                   <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateOwnerPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`owner-paymentDate-${i}`} error={ownerPaymentErrors[i]?.paymentDate} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
@@ -1324,6 +1385,10 @@ function LeadFormContent() {
                     <FieldError error={ownerPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
+                {isCashMode(p.modeOfPayment) && (
+                  <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`owner-cash-${i}`} onChange={(patch) => patchOwnerPayment(i, patch)} />
+                )}
+                </React.Fragment>
               ))}
               {isEditable && (
                 <button 
@@ -1344,7 +1409,8 @@ function LeadFormContent() {
             <div className="bg-white rounded-xl border border-slate-200 p-6">
               <h3 className="text-base font-semibold text-slate-800 mb-4">Tenant Payments</h3>
               {tenantPayments.map((p, i) => (
-                <div key={`tenant-${i}`} className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+                <React.Fragment key={`tenant-${i}`}>
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
                   <DateField label="Payment Date" value={p.paymentDate} onChange={(v) => updateTenantPayment(i, 'paymentDate', v)} isEditable={isEditable} id={`tenant-paymentDate-${i}`} error={tenantPaymentErrors[i]?.paymentDate} />
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
@@ -1404,6 +1470,10 @@ function LeadFormContent() {
                     <FieldError error={tenantPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
+                {isCashMode(p.modeOfPayment) && (
+                  <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`tenant-cash-${i}`} onChange={(patch) => patchTenantPayment(i, patch)} />
+                )}
+                </React.Fragment>
               ))}
               {isEditable && (
                 <button 
