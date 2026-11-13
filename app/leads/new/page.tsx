@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/date-utils';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
 } from '@/lib/validation';
-import { CASH_RECEIVERS, CASH_VERIFIERS, isCashMode } from '@/lib/cash-staff';
+import { CASH_RECEIVERS, isCashMode } from '@/lib/cash-staff';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -143,8 +143,8 @@ const borderClass = (error?: string | null) =>
 const FieldError = ({ error }: { error?: string | null }) =>
   error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null;
 
-// CASH payment extras: "Payment Received" (who took the cash) + "Verify Payment"
-// (who verified it). Shown only when the row's Mode is Cash.
+// CASH payment extra: "Payment Received" (who took the cash). Shown only when the
+// row's Mode is Cash. Verification is done in the Payment Statement (Tejas / Anuja).
 const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
   p: PaymentDetail;
   isEditable: boolean;
@@ -156,7 +156,7 @@ const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
   const withCurrent = (list: readonly string[], v?: string) => (v && !list.includes(v) ? [v, ...list] : list);
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 -mt-1">
-      <div className="hidden md:block md:col-span-3" />
+      <div className="hidden md:block md:col-span-4" />
       <div>
         <label htmlFor={`${idPrefix}-received`} className="block text-sm font-medium text-slate-700 mb-1">Payment Received</label>
         <select
@@ -168,19 +168,6 @@ const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
         >
           <option value="">Select Name</option>
           {withCurrent(CASH_RECEIVERS, p.collectorReceiver).map((n) => <option key={n} value={n}>{n}</option>)}
-        </select>
-      </div>
-      <div>
-        <label htmlFor={`${idPrefix}-verify`} className="block text-sm font-medium text-slate-700 mb-1">Verify Payment</label>
-        <select
-          id={`${idPrefix}-verify`}
-          value={p.verifiedBy || ''}
-          onChange={(e) => onChange({ verifiedBy: e.target.value, verified: !!e.target.value })}
-          disabled={!isEditable}
-          className={selectCls}
-        >
-          <option value="">Select Verifier</option>
-          {withCurrent(CASH_VERIFIERS, p.verifiedBy).map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
     </div>
@@ -624,6 +611,7 @@ function LeadFormContent() {
 
           if (data.paymentDetails?.length > 0) {
             const ownerPmts = data.paymentDetails.filter((p: any) => p.clientType === 'OWNER').map((p: any) => ({
+              ...p, // keep saved extras (verified / verifiedBy / onlineLinkId) so a re-save doesn't drop them
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
               transactionNumber: p.transactionNumber || '',
@@ -631,6 +619,7 @@ function LeadFormContent() {
               verified: p.verified === true,
             }));
             const tenantPmts = data.paymentDetails.filter((p: any) => p.clientType === 'TENANT').map((p: any) => ({
+              ...p, // keep saved extras (verified / verifiedBy / onlineLinkId) so a re-save doesn't drop them
               paymentDate: p.paymentDate || '', paymentAmount: p.paymentAmount?.toString() || '',
               modeOfPayment: p.modeOfPayment || '', payerName: p.payerName || '',
               transactionNumber: p.transactionNumber || '',

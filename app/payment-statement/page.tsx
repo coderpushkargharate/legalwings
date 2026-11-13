@@ -25,7 +25,7 @@ import PnlPanel from '@/components/pnl-panel';
 import { useApi } from '@/components/api-client';
 import { useAuth } from '@/components/auth-provider';
 import { balanceDueOf } from '@/lib/payment-math';
-import { CASH_RECEIVERS } from '@/lib/cash-staff';
+import { CASH_RECEIVERS, CASH_VERIFIERS } from '@/lib/cash-staff';
 
 // ---------------------------------------------------------------------------
 // Types (kept local & minimal — only the fields this panel reads)
@@ -40,7 +40,15 @@ interface PaymentDetail {
   // Editable, persisted per-payment fields added by this panel.
   collectorReceiver?: string;
   verified?: boolean;
-  verifiedBy?: string; // CASH: who verified it (set from the lead form)
+  verifiedBy?: string; // CASH: Tejas / Anuja (picked in this statement); ONLINE: 'Cashfree'
+  onlineLinkId?: string; // set when the line was added automatically after a Cashfree payment
+  cfPaymentId?: string;
+}
+
+// Cashfree data for a PAID online-payment link (from GET /api/online-payments?paid=1).
+interface CashfreePaid {
+  utr: string;
+  cfPaymentId: string;
 }
 interface Person {
   firstName?: string;
@@ -95,6 +103,7 @@ interface StatementRow {
   executiveName: string;
   verified: boolean;
   verifiedBy: string;
+  autoVerified: boolean; // ONLINE: money confirmed in Cashfree → verified automatically
 }
 
 // ---------------------------------------------------------------------------
@@ -149,7 +158,21 @@ const modeLabel = (mode?: string): string => (isOnlineMode(mode) ? 'Online' : 'C
 // Collector / Receiver value shown in the statement — uses the saved value if the
 // user edited it, otherwise auto-fills from the executive so the column is never blank.
 const effectiveCollector = (r: StatementRow): string =>
-  r.collectorReceiver || (r.executiveName && r.executiveName !== '-' ? r.executiveName : '');
+  canonicalReceiver(r.collectorReceiver || (r.executiveName && r.executiveName !== '-' ? r.executiveName : ''));
+
+// Map a name onto the CASH_RECEIVERS spelling so one person never shows twice
+// (e.g. executive "Tejas Patil" / "tejas" → "Tejas"). Exact match (any case) first,
+// then a unique first-name match; otherwise the name is kept as it is.
+const canonicalReceiver = (name?: string): string => {
+  const n = (name || '').trim();
+  if (!n) return '';
+  const lower = n.toLowerCase();
+  const exact = CASH_RECEIVERS.find((r) => r.toLowerCase() === lower);
+  if (exact) return exact;
+  const first = lower.split(/\s+/)[0];
+  const byFirst = CASH_RECEIVERS.filter((r) => r.toLowerCase().split(/\s+/)[0] === first);
+  return byFirst.length === 1 ? byFirst[0] : n;
+};
 
 // Page numbers to render in the pagination bar (0-based; -1 = ellipsis gap).
 // Keeps first, last, current and one neighbour each side for direct jumping.
@@ -180,7 +203,7 @@ const isOnlineMode = (mode?: string): boolean => !!mode && mode !== '-' && !/cas
 // ---------------------------------------------------------------------------
 // Flatten leads → statement rows (one row per recorded payment)
 // ---------------------------------------------------------------------------
-const buildRows = (leads: Lead[]): StatementRow[] => {
+const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): StatementRow[] => {
   const rows: StatementRow[] = [];
   for (const lead of leads) {
     const tokenNo = lead.agreement?.tokenNo || '-';
@@ -197,6 +220,11 @@ const buildRows = (leads: Lead[]): StatementRow[] => {
       const amount = toNum(p.paymentAmount);
       // Only include real payments (has an amount or a date).
       if (amount <= 0 && !p.paymentDate) return;
+      // Online line added by the Cashfree sync (only happens once Cashfree confirms
+      // the money) → auto-verified, and the transaction no. is Cashfree's UTR.
+      const cf = p.onlineLinkId ? cashfree.get(p.onlineLinkId) : undefined;
+      const autoVerified = !!p.onlineLinkId && isOnlineMode(p.modeOfPayment);
+      const txn = cf?.utr || p.transactionNumber || cf?.cfPaymentId || p.cfPaymentId || '';
       rows.push({
         leadId: lead.id,
         paymentIndex: idx,
@@ -209,12 +237,13 @@ const buildRows = (leads: Lead[]): StatementRow[] => {
         tenantName,
         payerName: p.payerName || '-',
         mode: p.modeOfPayment || '-',
-        transactionNumber: p.transactionNumber || '-',
+        transactionNumber: txn || '-',
         amount,
         collectorReceiver: p.collectorReceiver || '',
         executiveName,
-        verified: p.verified === true,
-        verifiedBy: p.verifiedBy || '',
+        verified: autoVerified || p.verified === true,
+        verifiedBy: autoVerified ? 'Cashfree' : (p.verifiedBy || ''),
+        autoVerified,
       });
     });
   }
@@ -227,6 +256,7 @@ export default function PaymentStatementPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [cashfreePaid, setCashfreePaid] = useState<Map<string, CashfreePaid>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -251,6 +281,11 @@ export default function PaymentStatementPage() {
       const pageUrl = (p: number) =>
         `/api/leads?${new URLSearchParams({ transitLevel: 'ALL', viewAll: 'true', page: p.toString(), pageSize: pageSize.toString() })}`;
 
+      // Cashfree PAID links (UTR / payment id) — loaded alongside; non-fatal if it fails.
+      const cashfreeReq = apiFetch('/api/online-payments?paid=1')
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null);
+
       const firstRes = await apiFetch(pageUrl(0));
       if (!firstRes.ok) throw new Error('Failed to load payments');
       const firstData = await firstRes.json();
@@ -267,6 +302,14 @@ export default function PaymentStatementPage() {
           if (data?.leadPage?.content) collected.push(...data.leadPage.content);
         }
       }
+      const cfData = await cashfreeReq;
+      const cfMap = new Map<string, CashfreePaid>();
+      for (const rec of cfData?.payments || []) {
+        if (!rec?.linkId) continue;
+        const tx = (rec.transactions || [])[0] || {};
+        cfMap.set(rec.linkId, { utr: tx.utr || '', cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '' });
+      }
+      setCashfreePaid(cfMap);
       setLeads(collected);
     } catch (err: any) {
       setError(err?.message || 'Failed to load payments');
@@ -314,7 +357,7 @@ export default function PaymentStatementPage() {
   }, []);
 
   // All rows (newest first), then apply the optional date-range filter.
-  const allRows = useMemo(() => buildRows(leads), [leads]);
+  const allRows = useMemo(() => buildRows(leads, cashfreePaid), [leads, cashfreePaid]);
   const rows = useMemo(() => {
     const from = fromDate ? new Date(fromDate).getTime() : null;
     const to = toDate ? new Date(toDate).getTime() + 24 * 60 * 60 * 1000 - 1 : null; // include the whole "to" day
@@ -411,7 +454,7 @@ export default function PaymentStatementPage() {
       'Collector / Receiver': effectiveCollector(r) || '-',
       'Executive Name': r.executiveName,
       Verify: r.verified ? 'Yes' : 'No',
-      ...(isCashView ? { 'Verified By': r.verifiedBy || '-' } : {}),
+      'Verified By': r.verified ? r.verifiedBy || '-' : '-',
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -668,7 +711,13 @@ export default function PaymentStatementPage() {
                   pagedRows.map((r, i) => (
                     <tr
                       key={`${r.leadId}-${r.paymentIndex}`}
-                      className={`transition-colors ${r.verified ? 'bg-orange-400 hover:bg-orange-500' : 'hover:bg-slate-50'}`}
+                      className={`transition-colors ${
+                        r.autoVerified
+                          ? 'bg-emerald-100 hover:bg-emerald-200' // Cashfree confirmed → auto-verified
+                          : r.verified
+                            ? 'bg-orange-400 hover:bg-orange-500'
+                            : 'hover:bg-slate-50' // not verified → no colour
+                      }`}
                     >
                       <td className={`${td} font-medium`}>{safePage * ROWS_PER_PAGE + i + 1}</td>
                       <td className={`${td} font-semibold text-slate-800`}>{formatDate(r.date)}</td>
@@ -716,6 +765,28 @@ export default function PaymentStatementPage() {
                       </td>
                       <td className={td}>{r.executiveName}</td>
                       <td className={`${td} text-center`}>
+                        {isCashView ? (
+                          // Cash: verified by Tejas or Anuja (choosing a name marks it verified).
+                          <select
+                            value={r.verified ? r.verifiedBy : ''}
+                            onChange={(e) => savePaymentField(r.leadId, r.paymentIndex, { verifiedBy: e.target.value, verified: !!e.target.value })}
+                            className="w-32 px-2 py-1 border border-slate-200 rounded-md text-sm outline-none bg-white focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30"
+                            title="Verified by"
+                          >
+                            <option value="">Not verified</option>
+                            {(r.verified && r.verifiedBy && !(CASH_VERIFIERS as readonly string[]).includes(r.verifiedBy)
+                              ? [r.verifiedBy, ...CASH_VERIFIERS]
+                              : [...CASH_VERIFIERS]
+                            ).map((n) => <option key={n} value={n}>{n}</option>)}
+                          </select>
+                        ) : r.autoVerified ? (
+                          <span
+                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border bg-white text-emerald-700 border-emerald-300"
+                            title="Payment received in Cashfree — verified automatically"
+                          >
+                            <Check className="w-3.5 h-3.5" /> Auto · Cashfree
+                          </span>
+                        ) : (
                         <button
                           type="button"
                           onClick={() => savePaymentField(r.leadId, r.paymentIndex, r.verified ? { verified: false, verifiedBy: '' } : { verified: true })}
@@ -729,8 +800,6 @@ export default function PaymentStatementPage() {
                           {r.verified ? <Check className="w-3.5 h-3.5" /> : <XIcon className="w-3.5 h-3.5" />}
                           {r.verified ? 'Yes' : 'No'}
                         </button>
-                        {isCashView && r.verified && r.verifiedBy && (
-                          <span className="block mt-1 text-[11px] text-slate-600">by {r.verifiedBy}</span>
                         )}
                       </td>
                     </tr>

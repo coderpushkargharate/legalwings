@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     const nameOf = (u: any) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown';
     const byRole = (role: string) => users.filter((u: any) => (u.roles || []).includes(role));
 
-    type CallingRow = { name: string; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; pendingAppointment: number; cancelled: number };
+    type CallingRow = { name: string; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; sentToNotary: number; pendingAppointment: number; cancelled: number };
     type ExecRow = {
       name: string; appointment: number; leadCreated: number;
       sentToBackend: number; sentToCalling: number;
@@ -71,7 +71,7 @@ export async function GET(request: Request) {
     type DayRow = { date: string; totalLeads: number; appointment: number; totalWork: number; submitted: number; completed: number; pending: number };
 
     // Seed every team member so people with zero activity still show up.
-    const newCallingRow = (name: string): CallingRow => ({ name, leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, pendingAppointment: 0, cancelled: 0 });
+    const newCallingRow = (name: string): CallingRow => ({ name, leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, sentToNotary: 0, pendingAppointment: 0, cancelled: 0 });
     const calling = new Map<string, CallingRow>();
     for (const u of byRole('calling')) calling.set(u._id.toString(), newCallingRow(nameOf(u)));
 
@@ -140,6 +140,10 @@ export async function GET(request: Request) {
       const cancelled = status === 'CANCEL_APPOINTMENT' || norm(lead.agreement?.status) === 'CANCELLED';
       const hasAppointment = !!lead.isAppointment || !!lead.appointmentTime || APPOINTMENT_STATUSES.has(status);
       const sentToExecutive = isExecutive(lead.transitLevel) || history.some((h) => isExecutive(h?.toTeam));
+      // Notary lead = sent to the Notary Shop (SHOP_TEAM) at any point.
+      const sentToNotary = isShop(lead.transitLevel)
+        || (lead.visibleToTeams || []).some(isShop)
+        || history.some((h) => isShop(h?.toTeam));
       const reachedBackend = isBackend(lead.transitLevel)
         || (lead.visibleToTeams || []).some(isBackend)
         || history.some((h) => isBackend(h?.toTeam))
@@ -160,6 +164,7 @@ export async function GET(request: Request) {
       if (!NOT_INTERESTED_STATUSES.has(status)) c.interested++;
       if (hasAppointment) c.appointment++;
       if (sentToExecutive) c.sentToExecutive++;
+      if (sentToNotary) c.sentToNotary++;
       // Still waiting in the Appointment list (not yet sent to Executive / Backend).
       if (hasAppointment && !sentToExecutive && !reachedBackend && !cancelled) c.pendingAppointment++;
       if (cancelled) c.cancelled++;

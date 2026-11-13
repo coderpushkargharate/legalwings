@@ -31,6 +31,7 @@ export function TeamReportTables({ team }: { team: TeamReportData }) {
           { key: 'leadCreated', label: 'Total Lead' },
           { key: 'appointment', label: 'Send to Appointment' },
           { key: 'sentToExecutive', label: 'Send to Executive' },
+          { key: 'sentToNotary', label: 'Notary Lead', tone: 'text-indigo-600' },
           { key: 'pendingAppointment', label: 'Pending in Appointment', tone: 'text-amber-600' },
           { key: 'interested', label: 'Interested' },
           { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },

@@ -368,6 +368,10 @@ export async function syncOnlinePayment(db: Db, linkId: string) {
         payerName: record.customerName || '',
         transactionNumber: String(tx?.utr || tx?.cfPaymentId || linkId).slice(0, 30),
         onlineLinkId: linkId,
+        cfPaymentId: tx?.cfPaymentId ? String(tx.cfPaymentId) : '',
+        // Money is confirmed in Cashfree → auto-verified (Payment Statement shows it green).
+        verified: true,
+        verifiedBy: 'Cashfree',
       };
       try {
         const lead = await db.collection('leads').findOne(

@@ -30,6 +30,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const leadId = searchParams.get('leadId');
     const { db } = await connectToDatabase();
+    // ?paid=1 → every PAID link (ids + Cashfree transactions only), used by the
+    // Payment Statement to show the Cashfree UTR and mark those rows auto-verified.
+    if (searchParams.get('paid') === '1') {
+      const paid = await db.collection('online_payments')
+        .find({ status: 'PAID' }, { projection: { linkId: 1, leadId: 1, status: 1, transactions: 1, amountPaid: 1 } })
+        .sort({ createdAt: -1 })
+        .limit(5000)
+        .toArray();
+      return NextResponse.json({ configured: cashfreeConfigured(), payments: paid.map(serialize) });
+    }
     const rows = await db.collection('online_payments')
       .find(leadId ? { leadId } : {})
       .sort({ createdAt: -1 })
