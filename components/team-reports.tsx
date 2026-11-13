@@ -25,17 +25,20 @@ export function TeamReportTables({ team }: { team: TeamReportData }) {
     <>
       <ReportTable
         title="1. Calling Team Report" icon={PhoneCall} rows={team.calling}
-        note="Every lead counts once — leads not created by a calling girl show under Unassigned / Admin."
+        note="Every lead counts once, under the person who created it. Total = all leads."
         columns={[
-          { key: 'name', label: 'Created By' },
-          { key: 'leadCreated', label: 'Total Lead' },
-          { key: 'appointment', label: 'Send to Appointment' },
-          { key: 'sentToExecutive', label: 'Send to Executive' },
-          { key: 'sentToNotary', label: 'Notary Lead', tone: 'text-indigo-600' },
-          { key: 'pendingAppointment', label: 'Pending in Appointment', tone: 'text-amber-600' },
-          { key: 'interested', label: 'Interested' },
-          { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600' },
+          { key: 'name', label: 'Created By', help: 'The employee who created the lead.' },
+          { key: 'source', label: 'Source', text: true, help: 'Where the lead came from: Calling Team, Notary Shop, Executive Team, Back Office, or Admin / Other (admin, website, deleted users).' },
+          { key: 'leadCreated', label: 'Total Lead', help: 'All leads this person created (lead date inside the filter).' },
+          { key: 'appointment', label: 'Send to Appointment', help: 'Leads with an appointment booked / assigned / postponed / cancelled.' },
+          { key: 'sentToExecutive', label: 'Send to Executive', help: 'Leads that went to the Executive team at any time.' },
+          { key: 'sentToNotary', label: 'Notary Lead', tone: 'text-indigo-600', help: 'Leads that are (or were) with the Notary Shop — created at the shop or sent to it.' },
+          { key: 'pendingAppointment', label: 'Pending in Appointment', tone: 'text-amber-600', help: 'Has an appointment but not yet sent to Executive / Backend and not cancelled.' },
+          { key: 'interested', label: 'Interested', help: 'Status moved past New / Not Interested / Call Not Received / Lost.' },
+          { key: 'cancelled', label: 'Cancelled', tone: 'text-red-600', help: 'Appointment or agreement cancelled.' },
         ]}
+        showLegend
+        groupBy="source"
       />
       <ReportTable
         title="2. Executive & Notary Shop Report" icon={Briefcase} rows={team.executive}
@@ -150,12 +153,49 @@ export default function AdminTeamReports() {
   );
 }
 
-interface ReportColumn { key: string; label: string; tone?: string; format?: (v: string | number) => string; }
+interface ReportColumn {
+  key: string;
+  label: string;
+  tone?: string;
+  format?: (v: string | number) => string;
+  text?: boolean; // text column (left-aligned, not totalled)
+  help?: string; // what this column counts (header tooltip + legend)
+}
+
+// Colour per lead source in the Calling report.
+const SOURCE_TONE: Record<string, string> = {
+  'Calling Team': 'bg-teal-50 text-teal-700 border-teal-200',
+  'Notary Shop': 'bg-indigo-50 text-indigo-700 border-indigo-200',
+  'Executive Team': 'bg-blue-50 text-blue-700 border-blue-200',
+  'Back Office': 'bg-amber-50 text-amber-700 border-amber-200',
+};
+const sourceTone = (s: string) => SOURCE_TONE[s] || 'bg-slate-50 text-slate-600 border-slate-200';
 
 // Multi-column report table with a totals row (the first column is the row label).
-function ReportTable({ title, icon: Icon, columns, rows, note }: { title: string; icon: React.ElementType; columns: ReportColumn[]; rows: Row[]; note?: string }) {
+// groupBy: a text column whose values get a summary strip (e.g. leads per source).
+// showLegend: print what each column counts under the table.
+function ReportTable({ title, icon: Icon, columns, rows, note, groupBy, showLegend }: {
+  title: string; icon: React.ElementType; columns: ReportColumn[]; rows: Row[]; note?: string; groupBy?: string; showLegend?: boolean;
+}) {
   const [labelCol, ...numCols] = columns;
-  const totals = numCols.map((c) => rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0));
+  const totals = numCols.map((c) => (c.text ? null : rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0)));
+  const summaryCols = numCols.filter((c) => !c.text).slice(0, 1).concat(numCols.filter((c) => c.key === 'sentToNotary'));
+  const groups = groupBy
+    ? Array.from(rows.reduce((m, r) => {
+        const g = String(r[groupBy] || 'Other');
+        const e = m.get(g) || { people: 0, sums: summaryCols.map(() => 0) };
+        e.people++;
+        summaryCols.forEach((c, i) => { e.sums[i] += Number(r[c.key]) || 0; });
+        return m.set(g, e);
+      }, new Map<string, { people: number; sums: number[] }>()))
+    : [];
+  const cell = (c: ReportColumn, r: Row) => {
+    const v = r[c.key];
+    if (c.key === groupBy) {
+      return <span className={`inline-flex px-2 py-0.5 rounded-full border text-xs font-medium ${sourceTone(String(v))}`}>{v || '-'}</span>;
+    }
+    return c.format ? c.format(v) : v ?? (c.text ? '-' : 0);
+  };
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
       <div className="flex flex-wrap items-center gap-2 px-5 py-3.5 border-b border-slate-200 bg-slate-50">
@@ -164,12 +204,26 @@ function ReportTable({ title, icon: Icon, columns, rows, note }: { title: string
         {note && <span className="text-xs text-slate-500">— {note}</span>}
         <span className="ml-auto text-xs text-slate-500">{rows.length} rows</span>
       </div>
+      {groups.length > 0 && (
+        <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-slate-100">
+          {groups.map(([g, e]) => (
+            <div key={g} className={`px-3 py-2 rounded-lg border text-xs ${sourceTone(g)}`}>
+              <div className="font-semibold">{g}</div>
+              <div className="mt-0.5">
+                {summaryCols.map((c, i) => (
+                  <span key={c.key} className="mr-3">{c.label}: <b>{e.sums[i]}</b></span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="overflow-x-auto max-h-[480px] overflow-y-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
             <tr>
               {columns.map((c, i) => (
-                <th key={c.key} className={`px-4 py-2.5 font-semibold text-slate-600 text-xs uppercase tracking-wider whitespace-nowrap ${i === 0 ? 'text-left' : 'text-right'}`}>{c.label}</th>
+                <th key={c.key} title={c.help} className={`px-4 py-2.5 font-semibold text-slate-600 text-xs uppercase tracking-wider whitespace-nowrap ${i === 0 || c.text ? 'text-left' : 'text-right'} ${c.help ? 'cursor-help' : ''}`}>{c.label}</th>
               ))}
             </tr>
           </thead>
@@ -180,7 +234,7 @@ function ReportTable({ title, icon: Icon, columns, rows, note }: { title: string
               <tr key={`${r[labelCol.key]}-${idx}`} className="hover:bg-slate-50/80">
                 <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{labelCol.format ? labelCol.format(r[labelCol.key]) : r[labelCol.key]}</td>
                 {numCols.map((c) => (
-                  <td key={c.key} className={`px-4 py-2.5 text-right font-semibold ${c.tone || 'text-slate-800'}`}>{r[c.key] ?? 0}</td>
+                  <td key={c.key} className={c.text ? 'px-4 py-2.5 text-left whitespace-nowrap' : `px-4 py-2.5 text-right font-semibold ${c.tone || 'text-slate-800'}`}>{cell(c, r)}</td>
                 ))}
               </tr>
             ))}
@@ -190,13 +244,20 @@ function ReportTable({ title, icon: Icon, columns, rows, note }: { title: string
               <tr>
                 <td className="px-4 py-2.5 font-semibold text-slate-700">Total</td>
                 {numCols.map((c, i) => (
-                  <td key={c.key} className={`px-4 py-2.5 text-right font-bold ${c.tone || 'text-slate-900'}`}>{totals[i]}</td>
+                  <td key={c.key} className={`px-4 py-2.5 text-right font-bold ${c.tone || 'text-slate-900'}`}>{totals[i] ?? ''}</td>
                 ))}
               </tr>
             </tfoot>
           )}
         </table>
       </div>
+      {showLegend && (
+        <div className="px-5 py-3 border-t border-slate-200 bg-slate-50/60 grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1 text-xs text-slate-600">
+          {columns.filter((c) => c.help).map((c) => (
+            <p key={c.key}><span className="font-semibold text-slate-700">{c.label}:</span> {c.help}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

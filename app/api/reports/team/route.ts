@@ -60,7 +60,7 @@ export async function GET(request: Request) {
     const nameOf = (u: any) => `${u.firstName || ''} ${u.lastName || ''}`.trim() || 'Unknown';
     const byRole = (role: string) => users.filter((u: any) => (u.roles || []).includes(role));
 
-    type CallingRow = { name: string; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; sentToNotary: number; pendingAppointment: number; cancelled: number };
+    type CallingRow = { name: string; source: string; order: number; leadCreated: number; interested: number; appointment: number; sentToExecutive: number; sentToNotary: number; pendingAppointment: number; cancelled: number };
     type ExecRow = {
       name: string; appointment: number; leadCreated: number;
       sentToBackend: number; sentToCalling: number;
@@ -71,9 +71,38 @@ export async function GET(request: Request) {
     type DayRow = { date: string; totalLeads: number; appointment: number; totalWork: number; submitted: number; completed: number; pending: number };
 
     // Seed every team member so people with zero activity still show up.
-    const newCallingRow = (name: string): CallingRow => ({ name, leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, sentToNotary: 0, pendingAppointment: 0, cancelled: 0 });
+    const newCallingRow = (name: string, source: string, order: number): CallingRow => ({
+      name, source, order, leadCreated: 0, interested: 0, appointment: 0, sentToExecutive: 0, sentToNotary: 0, pendingAppointment: 0, cancelled: 0,
+    });
     const calling = new Map<string, CallingRow>();
-    for (const u of byRole('calling')) calling.set(u._id.toString(), newCallingRow(nameOf(u)));
+    for (const u of byRole('calling')) calling.set(u._id.toString(), newCallingRow(nameOf(u), 'Calling Team', 0));
+
+    // Leads NOT created by a calling girl get a row for whoever created them, grouped by
+    // their team (Notary Shop / Executive / Back Office), so it's clear where every lead
+    // came from. Anything else (admin, deleted users, website) → "Admin / Other".
+    const SOURCES: Array<[string, string, number]> = [['shop', 'Notary Shop', 1], ['executive', 'Executive Team', 2], ['backend', 'Back Office', 3]];
+    const creatorInfo = new Map<string, { name: string; source: string; order: number }>();
+    const creatorIdByName = new Map<string, string>();
+    for (const u of users as any[]) {
+      const id = u._id.toString();
+      creatorIdByName.set(norm(nameOf(u)), id);
+      if ((u.roles || []).includes('calling')) continue;
+      const src = SOURCES.find(([role]) => (u.roles || []).includes(role));
+      if (src) creatorInfo.set(id, { name: nameOf(u), source: src[1], order: src[2] });
+    }
+    const ADMIN_OTHER = 'ADMIN_OTHER';
+    const callingRowFor = (lead: any): CallingRow => {
+      let id = idOf(lead.createdByUserId);
+      // Older leads only stored the creator's name — match those by name.
+      if (!calling.has(id) && !creatorInfo.has(id)) id = creatorIdByName.get(norm(lead.createdByUserName)) || id;
+      if (calling.has(id)) return calling.get(id)!;
+      const info = creatorInfo.get(id);
+      const key = info ? id : ADMIN_OTHER;
+      if (!calling.has(key)) {
+        calling.set(key, info ? newCallingRow(info.name, info.source, info.order) : newCallingRow('Admin / Other', 'Admin / Website / Deleted user', 9));
+      }
+      return calling.get(key)!;
+    };
 
     const newExecRow = (name: string): ExecRow => ({
       name, appointment: 0, leadCreated: 0, sentToBackend: 0, sentToCalling: 0,
@@ -154,12 +183,10 @@ export async function GET(request: Request) {
       const creatorId = idOf(lead.createdByUserId);
       const assignee = idOf(lead.assignedToUserId);
 
-      // 1. Calling team — every lead counts exactly once: under the calling girl who
-      // created it, or under "Unassigned / Admin". So the Total row = all leads.
-      const c = calling.get(creatorId) || (() => {
-        if (!calling.has(UNASSIGNED)) calling.set(UNASSIGNED, newCallingRow('Unassigned / Admin'));
-        return calling.get(UNASSIGNED)!;
-      })();
+      // 1. Calling team — every lead counts exactly once, under whoever created it
+      // (calling girl, shop / executive / back-office employee, or "Admin / Other").
+      // So the Total row = all leads.
+      const c = callingRowFor(lead);
       c.leadCreated++;
       if (!NOT_INTERESTED_STATUSES.has(status)) c.interested++;
       if (hasAppointment) c.appointment++;
@@ -243,7 +270,10 @@ export async function GET(request: Request) {
       Array.from(m.values()).sort((x, y) => y.date.localeCompare(x.date));
 
     return NextResponse.json({
-      calling: byName(calling),
+      // Calling team first, then Notary Shop, Executive, Back Office, and Admin / Other last.
+      calling: Array.from(calling.values())
+        .sort((x, y) => x.order - y.order || x.name.localeCompare(y.name))
+        .map(({ order, ...row }) => row),
       executive: byName(executive),
       backOffice: byName(backOffice),
       clientTypeByDay: byDateDesc(clientTypeByDay),

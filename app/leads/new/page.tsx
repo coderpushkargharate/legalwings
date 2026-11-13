@@ -12,7 +12,7 @@ import { formatDate } from '@/lib/date-utils';
 import {
   validateEmail, validateMobile, validateAadhaar, validatePan, validateTokenNo, validatePaymentRow, validateAmount, collectErrors,
 } from '@/lib/validation';
-import { CASH_RECEIVERS, isCashMode } from '@/lib/cash-staff';
+import { CASH_RECEIVERS } from '@/lib/cash-staff';
 
 // ============================================================================
 // 🔹 THEME COLORS
@@ -143,8 +143,8 @@ const borderClass = (error?: string | null) =>
 const FieldError = ({ error }: { error?: string | null }) =>
   error ? <p className="mt-1 text-xs text-red-600">{error}</p> : null;
 
-// CASH payment extra: "Payment Received" (who took the cash). Shown only when the
-// row's Mode is Cash. Verification is done in the Payment Statement (Tejas / Anuja).
+// "Payment Received" (who received the payment). Always shown on every payment
+// row. Verification is done in the Payment Statement (Tejas / Anuja).
 const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
   p: PaymentDetail;
   isEditable: boolean;
@@ -1374,9 +1374,7 @@ function LeadFormContent() {
                     <FieldError error={ownerPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
-                {isCashMode(p.modeOfPayment) && (
-                  <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`owner-cash-${i}`} onChange={(patch) => patchOwnerPayment(i, patch)} />
-                )}
+                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`owner-cash-${i}`} onChange={(patch) => patchOwnerPayment(i, patch)} />
                 </React.Fragment>
               ))}
               {isEditable && (
@@ -1459,9 +1457,7 @@ function LeadFormContent() {
                     <FieldError error={tenantPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
-                {isCashMode(p.modeOfPayment) && (
-                  <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`tenant-cash-${i}`} onChange={(patch) => patchTenantPayment(i, patch)} />
-                )}
+                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`tenant-cash-${i}`} onChange={(patch) => patchTenantPayment(i, patch)} />
                 </React.Fragment>
               ))}
               {isEditable && (
