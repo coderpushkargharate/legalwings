@@ -115,6 +115,7 @@ interface StatementRow {
   verified: boolean;
   verifiedBy: string;
   autoVerified: boolean; // ONLINE: money confirmed in Cashfree → verified automatically
+  txnSource: 'cashfree' | 'manual' | ''; // where the online Transaction No. came from
 }
 
 // ---------------------------------------------------------------------------
@@ -257,9 +258,12 @@ const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
       // A manually added online line that matches a Cashfree payment is treated the same.
       const cf = p.onlineLinkId ? cashfree.byLink.get(p.onlineLinkId) : manualMatch.get(idx);
       const autoVerified = online && (!!p.onlineLinkId || !!cf);
-      // Online: show ONLY Cashfree's Transaction ID (cf_payment_id) — never a typed
-      // number or the bank UTR. No Cashfree match yet → '-'.
-      const txn = online ? (cf?.cfPaymentId || (p.onlineLinkId ? p.cfPaymentId : '') || '') : (p.transactionNumber || '');
+      // Online paid through Cashfree → ONLY Cashfree's Transaction ID (cf_payment_id),
+      // never the typed number or bank UTR. Online paid outside Cashfree (direct
+      // UPI / bank) has no Cashfree id → the staff-typed number, tagged "Manual".
+      const cfTxn = online ? (cf?.cfPaymentId || (p.onlineLinkId ? p.cfPaymentId : '') || '') : '';
+      const txn = cfTxn || p.transactionNumber || '';
+      const txnSource: StatementRow['txnSource'] = !online || !txn ? '' : cfTxn ? 'cashfree' : 'manual';
       rows.push({
         leadId: lead.id,
         paymentIndex: idx,
@@ -273,6 +277,7 @@ const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
         payerName: p.payerName || '-',
         mode: p.modeOfPayment || '-',
         transactionNumber: txn || '-',
+        txnSource,
         amount,
         collectorReceiver: p.collectorReceiver || '',
         executiveName,
@@ -497,6 +502,7 @@ export default function PaymentStatementPage() {
       'Payer Name': r.payerName,
       'Mode (Cash/Online)': modeLabel(r.mode),
       'Transaction No/Cash': isOnlineMode(r.mode) ? r.transactionNumber : 'Cash',
+      'Txn Source': r.txnSource === 'cashfree' ? 'Cashfree' : r.txnSource === 'manual' ? 'Manual' : '-',
       Amount: r.amount,
       'Collector / Receiver': effectiveCollector(r) || '-',
       'Executive Name': r.executiveName,
@@ -782,7 +788,19 @@ export default function PaymentStatementPage() {
                           {modeLabel(r.mode)}
                         </span>
                       </td>
-                      <td className={td}>{isOnlineMode(r.mode) ? r.transactionNumber : 'Cash'}</td>
+                      <td className={td}>
+                        {!isOnlineMode(r.mode) ? 'Cash' : (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span>{r.transactionNumber}</span>
+                            {r.txnSource === 'cashfree' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700" title="Cashfree Transaction ID">Cashfree</span>
+                            )}
+                            {r.txnSource === 'manual' && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500" title="Paid outside Cashfree — number typed by staff">Manual</span>
+                            )}
+                          </span>
+                        )}
+                      </td>
                       <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(r.amount)}</td>
                       <td className={td}>
                         {isCashView ? (
