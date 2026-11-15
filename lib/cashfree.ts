@@ -366,7 +366,8 @@ export async function syncOnlinePayment(db: Db, linkId: string) {
         paymentAmount: String(amountPaid || record.amount),
         modeOfPayment: 'ONLINE',
         payerName: record.customerName || '',
-        transactionNumber: String(tx?.utr || tx?.cfPaymentId || linkId).slice(0, 30),
+        // Cashfree's own Transaction ID (cf_payment_id) — same number as the Cashfree dashboard.
+        transactionNumber: String(tx?.cfPaymentId || tx?.utr || linkId).slice(0, 30),
         onlineLinkId: linkId,
         cfPaymentId: tx?.cfPaymentId ? String(tx.cfPaymentId) : '',
         // Money is confirmed in Cashfree → auto-verified (Payment Statement shows it green).
@@ -380,7 +381,9 @@ export async function syncOnlinePayment(db: Db, linkId: string) {
         );
         if (lead) {
           const existing: any[] = Array.isArray(lead.paymentDetails) ? lead.paymentDetails : [];
-          const dup = existing.some((p) => p?.onlineLinkId === linkId || (p?.transactionNumber && p.transactionNumber === line.transactionNumber));
+          // A hand-entered line may carry either the UTR or the Cashfree id — both count as the same payment.
+          const known = new Set([tx?.utr, tx?.cfPaymentId, line.transactionNumber].filter(Boolean).map((v) => String(v).trim()));
+          const dup = existing.some((p) => p?.onlineLinkId === linkId || (p?.transactionNumber && known.has(String(p.transactionNumber).trim())));
           if (!dup) {
             await db.collection('leads').updateOne(
               { _id: new ObjectId(record.leadId) },

@@ -82,11 +82,15 @@ export function paymentAmountError(p?: Record<string, unknown> | null): string |
 
 // Payment line (owner / tenant). Transaction Number is mandatory for every real
 // payment (one with an amount) except Cash, which has no transaction reference.
-export function validatePaymentRow(p: { paymentAmount?: string; modeOfPayment?: string; transactionNumber?: string }): Record<string, string | undefined> {
+// Cash lines must say who received the cash ("Payment Received" name).
+export function validatePaymentRow(p: { paymentAmount?: string; modeOfPayment?: string; transactionNumber?: string; collectorReceiver?: string }): Record<string, string | undefined> {
   if (isBlank(p.paymentAmount)) return {};
   const isCash = (p.modeOfPayment || '').toUpperCase() === 'CASH';
   if (!isCash && isBlank(p.transactionNumber)) {
     return { transactionNumber: 'Transaction number is required' };
+  }
+  if (isCash && isBlank(p.collectorReceiver)) {
+    return { collectorReceiver: 'Select who received the cash' };
   }
   return {};
 }

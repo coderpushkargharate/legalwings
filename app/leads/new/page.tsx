@@ -145,30 +145,38 @@ const FieldError = ({ error }: { error?: string | null }) =>
 
 // "Payment Received" (who received the payment). Always shown on every payment
 // row. Verification is done in the Payment Statement (Tejas / Anuja).
-const CashPaymentFields = ({ p, isEditable, idPrefix, onChange }: {
+// Compulsory for Cash lines (see validatePaymentRow).
+const CashPaymentFields = ({ p, isEditable, idPrefix, onChange, error }: {
   p: PaymentDetail;
   isEditable: boolean;
   idPrefix: string;
   onChange: (patch: Partial<PaymentDetail>) => void;
+  error?: string;
 }) => {
-  const selectCls = 'w-full px-3 py-2 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-[#00843d] focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer';
+  const isCash = (p.modeOfPayment || '').toUpperCase() === 'CASH';
+  const selectCls = `w-full px-3 py-2 border rounded-lg text-sm outline-none focus:ring-2 focus:ring-opacity-30 disabled:bg-slate-50 transition-all cursor-pointer ${borderClass(error)}`;
   // Keep a previously saved name selectable even if it's not in the current list.
   const withCurrent = (list: readonly string[], v?: string) => (v && !list.includes(v) ? [v, ...list] : list);
   return (
     <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4 -mt-1">
       <div className="hidden md:block md:col-span-4" />
       <div>
-        <label htmlFor={`${idPrefix}-received`} className="block text-sm font-medium text-slate-700 mb-1">Payment Received</label>
+        <label htmlFor={`${idPrefix}-received`} className="block text-sm font-medium text-slate-700 mb-1">
+          Payment Received {isCash && <span className="text-red-500">*</span>}
+        </label>
         <select
           id={`${idPrefix}-received`}
           value={p.collectorReceiver || ''}
           onChange={(e) => onChange({ collectorReceiver: e.target.value })}
           disabled={!isEditable}
+          required={isCash}
+          aria-invalid={!!error}
           className={selectCls}
         >
           <option value="">Select Name</option>
           {withCurrent(CASH_RECEIVERS, p.collectorReceiver).map((n) => <option key={n} value={n}>{n}</option>)}
         </select>
+        <FieldError error={error} />
       </div>
     </div>
   );
@@ -1374,7 +1382,7 @@ function LeadFormContent() {
                     <FieldError error={ownerPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
-                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`owner-cash-${i}`} onChange={(patch) => patchOwnerPayment(i, patch)} />
+                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`owner-cash-${i}`} onChange={(patch) => patchOwnerPayment(i, patch)} error={ownerPaymentErrors[i]?.collectorReceiver} />
                 </React.Fragment>
               ))}
               {isEditable && (
@@ -1457,7 +1465,7 @@ function LeadFormContent() {
                     <FieldError error={tenantPaymentErrors[i]?.transactionNumber} />
                   </div>
                 </div>
-                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`tenant-cash-${i}`} onChange={(patch) => patchTenantPayment(i, patch)} />
+                <CashPaymentFields p={p} isEditable={isEditable} idPrefix={`tenant-cash-${i}`} onChange={(patch) => patchTenantPayment(i, patch)} error={tenantPaymentErrors[i]?.collectorReceiver} />
                 </React.Fragment>
               ))}
               {isEditable && (

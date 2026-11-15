@@ -3,7 +3,7 @@ import { ObjectId } from 'mongodb';
 import { connectToDatabase } from '@/lib/mongodb';
 import { verifyToken, getTokenFromHeaders } from '@/lib/auth';
 import {
-  appOrigin, cashfreeConfigured, createOrder, createPaymentLink, getUpiOptions, newLinkId, serialize, terminateOrder,
+  appOrigin, cashfreeConfigured, createOrder, createPaymentLink, getUpiOptions, newLinkId, serialize, syncOnlinePayment, terminateOrder,
 } from '@/lib/cashfree';
 
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,27 @@ export async function GET(request: Request) {
     // ?paid=1 → every PAID link (ids + Cashfree transactions only), used by the
     // Payment Statement to show the Cashfree UTR and mark those rows auto-verified.
     if (searchParams.get('paid') === '1') {
+      // First re-check recent links that are still ACTIVE with Cashfree, so a payment
+      // whose webhook was missed still shows up (and gets auto-verified). Bounded in
+      // count and time so the statement never waits long; failures are ignored.
+      if (cashfreeConfigured()) {
+        const stale = await db.collection('online_payments')
+          .find(
+            {
+              status: 'ACTIVE',
+              createdAt: { $gte: new Date(Date.now() - 15 * 24 * 3600 * 1000) },
+              $or: [{ lastVerifiedAt: { $exists: false } }, { lastVerifiedAt: { $lt: new Date(Date.now() - 5 * 60 * 1000) } }],
+            },
+            { projection: { linkId: 1 } },
+          )
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .toArray();
+        if (stale.length) {
+          const work = Promise.allSettled(stale.map((r) => syncOnlinePayment(db, r.linkId)));
+          await Promise.race([work, new Promise((res) => setTimeout(res, 8000))]);
+        }
+      }
       const paid = await db.collection('online_payments')
         .find({ status: 'PAID' }, { projection: { linkId: 1, leadId: 1, status: 1, transactions: 1, amountPaid: 1 } })
         .sort({ createdAt: -1 })

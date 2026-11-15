@@ -47,9 +47,20 @@ interface PaymentDetail {
 
 // Cashfree data for a PAID online-payment link (from GET /api/online-payments?paid=1).
 interface CashfreePaid {
+  linkId: string;
+  leadId: string;
+  amount: number;
   utr: string;
   cfPaymentId: string;
 }
+// Cashfree PAID links indexed three ways for matching statement lines.
+interface CashfreeIndex {
+  byLink: Map<string, CashfreePaid>;
+  byTxn: Map<string, CashfreePaid>; // UTR and cf_payment_id (normalised)
+  byLead: Map<string, CashfreePaid[]>;
+}
+const emptyCashfreeIndex = (): CashfreeIndex => ({ byLink: new Map(), byTxn: new Map(), byLead: new Map() });
+const normTxn = (s?: string): string => (s || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
 interface Person {
   firstName?: string;
   lastName?: string;
@@ -203,7 +214,7 @@ const isOnlineMode = (mode?: string): boolean => !!mode && mode !== '-' && !/cas
 // ---------------------------------------------------------------------------
 // Flatten leads → statement rows (one row per recorded payment)
 // ---------------------------------------------------------------------------
-const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): StatementRow[] => {
+const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
   const rows: StatementRow[] = [];
   for (const lead of leads) {
     const tokenNo = lead.agreement?.tokenNo || '-';
@@ -216,15 +227,39 @@ const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): Statemen
     // This also auto-fills the Collector / Receiver column via effectiveCollector().
     const executiveName = executiveFor(lead);
     const details = lead.paymentDetails || [];
+    // Cashfree links already tied to a line of this lead can't be matched again.
+    const claimed = new Set<string>(details.map((p) => p.onlineLinkId || '').filter(Boolean));
+    // Match a manually entered online line to a Cashfree payment: first by its
+    // transaction no. (UTR / Cashfree payment id), else by same lead + same amount.
+    // Two passes so an exact transaction-no. match always wins over an amount match.
+    const manualMatch = new Map<number, CashfreePaid>();
+    const isManualOnline = (p: PaymentDetail) => !p.onlineLinkId && isOnlineMode(p.modeOfPayment);
+    details.forEach((p, idx) => {
+      if (!isManualOnline(p)) return;
+      const c = cashfree.byTxn.get(normTxn(p.transactionNumber));
+      if (c && !claimed.has(c.linkId)) { manualMatch.set(idx, c); claimed.add(c.linkId); }
+    });
+    details.forEach((p, idx) => {
+      if (!isManualOnline(p) || manualMatch.has(idx)) return;
+      const amt = toNum(p.paymentAmount);
+      const c = (cashfree.byLead.get(lead.id) || []).find(
+        (x) => !claimed.has(x.linkId) && amt > 0 && Math.abs(x.amount - amt) < 0.01,
+      );
+      if (c) { manualMatch.set(idx, c); claimed.add(c.linkId); }
+    });
     details.forEach((p, idx) => {
       const amount = toNum(p.paymentAmount);
       // Only include real payments (has an amount or a date).
       if (amount <= 0 && !p.paymentDate) return;
+      const online = isOnlineMode(p.modeOfPayment);
       // Online line added by the Cashfree sync (only happens once Cashfree confirms
       // the money) → auto-verified, and the transaction no. is Cashfree's UTR.
-      const cf = p.onlineLinkId ? cashfree.get(p.onlineLinkId) : undefined;
-      const autoVerified = !!p.onlineLinkId && isOnlineMode(p.modeOfPayment);
-      const txn = cf?.utr || p.transactionNumber || cf?.cfPaymentId || p.cfPaymentId || '';
+      // A manually added online line that matches a Cashfree payment is treated the same.
+      const cf = p.onlineLinkId ? cashfree.byLink.get(p.onlineLinkId) : manualMatch.get(idx);
+      const autoVerified = online && (!!p.onlineLinkId || !!cf);
+      // Online: show ONLY Cashfree's Transaction ID (cf_payment_id) — never a typed
+      // number or the bank UTR. No Cashfree match yet → '-'.
+      const txn = online ? (cf?.cfPaymentId || (p.onlineLinkId ? p.cfPaymentId : '') || '') : (p.transactionNumber || '');
       rows.push({
         leadId: lead.id,
         paymentIndex: idx,
@@ -256,7 +291,7 @@ export default function PaymentStatementPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [cashfreePaid, setCashfreePaid] = useState<Map<string, CashfreePaid>>(new Map());
+  const [cashfreePaid, setCashfreePaid] = useState<CashfreeIndex>(emptyCashfreeIndex);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -303,13 +338,25 @@ export default function PaymentStatementPage() {
         }
       }
       const cfData = await cashfreeReq;
-      const cfMap = new Map<string, CashfreePaid>();
+      const cfIndex = emptyCashfreeIndex();
       for (const rec of cfData?.payments || []) {
         if (!rec?.linkId) continue;
         const tx = (rec.transactions || [])[0] || {};
-        cfMap.set(rec.linkId, { utr: tx.utr || '', cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '' });
+        const entry: CashfreePaid = {
+          linkId: rec.linkId,
+          leadId: rec.leadId || '',
+          amount: toNum(rec.amountPaid),
+          utr: tx.utr || '',
+          cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '',
+        };
+        cfIndex.byLink.set(entry.linkId, entry);
+        for (const t of (rec.transactions || []) as any[]) {
+          if (t?.utr) cfIndex.byTxn.set(normTxn(t.utr), entry);
+          if (t?.cfPaymentId) cfIndex.byTxn.set(normTxn(String(t.cfPaymentId)), entry);
+        }
+        if (entry.leadId) cfIndex.byLead.set(entry.leadId, [...(cfIndex.byLead.get(entry.leadId) || []), entry]);
       }
-      setCashfreePaid(cfMap);
+      setCashfreePaid(cfIndex);
       setLeads(collected);
     } catch (err: any) {
       setError(err?.message || 'Failed to load payments');
