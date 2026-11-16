@@ -47,20 +47,9 @@ interface PaymentDetail {
 
 // Cashfree data for a PAID online-payment link (from GET /api/online-payments?paid=1).
 interface CashfreePaid {
-  linkId: string;
-  leadId: string;
-  amount: number;
   utr: string;
   cfPaymentId: string;
 }
-// Cashfree PAID links indexed three ways for matching statement lines.
-interface CashfreeIndex {
-  byLink: Map<string, CashfreePaid>;
-  byTxn: Map<string, CashfreePaid>; // UTR and cf_payment_id (normalised)
-  byLead: Map<string, CashfreePaid[]>;
-}
-const emptyCashfreeIndex = (): CashfreeIndex => ({ byLink: new Map(), byTxn: new Map(), byLead: new Map() });
-const normTxn = (s?: string): string => (s || '').replace(/[^0-9a-z]/gi, '').toUpperCase();
 interface Person {
   firstName?: string;
   lastName?: string;
@@ -115,7 +104,6 @@ interface StatementRow {
   verified: boolean;
   verifiedBy: string;
   autoVerified: boolean; // ONLINE: money confirmed in Cashfree → verified automatically
-  txnSource: 'cashfree' | 'manual' | ''; // where the online Transaction No. came from
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +203,7 @@ const isOnlineMode = (mode?: string): boolean => !!mode && mode !== '-' && !/cas
 // ---------------------------------------------------------------------------
 // Flatten leads → statement rows (one row per recorded payment)
 // ---------------------------------------------------------------------------
-const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
+const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): StatementRow[] => {
   const rows: StatementRow[] = [];
   for (const lead of leads) {
     const tokenNo = lead.agreement?.tokenNo || '-';
@@ -228,42 +216,15 @@ const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
     // This also auto-fills the Collector / Receiver column via effectiveCollector().
     const executiveName = executiveFor(lead);
     const details = lead.paymentDetails || [];
-    // Cashfree links already tied to a line of this lead can't be matched again.
-    const claimed = new Set<string>(details.map((p) => p.onlineLinkId || '').filter(Boolean));
-    // Match a manually entered online line to a Cashfree payment: first by its
-    // transaction no. (UTR / Cashfree payment id), else by same lead + same amount.
-    // Two passes so an exact transaction-no. match always wins over an amount match.
-    const manualMatch = new Map<number, CashfreePaid>();
-    const isManualOnline = (p: PaymentDetail) => !p.onlineLinkId && isOnlineMode(p.modeOfPayment);
-    details.forEach((p, idx) => {
-      if (!isManualOnline(p)) return;
-      const c = cashfree.byTxn.get(normTxn(p.transactionNumber));
-      if (c && !claimed.has(c.linkId)) { manualMatch.set(idx, c); claimed.add(c.linkId); }
-    });
-    details.forEach((p, idx) => {
-      if (!isManualOnline(p) || manualMatch.has(idx)) return;
-      const amt = toNum(p.paymentAmount);
-      const c = (cashfree.byLead.get(lead.id) || []).find(
-        (x) => !claimed.has(x.linkId) && amt > 0 && Math.abs(x.amount - amt) < 0.01,
-      );
-      if (c) { manualMatch.set(idx, c); claimed.add(c.linkId); }
-    });
     details.forEach((p, idx) => {
       const amount = toNum(p.paymentAmount);
       // Only include real payments (has an amount or a date).
       if (amount <= 0 && !p.paymentDate) return;
-      const online = isOnlineMode(p.modeOfPayment);
       // Online line added by the Cashfree sync (only happens once Cashfree confirms
       // the money) → auto-verified, and the transaction no. is Cashfree's UTR.
-      // A manually added online line that matches a Cashfree payment is treated the same.
-      const cf = p.onlineLinkId ? cashfree.byLink.get(p.onlineLinkId) : manualMatch.get(idx);
-      const autoVerified = online && (!!p.onlineLinkId || !!cf);
-      // Online paid through Cashfree → ONLY Cashfree's Transaction ID (cf_payment_id),
-      // never the typed number or bank UTR. Online paid outside Cashfree (direct
-      // UPI / bank) has no Cashfree id → the staff-typed number, tagged "Manual".
-      const cfTxn = online ? (cf?.cfPaymentId || (p.onlineLinkId ? p.cfPaymentId : '') || '') : '';
-      const txn = cfTxn || p.transactionNumber || '';
-      const txnSource: StatementRow['txnSource'] = !online || !txn ? '' : cfTxn ? 'cashfree' : 'manual';
+      const cf = p.onlineLinkId ? cashfree.get(p.onlineLinkId) : undefined;
+      const autoVerified = !!p.onlineLinkId && isOnlineMode(p.modeOfPayment);
+      const txn = cf?.utr || p.transactionNumber || cf?.cfPaymentId || p.cfPaymentId || '';
       rows.push({
         leadId: lead.id,
         paymentIndex: idx,
@@ -277,7 +238,6 @@ const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
         payerName: p.payerName || '-',
         mode: p.modeOfPayment || '-',
         transactionNumber: txn || '-',
-        txnSource,
         amount,
         collectorReceiver: p.collectorReceiver || '',
         executiveName,
@@ -296,7 +256,7 @@ export default function PaymentStatementPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [cashfreePaid, setCashfreePaid] = useState<CashfreeIndex>(emptyCashfreeIndex);
+  const [cashfreePaid, setCashfreePaid] = useState<Map<string, CashfreePaid>>(new Map());
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -343,25 +303,13 @@ export default function PaymentStatementPage() {
         }
       }
       const cfData = await cashfreeReq;
-      const cfIndex = emptyCashfreeIndex();
+      const cfMap = new Map<string, CashfreePaid>();
       for (const rec of cfData?.payments || []) {
         if (!rec?.linkId) continue;
         const tx = (rec.transactions || [])[0] || {};
-        const entry: CashfreePaid = {
-          linkId: rec.linkId,
-          leadId: rec.leadId || '',
-          amount: toNum(rec.amountPaid),
-          utr: tx.utr || '',
-          cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '',
-        };
-        cfIndex.byLink.set(entry.linkId, entry);
-        for (const t of (rec.transactions || []) as any[]) {
-          if (t?.utr) cfIndex.byTxn.set(normTxn(t.utr), entry);
-          if (t?.cfPaymentId) cfIndex.byTxn.set(normTxn(String(t.cfPaymentId)), entry);
-        }
-        if (entry.leadId) cfIndex.byLead.set(entry.leadId, [...(cfIndex.byLead.get(entry.leadId) || []), entry]);
+        cfMap.set(rec.linkId, { utr: tx.utr || '', cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '' });
       }
-      setCashfreePaid(cfIndex);
+      setCashfreePaid(cfMap);
       setLeads(collected);
     } catch (err: any) {
       setError(err?.message || 'Failed to load payments');
@@ -502,7 +450,6 @@ export default function PaymentStatementPage() {
       'Payer Name': r.payerName,
       'Mode (Cash/Online)': modeLabel(r.mode),
       'Transaction No/Cash': isOnlineMode(r.mode) ? r.transactionNumber : 'Cash',
-      'Txn Source': r.txnSource === 'cashfree' ? 'Cashfree' : r.txnSource === 'manual' ? 'Manual' : '-',
       Amount: r.amount,
       'Collector / Receiver': effectiveCollector(r) || '-',
       'Executive Name': r.executiveName,
@@ -788,19 +735,7 @@ export default function PaymentStatementPage() {
                           {modeLabel(r.mode)}
                         </span>
                       </td>
-                      <td className={td}>
-                        {!isOnlineMode(r.mode) ? 'Cash' : (
-                          <span className="inline-flex items-center gap-1.5">
-                            <span>{r.transactionNumber}</span>
-                            {r.txnSource === 'cashfree' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-700" title="Cashfree Transaction ID">Cashfree</span>
-                            )}
-                            {r.txnSource === 'manual' && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500" title="Paid outside Cashfree — number typed by staff">Manual</span>
-                            )}
-                          </span>
-                        )}
-                      </td>
+                      <td className={td}>{isOnlineMode(r.mode) ? r.transactionNumber : 'Cash'}</td>
                       <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(r.amount)}</td>
                       <td className={td}>
                         {isCashView ? (
