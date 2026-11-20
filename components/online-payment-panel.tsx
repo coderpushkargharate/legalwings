@@ -20,6 +20,9 @@ export interface OnlinePaymentLine {
   payerName: string;
   transactionNumber: string;
   onlineLinkId?: string;
+  cfPaymentId?: string;
+  verified?: boolean;
+  verifiedBy?: string;
 }
 
 interface Party { name?: string; phone?: string; email?: string }
@@ -86,11 +89,18 @@ const labelCls = 'block text-sm font-medium text-slate-700 mb-1';
 export function mergeOnlineLines<T extends { paymentAmount: string; transactionNumber?: string }>(
   rows: T[], lines: OnlinePaymentLine[], clientType: 'OWNER' | 'TENANT',
 ): T[] {
-  const add = lines.filter((l) => l.clientType === clientType && !rows.some((r) => r.transactionNumber && r.transactionNumber === l.transactionNumber));
+  const same = (r: any, l: OnlinePaymentLine) =>
+    (l.onlineLinkId && r.onlineLinkId === l.onlineLinkId) || (r.transactionNumber && r.transactionNumber === l.transactionNumber);
+  const add = lines.filter((l) => l.clientType === clientType && !rows.some((r) => same(r, l)));
   if (!add.length) return rows;
+  // Keep the Cashfree link id / verified flag, so the Payment Statement still
+  // recognises the line as a Cashfree payment after the form is saved.
   const mapped = add.map((l) => ({
     paymentDate: l.paymentDate, paymentAmount: l.paymentAmount, modeOfPayment: 'ONLINE',
     payerName: l.payerName, transactionNumber: l.transactionNumber,
+    ...(l.onlineLinkId ? { onlineLinkId: l.onlineLinkId } : {}),
+    ...(l.cfPaymentId ? { cfPaymentId: l.cfPaymentId } : {}),
+    ...(l.onlineLinkId ? { verified: l.verified !== false, verifiedBy: l.verifiedBy || 'Cashfree' } : {}),
   })) as unknown as T[];
   // Replace the blank placeholder row instead of leaving it above the new line.
   const kept = rows.filter((r) => r.paymentAmount || r.transactionNumber);

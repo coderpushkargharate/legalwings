@@ -396,8 +396,70 @@ export async function syncOnlinePayment(db: Db, linkId: string) {
     }
   }
 
+  // Already on the lead, but Cashfree's UTR (bank reference) often arrives a little
+  // after the payment → swap the lead line's transaction no. to the real UTR.
+  const utr = String(transactions.find((t: any) => t?.utr)?.utr || '').slice(0, 30);
+  if (status === 'PAID' && record.recordedInLead && record.leadId && utr && ObjectId.isValid(record.leadId)) {
+    try {
+      await db.collection('leads').updateOne(
+        { _id: new ObjectId(record.leadId), paymentDetails: { $elemMatch: { onlineLinkId: linkId, transactionNumber: { $ne: utr } } } },
+        { $set: { 'paymentDetails.$.transactionNumber': utr, updatedAt: new Date() } },
+      );
+      if (record.recordedLine) update.recordedLine = { ...record.recordedLine, transactionNumber: utr };
+    } catch (e) {
+      console.error('Cashfree UTR update on lead failed (non-fatal):', e);
+    }
+  }
+
   await col.updateOne({ linkId }, { $set: update });
   return { record: serialize(await col.findOne({ linkId })) };
+}
+
+// ============================================================================
+// 🔹 Bulk sync: re-checks every recent link that is still waiting (ACTIVE) and
+// every recent PAID one whose UTR hasn't arrived yet. Used by the Payment
+// Statement (on open + every few seconds), so a payment shows up verified even
+// when Cashfree's webhook can't reach the server (localhost, wrong notify URL…).
+// ============================================================================
+export async function syncPendingPayments(db: Db, opts: { days?: number; limit?: number } = {}) {
+  if (!cashfreeConfigured()) return { checked: 0, paid: [] as string[] };
+  const since = new Date(Date.now() - (opts.days || 10) * 24 * 3600 * 1000);
+  const recentlyChecked = new Date(Date.now() - 15 * 1000); // don't hammer Cashfree
+  const col = db.collection('online_payments');
+  const due = await col
+    .find(
+      {
+        createdAt: { $gte: since },
+        $and: [
+          { $or: [{ lastVerifiedAt: { $exists: false } }, { lastVerifiedAt: { $lt: recentlyChecked } }] },
+          {
+            $or: [
+              { status: 'ACTIVE' },
+              { status: 'PAID', recordedInLead: { $ne: true } },
+              { status: 'PAID', 'transactions.0.utr': { $in: ['', null] } },
+            ],
+          },
+        ],
+      },
+      { projection: { linkId: 1, status: 1 } },
+    )
+    .sort({ createdAt: -1 })
+    .limit(opts.limit || 25)
+    .toArray();
+
+  const paid: string[] = [];
+  // Small batches so a long list doesn't trip Cashfree's rate limit.
+  for (let i = 0; i < due.length; i += 5) {
+    await Promise.all(due.slice(i, i + 5).map(async (r) => {
+      try {
+        const { record } = await syncOnlinePayment(db, r.linkId);
+        if (record?.status === 'PAID' && r.status !== 'PAID') paid.push(r.linkId);
+      } catch (e: any) {
+        console.error('Cashfree pending sync failed for', r.linkId, e?.message || e);
+      }
+    }));
+  }
+  return { checked: due.length, paid };
 }
 
 /** Strip Mongo _id and the checkout session (never needed by CRM screens). */

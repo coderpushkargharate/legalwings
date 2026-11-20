@@ -14,7 +14,7 @@
 // lead's paymentDetails via PATCH /api/leads (new per-payment fields).
 // ============================================================================
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Download, Loader2, RefreshCw, FileText, Wallet, Check, X as XIcon, IndianRupee, ChevronLeft, ChevronRight, TrendingDown, Scale } from 'lucide-react';
 import AppShell from '@/components/app-shell';
@@ -47,8 +47,17 @@ interface PaymentDetail {
 
 // Cashfree data for a PAID online-payment link (from GET /api/online-payments?paid=1).
 interface CashfreePaid {
+  linkId: string;
+  leadId: string;
+  amount: number;
   utr: string;
   cfPaymentId: string;
+}
+// Lookups used to tie a statement line to its Cashfree payment.
+interface CashfreeIndex {
+  byLink: Map<string, CashfreePaid>;
+  byTxn: Map<string, CashfreePaid>; // UTR and Cashfree payment id
+  byLeadAmount: Map<string, CashfreePaid[]>; // `${leadId}|${amount}`
 }
 interface Person {
   firstName?: string;
@@ -103,7 +112,8 @@ interface StatementRow {
   executiveName: string;
   verified: boolean;
   verifiedBy: string;
-  autoVerified: boolean; // ONLINE: money confirmed in Cashfree → verified automatically
+  cashfreeConfirmed: boolean; // matched to a PAID Cashfree payment
+  autoVerified: boolean; // verified by Cashfree itself (not changed by hand)
 }
 
 // ---------------------------------------------------------------------------
@@ -201,10 +211,43 @@ const todayLocal = (): string => {
 const isOnlineMode = (mode?: string): boolean => !!mode && mode !== '-' && !/cash/i.test(mode);
 
 // ---------------------------------------------------------------------------
+// Cashfree PAID links → lookup index
+// ---------------------------------------------------------------------------
+const emptyIndex = (): CashfreeIndex => ({ byLink: new Map(), byTxn: new Map(), byLeadAmount: new Map() });
+const leadAmountKey = (leadId: string, amount: number) => `${leadId}|${Math.round(amount * 100)}`;
+
+const buildCashfreeIndex = (payments: any[]): CashfreeIndex => {
+  const idx = emptyIndex();
+  for (const rec of payments || []) {
+    if (!rec?.linkId) continue;
+    const txs: any[] = rec.transactions || [];
+    const tx = txs.find((t) => t?.utr) || txs[0] || {};
+    const cf: CashfreePaid = {
+      linkId: rec.linkId,
+      leadId: String(rec.leadId || ''),
+      amount: toNum(rec.amountPaid),
+      utr: tx.utr || '',
+      cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '',
+    };
+    idx.byLink.set(cf.linkId, cf);
+    for (const t of txs) {
+      if (t?.utr) idx.byTxn.set(String(t.utr), cf);
+      if (t?.cfPaymentId) idx.byTxn.set(String(t.cfPaymentId), cf);
+    }
+    if (cf.leadId && cf.amount > 0) {
+      const k = leadAmountKey(cf.leadId, cf.amount);
+      idx.byLeadAmount.set(k, [...(idx.byLeadAmount.get(k) || []), cf]);
+    }
+  }
+  return idx;
+};
+
+// ---------------------------------------------------------------------------
 // Flatten leads → statement rows (one row per recorded payment)
 // ---------------------------------------------------------------------------
-const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): StatementRow[] => {
+const buildRows = (leads: Lead[], cashfree: CashfreeIndex): StatementRow[] => {
   const rows: StatementRow[] = [];
+  const claimed = new Set<string>(); // each Cashfree payment backs at most one line
   for (const lead of leads) {
     const tokenNo = lead.agreement?.tokenNo || '-';
     const name = leadName(lead);
@@ -220,10 +263,28 @@ const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): Statemen
       const amount = toNum(p.paymentAmount);
       // Only include real payments (has an amount or a date).
       if (amount <= 0 && !p.paymentDate) return;
-      // Online line added by the Cashfree sync (only happens once Cashfree confirms
-      // the money) → auto-verified, and the transaction no. is Cashfree's UTR.
-      const cf = p.onlineLinkId ? cashfree.get(p.onlineLinkId) : undefined;
-      const autoVerified = !!p.onlineLinkId && isOnlineMode(p.modeOfPayment);
+      // Tie the line to its Cashfree payment: by link id (lines the sync added), else
+      // by the typed transaction no. (UTR / Cashfree payment id), else — for an online
+      // line on the same lead — by the exact amount when there's only one candidate.
+      const online = isOnlineMode(p.modeOfPayment);
+      let cf: CashfreePaid | undefined;
+      if (online) {
+        cf = (p.onlineLinkId && cashfree.byLink.get(p.onlineLinkId))
+          || (p.cfPaymentId && cashfree.byTxn.get(String(p.cfPaymentId)))
+          || (p.transactionNumber && cashfree.byTxn.get(p.transactionNumber.trim()))
+          || undefined;
+        if (!cf && amount > 0) {
+          const options = (cashfree.byLeadAmount.get(leadAmountKey(lead.id, amount)) || []).filter((c) => !claimed.has(c.linkId));
+          if (options.length === 1) cf = options[0];
+        }
+        if (cf) claimed.add(cf.linkId);
+      }
+      const cashfreeConfirmed = !!cf || (!!p.onlineLinkId && online);
+      // Verified: an explicit Yes/No set by hand wins; otherwise Cashfree-confirmed = verified.
+      const verified = p.verified === false ? false : (p.verified === true || cashfreeConfirmed);
+      const verifiedBy = verified ? (p.verifiedBy || (cashfreeConfirmed ? 'Cashfree' : '')) : '';
+      const autoVerified = cashfreeConfirmed && verified && verifiedBy === 'Cashfree';
+      // Transaction no. = Cashfree's real UTR (bank reference) whenever we have it.
       const txn = cf?.utr || p.transactionNumber || cf?.cfPaymentId || p.cfPaymentId || '';
       rows.push({
         leadId: lead.id,
@@ -241,8 +302,9 @@ const buildRows = (leads: Lead[], cashfree: Map<string, CashfreePaid>): Statemen
         amount,
         collectorReceiver: p.collectorReceiver || '',
         executiveName,
-        verified: autoVerified || p.verified === true,
-        verifiedBy: autoVerified ? 'Cashfree' : (p.verifiedBy || ''),
+        verified,
+        verifiedBy,
+        cashfreeConfirmed,
         autoVerified,
       });
     });
@@ -256,7 +318,9 @@ export default function PaymentStatementPage() {
   const { user, loading: authLoading } = useAuth();
 
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [cashfreePaid, setCashfreePaid] = useState<Map<string, CashfreePaid>>(new Map());
+  const [cashfreePaid, setCashfreePaid] = useState<CashfreeIndex>(emptyIndex);
+  const [liveNote, setLiveNote] = useState<string | null>(null); // "N new Cashfree payments verified"
+  const [lastChecked, setLastChecked] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -272,9 +336,9 @@ export default function PaymentStatementPage() {
 
   // Fetch ALL leads. First page tells us the total, then the remaining pages are
   // fetched in PARALLEL (instead of one-by-one) so the statement loads much faster.
-  const fetchAll = useCallback(async () => {
+  const fetchAll = useCallback(async (opts: { silent?: boolean } = {}) => {
     if (authLoading || !user) return;
-    setLoading(true);
+    if (!opts.silent) setLoading(true);
     setError(null);
     try {
       const pageSize = 200;
@@ -303,25 +367,68 @@ export default function PaymentStatementPage() {
         }
       }
       const cfData = await cashfreeReq;
-      const cfMap = new Map<string, CashfreePaid>();
-      for (const rec of cfData?.payments || []) {
-        if (!rec?.linkId) continue;
-        const tx = (rec.transactions || [])[0] || {};
-        cfMap.set(rec.linkId, { utr: tx.utr || '', cfPaymentId: tx.cfPaymentId ? String(tx.cfPaymentId) : '' });
-      }
-      setCashfreePaid(cfMap);
+      setCashfreePaid(buildCashfreeIndex(cfData?.payments || []));
       setLeads(collected);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load payments');
-      setLeads([]);
+      if (!opts.silent) {
+        setError(err?.message || 'Failed to load payments');
+        setLeads([]);
+      }
     } finally {
-      setLoading(false);
+      if (!opts.silent) setLoading(false);
     }
   }, [apiFetch, authLoading, user]);
 
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  // 🔹 Live Cashfree auto-verify: ask the server to re-check every recent unpaid
+  // link with Cashfree (on open, then every 20s while this tab is visible). A link
+  // that got paid is added to its lead as a verified ONLINE line → reload silently
+  // so the row turns green with the real UTR, without waiting for the webhook.
+  const syncingRef = useRef(false);
+  const syncCashfree = useCallback(async () => {
+    if (authLoading || !user || syncingRef.current) return;
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+    syncingRef.current = true;
+    try {
+      const res = await apiFetch('/api/online-payments/sync-pending', { method: 'POST' });
+      if (!res.ok) return;
+      const data = await res.json();
+      setLastChecked(new Date());
+      if (data?.paid?.length) {
+        await fetchAll({ silent: true });
+        setLiveNote(`✅ ${data.paid.length} new Cashfree payment${data.paid.length > 1 ? 's' : ''} received & auto-verified`);
+      } else if (data?.checked) {
+        // UTRs may have arrived — refresh just the Cashfree list (cheap).
+        const r = await apiFetch('/api/online-payments?paid=1');
+        if (r.ok) setCashfreePaid(buildCashfreeIndex((await r.json())?.payments || []));
+      }
+    } catch {
+      // network blip — the next tick retries
+    } finally {
+      syncingRef.current = false;
+    }
+  }, [apiFetch, authLoading, user, fetchAll]);
+
+  useEffect(() => {
+    if (tab !== 'statement') return;
+    syncCashfree();
+    const t = setInterval(syncCashfree, 20000);
+    const onVisible = () => { if (document.visibilityState === 'visible') syncCashfree(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVisible); };
+  }, [syncCashfree, tab]);
+
+  useEffect(() => {
+    if (!liveNote) return;
+    const t = setTimeout(() => setLiveNote(null), 8000);
+    return () => clearTimeout(t);
+  }, [liveNote]);
+
+  // Name saved as "Verified By" when someone verifies an online row by hand.
+  const myName = `${(user as any)?.firstName || ''} ${(user as any)?.lastName || ''}`.trim() || 'Manual';
 
   // Save an edited per-payment field (Collector/Receiver or Verify) back onto the
   // lead's paymentDetails. Optimistic: update locally first, then PATCH; revert on error.
@@ -498,11 +605,11 @@ export default function PaymentStatementPage() {
             leads={leads}
             loading={loading}
             error={error}
-            onRefresh={fetchAll}
+            onRefresh={() => fetchAll()}
             onLeadVerifiedChange={setExpenseVerified}
           />
         ) : tab === 'pnl' ? (
-          <PnlPanel leads={leads} loading={loading} error={error} onRefresh={fetchAll} />
+          <PnlPanel leads={leads} loading={loading} error={error} onRefresh={() => fetchAll()} />
         ) : (
         <>
         {/* Online / Cash statement split */}
@@ -525,7 +632,13 @@ export default function PaymentStatementPage() {
 
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
           🧾 <strong>{isCashView ? 'Cash Statement' : 'Online Statement'}:</strong> Every recorded {isCashView ? 'cash' : 'online'} payment across all leads, newest date on top. Edit the Collector / Receiver and Verify columns inline — changes save automatically.
+          {!isCashView && (
+            <> Cashfree payments are verified automatically as soon as the customer pays (<span className="font-semibold text-emerald-700">green</span>); you can also verify / un-verify any row by hand (<span className="font-semibold text-orange-600">orange</span> = verified manually).</>
+          )}
         </div>
+        {liveNote && (
+          <div className="bg-emerald-50 border border-emerald-300 rounded-lg p-3 text-sm font-medium text-emerald-800">{liveNote}</div>
+        )}
 
         {/* Toolbar: date filter + actions */}
         <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-end gap-4">
@@ -563,8 +676,13 @@ export default function PaymentStatementPage() {
               <Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…
             </span>
           )}
+          {lastChecked && !isCashView && (
+            <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700" title="Cashfree payments are re-checked automatically every 20 seconds">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" /> Live Cashfree check · {lastChecked.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </span>
+          )}
           <button
-            onClick={fetchAll}
+            onClick={() => { fetchAll(); syncCashfree(); }}
             disabled={loading}
             className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors disabled:opacity-60"
           >
@@ -735,7 +853,14 @@ export default function PaymentStatementPage() {
                           {modeLabel(r.mode)}
                         </span>
                       </td>
-                      <td className={td}>{isOnlineMode(r.mode) ? r.transactionNumber : 'Cash'}</td>
+                      <td className={td}>
+                        {isOnlineMode(r.mode) ? (
+                          <span className="font-mono" title={r.cashfreeConfirmed ? 'Cashfree transaction (UTR)' : 'Entered by hand'}>
+                            {r.transactionNumber}
+                            {r.cashfreeConfirmed && <span className="ml-1.5 font-sans text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-1 py-0.5">CF</span>}
+                          </span>
+                        ) : 'Cash'}
+                      </td>
                       <td className={`${td} text-right font-semibold text-[#00843d]`}>{formatINR(r.amount)}</td>
                       <td className={td}>
                         {isCashView ? (
@@ -779,26 +904,33 @@ export default function PaymentStatementPage() {
                               : [...CASH_VERIFIERS]
                             ).map((n) => <option key={n} value={n}>{n}</option>)}
                           </select>
-                        ) : r.autoVerified ? (
-                          <span
-                            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border bg-white text-emerald-700 border-emerald-300"
-                            title="Payment received in Cashfree — verified automatically"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Auto · Cashfree
-                          </span>
                         ) : (
+                        // Online: auto-verified by Cashfree, and still toggleable by hand.
                         <button
                           type="button"
-                          onClick={() => savePaymentField(r.leadId, r.paymentIndex, r.verified ? { verified: false, verifiedBy: '' } : { verified: true })}
+                          onClick={() => savePaymentField(
+                            r.leadId, r.paymentIndex,
+                            r.verified ? { verified: false, verifiedBy: '' } : { verified: true, verifiedBy: myName },
+                          )}
                           className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                            r.verified
-                              ? 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
-                              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+                            r.autoVerified
+                              ? 'bg-white text-emerald-700 border-emerald-300 hover:bg-emerald-50'
+                              : r.verified
+                                ? 'bg-white text-orange-700 border-orange-300 hover:bg-orange-50'
+                                : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
                           }`}
-                          title="Click to toggle verification"
+                          title={
+                            r.autoVerified
+                              ? 'Payment received in Cashfree — verified automatically. Click to mark as not verified.'
+                              : r.verified
+                                ? `Verified by ${r.verifiedBy || 'hand'} — click to un-verify`
+                                : r.cashfreeConfirmed
+                                  ? 'Paid in Cashfree but marked not verified — click to verify'
+                                  : 'Click to verify'
+                          }
                         >
                           {r.verified ? <Check className="w-3.5 h-3.5" /> : <XIcon className="w-3.5 h-3.5" />}
-                          {r.verified ? 'Yes' : 'No'}
+                          {r.autoVerified ? 'Auto · Cashfree' : r.verified ? `Yes${r.verifiedBy ? ` · ${r.verifiedBy}` : ''}` : 'No'}
                         </button>
                         )}
                       </td>

@@ -29,6 +29,8 @@ interface PaymentDetail {
   modeOfPayment: string;
   payerName: string;
   transactionNumber?: string;
+  // Extras saved by the Payment Statement / Cashfree sync — kept as-is on re-save.
+  [extra: string]: any;
 }
 interface Lead {
   visitCount: number;
@@ -615,6 +617,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         const ownerPmts = lead.paymentDetails
           .filter(p => p.clientType === 'OWNER')
           .map(p => ({
+            ...p, // keep saved extras (onlineLinkId / cfPaymentId / verified / verifiedBy / collectorReceiver)
             paymentDate: p.paymentDate || '',
             paymentAmount: p.paymentAmount || '',
             modeOfPayment: p.modeOfPayment || '',
@@ -624,6 +627,7 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
         const tenantPmts = lead.paymentDetails
           .filter(p => p.clientType === 'TENANT')
           .map(p => ({
+            ...p, // keep saved extras (onlineLinkId / cfPaymentId / verified / verifiedBy / collectorReceiver)
             paymentDate: p.paymentDate || '',
             paymentAmount: p.paymentAmount || '',
             modeOfPayment: p.modeOfPayment || '',
