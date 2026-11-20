@@ -176,6 +176,12 @@ export async function POST(request: Request) {
     return NextResponse.json(serialize({ _id: result.insertedId, ...doc }), { status: 201 });
   } catch (e: any) {
     console.error('Cashfree create link error:', e?.message || e);
+    // Account-level block from Cashfree (activation / KYC pending) — not a CRM bug.
+    if (/transactions are not enabled/i.test(e?.message || '')) {
+      return NextResponse.json({
+        error: 'Cashfree account is not activated for live payments yet. Complete activation (KYC / bank / website approval) in the Cashfree dashboard, or contact Cashfree support.',
+      }, { status: 400 });
+    }
     return NextResponse.json({ error: e.message || 'Failed to create payment link' }, { status: e.status && e.status < 500 ? 400 : 502 });
   }
 }
