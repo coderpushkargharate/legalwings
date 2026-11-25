@@ -4,6 +4,7 @@ import { useApi } from '@/components/api-client';
 import { balanceDueOf, receivedOf } from '@/lib/payment-math';
 import LeadFileField from '@/components/lead-file-field';
 import OnlinePaymentPanel, { mergeOnlineLines } from '@/components/online-payment-panel';
+import { CASH_RECEIVERS } from '@/lib/cash-staff';
 import { FILE_SLOTS, slotHasFile, withoutLegacyBlobs } from '@/lib/lead-files';
 import { useAuth } from '@/components/auth-provider';
 import {
@@ -1087,6 +1088,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateOwnerPayment(i, 'payerName', e.target.value)} className={cls(ownerPaymentErrors[i]?.payerName)} /><Err e={ownerPaymentErrors[i]?.payerName} /></div>
                   <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateOwnerPayment(i, 'transactionNumber', e.target.value)} className={cls(ownerPaymentErrors[i]?.transactionNumber)} /><Err e={ownerPaymentErrors[i]?.transactionNumber} /></div>
+                  {/* Payment Received — who received the payment (same as the Add Lead form) */}
+                  <div className="md:col-start-5">
+                    <label className={labelClass}>Payment Received</label>
+                    <select value={p.collectorReceiver || ''} onChange={(e) => updateOwnerPayment(i, 'collectorReceiver', e.target.value)} className={inputClass}>
+                      <option value="">Select Name</option>
+                      {(p.collectorReceiver && !(CASH_RECEIVERS as readonly string[]).includes(p.collectorReceiver) ? [p.collectorReceiver, ...CASH_RECEIVERS] : [...CASH_RECEIVERS]).map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
                 </div>
               ))}
               <button type="button" onClick={addOwnerPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
@@ -1111,6 +1120,14 @@ const EditLeadModal: React.FC<EditLeadModalProps> = ({ isOpen, lead, onClose, on
                   </div>
                   <div><label className={labelClass}>Payer Name</label><input type="text" placeholder="Payer Name" value={p.payerName} onChange={(e) => updateTenantPayment(i, 'payerName', e.target.value)} className={cls(tenantPaymentErrors[i]?.payerName)} /><Err e={tenantPaymentErrors[i]?.payerName} /></div>
                   <div><label className={labelClass}>Transaction Number <span className="text-red-500">*</span></label><input type="text" placeholder="Transaction No." value={p.transactionNumber || ''} onChange={(e) => updateTenantPayment(i, 'transactionNumber', e.target.value)} className={cls(tenantPaymentErrors[i]?.transactionNumber)} /><Err e={tenantPaymentErrors[i]?.transactionNumber} /></div>
+                  {/* Payment Received — who received the payment (same as the Add Lead form) */}
+                  <div className="md:col-start-5">
+                    <label className={labelClass}>Payment Received</label>
+                    <select value={p.collectorReceiver || ''} onChange={(e) => updateTenantPayment(i, 'collectorReceiver', e.target.value)} className={inputClass}>
+                      <option value="">Select Name</option>
+                      {(p.collectorReceiver && !(CASH_RECEIVERS as readonly string[]).includes(p.collectorReceiver) ? [p.collectorReceiver, ...CASH_RECEIVERS] : [...CASH_RECEIVERS]).map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
                 </div>
               ))}
               <button type="button" onClick={addTenantPayment} className="flex items-center gap-1 text-sm text-[#00843d] hover:text-[#00622d] font-medium border border-dashed border-[#00843d] rounded-lg px-3 py-2 hover:bg-[#f0fdf4] transition-all">
